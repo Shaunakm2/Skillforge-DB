@@ -1,0 +1,31 @@
+# Used by `supabase start` (local / CI) and pushed to the hosted project with `supabase link` + `supabase config push`.
+# The [auth] values below are SECURITY SETTINGS: they apply to every way of signing in or changing a password, including
+# someone who calls the Auth API directly from the browser console (the Edge Functions alone cannot stop that).
+project_id = "skillforge"
+
+[auth]
+enable_signup = false                  # logins are created only by admins (admin-users function); nobody can sign themselves up
+jwt_expiry = 1800                      # access tokens live 30 minutes; deactivation/reset also revokes sessions at once (sf_revoke_sessions)
+enable_refresh_token_rotation = true
+minimum_password_length = 10           # same rule as the app: 10+ characters ...
+password_requirements = "lower_upper_letters_digits"   # ... with lower- and upper-case letters and a digit
+
+[auth.email]
+enable_signup = false
+
+# Optional (Supabase Pro): force sign-out after a fixed time or after inactivity.
+# [auth.sessions]
+# timebox = "24h"
+# inactivity_timeout = "8h"
+
+# The gateway verifies the caller's JWT; the functions then read the claims without calling /auth/v1/user.
+[functions.learning]
+verify_jwt = true
+
+[functions.admin-users]
+verify_jwt = true
+
+# v34: the SCORM content site calls this one with the signed launch token, not a Supabase login. The function checks the
+# token itself (signature, expiry, live launch session, active person) before it signs anything.
+[functions.content]
+verify_jwt = false
