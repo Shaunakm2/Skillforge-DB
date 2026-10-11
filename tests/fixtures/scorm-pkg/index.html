@@ -1,0 +1,21 @@
+<!doctype html><html><head><title>Test package</title></head><body><p id="s">loading</p>
+<script>
+/* A SCORM 1.2 package used by tests/e2e/scorm_isolation_e2e.py. It uses the standard API discovery and also
+   tries to read the hosting app's session: that must fail because it runs on another origin. */
+function findAPI(w) { for (var i = 0; w && i < 10; i++) { try { if (w.API) return w.API; } catch (e) {} if (w.parent === w) break; w = w.parent; } return null; }
+var API = findAPI(window), out = [];
+API.LMSInitialize('');
+out.push('resume=' + API.LMSGetValue('cmi.core.lesson_location') + '|' + API.LMSGetValue('cmi.suspend_data') + '|' + API.LMSGetValue('cmi.core.entry'));
+var leak = 'isolated';
+try { var t = window.parent.localStorage.length; leak = 'LEAK-localStorage'; } catch (e) {}
+try { var d = window.parent.document.cookie; leak = 'LEAK-document'; } catch (e) {}
+try { var x = window.top.Backend; if (x) leak = 'LEAK-window'; } catch (e) {}
+try { if (Object.keys(localStorage).some(function (k) { return /sb-|supabase/.test(k); })) leak = 'LEAK-own-storage'; } catch (e) {}
+API.LMSSetValue('cmi.comments', leak + ';' + out.join(';'));
+API.LMSSetValue('cmi.core.lesson_location', 'page 2');
+API.LMSSetValue('cmi.suspend_data', 'S2');
+API.LMSSetValue('cmi.core.score.raw', '90');
+API.LMSSetValue('cmi.core.lesson_status', 'completed');
+API.LMSCommit(''); API.LMSFinish('');
+document.getElementById('s').textContent = 'done ' + leak;
+</script></body></html>

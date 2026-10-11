@@ -1,0 +1,73 @@
+# Security
+
+## Reporting
+Report suspected vulnerabilities privately to the L&D platform owner; do not open a public issue.
+
+## Deployment dependencies (must hold in production)
+- `verify_jwt = true` for `learning` and `admin-users` (`supabase/config.toml`). Both functions decode the JWT without checking its signature (`claims()`); the gateway check is what makes that safe. Enforced by `tests/build-csp.test.mjs`.
+- The per-IP login throttle in `sf_login_lookup` relies on `CF-Connecting-IP` reaching PostgREST (`sf_client_ip()`, `001_skillforge.sql:427`). Without it, per-IP limits are off and per-person limits become global. `scripts/check-deploy.mjs` fails the deploy when the database sees no client IP.
+- `ORG_ID` must be set (no default).
+
+## Review history
+The full V36 security review follows, unchanged. Per-version security notes are in `CHANGELOG.md`.
+
+## Security review responses
+
+### Review 3 (v24 → v26)
+
+| # | Finding | Status | What changed | Evidence |
+|---|---|---|---|---|
+| H1 | Path traversal in the SCORM content site (`..%2F` reached `lms-files` with the service-role key) | **Fixed** | The Function reads the **raw request URL** (not `params`, whose decoding is platform-specific). It decodes each segment **once**, then refuses any segment that contains `/`, `\`, `%` or control characters, or that is `.` or `..`. It rebuilds the storage URL and refuses it unless the path still starts with `lms-scorm/<token prefix>/`. Launch files get the same check in `scormLaunch`. | `content-site.test.mjs`: 15 encodings (`..%2F`, `%2e%2e`, `%252e`, `%5C`, overlong UTF-8…) never reach storage; reproduced against v24 (it fetched `/storage/v1/object/lms-files/…`); `scorm_isolation_e2e.py` |
+| M1 | Login lockout abusable; `pg_sleep` holds connections; no cleanup; spoofable `X-Forwarded-For` | **Fixed** | Pauses per **ID + IP**, progressive from 30 s up to 15 min, cleared by a success. 30 failures on one ID from many IPs pause employee-ID sign-in for that ID only (email sign-in still works). 50 failures from one IP pause that IP. The IP comes only from `CF-Connecting-IP` (`sf_client_ip()`). No `pg_sleep`. Unknown IDs get a bcrypt check against a dummy hash (same time, same answer). Input lengths are capped. `sf_login_attempt_cleanup()` runs hourly through pg_cron, and also occasionally during sign-ins. | `test_rls.py`: 11 login checks (spoofed XFF ignored, other IP unaffected, progressive, reset on success, distributed, spraying, cleanup, no sleep) |
+| M2 | Any learner completes a SCORM step with one call; `app.js` accepts completion messages from anyone | **Fixed** | `completeStep` refuses SCORM steps. Completion goes only through `scormCommit`, which needs: the learner's **current launch session** (written at launch, server-only), a reported `completed`/`passed`, and the minimum time since the **first** launch on the server clock. Otherwise it returns `wait`, and the app retries. The offline-demo listener in `app.js` accepts messages only from this origin **and** the SCORM frame, and is off when connected. | `learning-core.test.js` (4 SCORM tests), `edge-functions.test.mjs`, `scorm_isolation_e2e.py` (not before the minimum time, recorded after it, no `completeStep`) |
+| M3 | `public/vendor/supabase.js` missing | **Needs one action from you** | This environment has no npm registry access, so the file still can't be produced here. `npm run vendor` now also writes `supabase.js.sha384`. CI has a separate `vendor` job that fails until both are committed and match. The build (`npm run build`) refuses to produce a deployable `dist/` without the file. | `ci.yml`, `scripts/build.mjs` |
+| M4 | Answer keys reach anyone with Gradebook (default Trainer) | **Fixed** | `qs` is readable only with `qbank` or `quizzes`. Each review row now carries `qText`, `points` and `guide`, so raters don't need the bank. Attempts by people who *can* read keys are stored with `keyAccess: true` and labelled "had answer-key access" in the assessment report. Multiple roles per login were not added, because every login can already take courses, and the leak came from Gradebook. | `test_rls.py`, `backend_e2e.py` (trainer: no `qs`, review shows question and 0–5 scale), `learning-core.test.js` |
+| M5 | `prefs`, `bookmarks`, `surveyResp` readable with reports/analytics/dashboard | **Fixed** | `prefs` and `surveyResp` are owner-only (admins excepted). `bookmarks` is owner-only, plus the `bookmarks` permission (the clear-bookmark tool). Survey results come from `sf_survey_summary()`: counts, averages and the 1–5 spread, with only a count when there are fewer than 3 responses. Trainers no longer read trainees' preferences. | `test_rls.py` (5 checks) |
+| M6 | SVG accepted by the UI hint but not by storage | **Fixed (SVG stays blocked)** | SVG can carry script. The hints and `accept` lists now say PNG, JPG, GIF or WebP. An SVG upload gets a clear message instead of "content does not match its type", and the bucket still refuses `image/svg+xml`. | `edge_smoke.mjs` (real Storage) |
+| L1 | Content tokens are 4-hour bearer links not tied to a user | **Fixed** | A token now names a launch session (`s`, `k`). The content site checks that session in the database: it must be the learner's current launch, for that package and person, not ended and not idle (30 min, renewed by a 10-minute heartbeat while the package is open). Relaunching, leaving the step or signing out revokes it. Pages are checked on every request; other files are cached up to 60 s per isolate. The hard cap is 8 h (`SCORM_MAX_HOURS`). | `content-site.test.mjs`, `scorm_isolation_e2e.py` (relaunch and leaving revoke the link) |
+| L2 | `test_rls.py` hardcoded `/opt/oai-pkgs/...`; `edge-functions.test.mjs` hardcoded the TypeScript path | **Fixed** | `test_rls.py` uses `PGURL`, else `pgserver` if installed, else exits with a clear message. TypeScript is a devDependency resolved normally. The e2e scripts fall back to Playwright's own Chromium. | `npm install && npm test` |
+| L3 | 334 KB template and ~60 unbundled scripts | **Scripts fixed; template unchanged** | `npm run build` joins the app scripts into one content-hashed file cached for a year, and Pages now serves `dist/`. The template stays inline: it is markup, gzips well, and is revalidated with an ETag, not re-downloaded. Splitting it would need an async template loader, for little gain. | all three e2e suites pass on `dist/` |
+| — | e2e, load test and real Deno runtime not run | **e2e and load: run. Deno: in CI** | Here: all browser suites on source **and** the bundled build, plus the load test. CI now starts the stack **with** the edge runtime, runs `deno check`, and runs `tests/stack/edge_smoke.mjs` (gateway JWT check, bcrypt lookup, SCORM rules, policies, SVG refusal). That job has **not** been run here (no Docker or Deno). | `ci.yml` |
+| — | `sf_batch_guard` failed when `request.jwt.claims` was an empty string | **Fixed** (found while testing) | `nullif(…, '')` before the jsonb cast. | `test_rls.py` |
+
+#### Remaining limits
+- **SCORM status still comes from the learner's browser.** Someone who scripts their own browser can call `scormCommit` with "completed" after launching and waiting out the minimum time. No browser-run SCORM can prevent this.
+- **`CF-Connecting-IP` must reach the database.** Check once with `select sf_client_ip()` (SETUP §1.7). If it is empty, the throttle falls back to per-ID only.
+- **Edge runtime and real Cloudflare not exercised here.** The `supabase-stack` CI job and a staging check of the content site (including how Cloudflare Pages passes `%2F`) are still to run. The Function no longer depends on `params`.
+- **A superseded or ended link can still load non-HTML files for up to 60 s** (per-isolate cache).
+
+### Review 2 (v23 → v24)
+
+| # | Finding | Status | What changed | Evidence |
+|---|---|---|---|---|
+| 1 | SCORM can steal sessions (same-origin `/content`, no sandbox) | **Fixed** | Packages are served by a **separate Pages project on its own origin** (`content-site/`) using short-lived HMAC launch tokens (4 h, one package). There is no session or cookie there. A bridge (`content-site/public/bridge.js`) provides the SCORM 1.2/2004 APIs in the package and sends changes with `postMessage` to `APP_ORIGIN` only. The app accepts messages only from the content origin **and** from the SCORM frame on screen. Frames are sandboxed (no top navigation). Content responses carry their own CSP (`frame-ancestors` = app), `nosniff` and `no-referrer`. The old `/content` Function and the `sf_token` cookie are removed. | `scorm_isolation_e2e.py` (two real origins): the package fails to read parent storage, document or window; forged messages and bad tokens refused. `content-site.test.mjs` |
+| 2 | `sf_directory()` and threads expose employee IDs | **Fixed** | Directory returns the record key (not the login ID), name, department, designation and manager. Threads store `authorKey`; access requests store `managerKey`. SECURITY-REVIEW #4 of v23 was wrong to say IDs weren't exposed. | `test_rls.py`; unit test: no employee IDs in threads; e2e: learner state has no other `empId` |
+| 3 | Employee-ID sign-in from the Edge Function (shared IP) | **Fixed** | `signInEmp` is removed. The browser calls `sf_login_lookup` (SQL), which checks the password with `crypt()`, throttles 5 failures per ID and 50 per IP per 15 min, slows failures, and returns the email only on success. The browser then signs in to Supabase Auth from its own IP. Both Edge Functions now read the caller from the gateway-verified JWT instead of calling `/auth/v1/user`, which is also IP-rate-limited. | `test_rls.py` login tests |
+| 4 | Custom role permissions are UI-only | **Fixed** | `sf_member.role_id` + the role's `perms` are enforced in RLS (`sf_ctx`) and in the `learning` function. A trainer role without Users/Reports reads only own and trainee rows, and no answer keys without Gradebook/Question bank. A Learner-based role with Gradebook can rate answers (`rescore` checks the permission, not the base type). Role assignments go through `admin-users` with `roleId`. | `test_rls.py` (custom "lite" trainer and "QA" roles); unit tests |
+| 5 | Trainers can self-grant scope | **Fixed** | Trigger `sf_batch_guard`: only admins create batches or change trainees or trainer; a trainer can never be a trainee in their own batch (for anyone). Scope comes from `sf_trainee`, maintained by trigger and never including oneself. The UI says the same. | `test_rls.py`; e2e (refused and reverted) |
+| 6 | SQL and `index.ts` never ran | **Mostly fixed** | The SQL now runs on **real PostgreSQL 16** in tests (59 checks, with a small shim for `auth`/`storage`). Both `index.ts` files are transpiled and executed in Node with a Deno shim and an in-memory client (6 tests). CI adds a `supabase start` job. | `tests/db`, `tests/edge-functions.test.mjs`, `.github/workflows/ci.yml` |
+| 7 | `vendor/supabase.js` missing | **Not fixed here** | This environment can't download npm packages, so the file is still not in the zip. Run `scripts/vendor-supabase.sh` once and commit it. CI fails until it's there, and the sign-in page shows a clear setup message instead of a dead app. | `ci.yml`, `auth.js` |
+| 8 | Whole repo deployed | **Fixed** | The app lives in `public/`, which is the Pages output directory. SQL, tests, docs and functions source are not served. | layout |
+| 9 | Backups unencrypted, GitHub artifacts | **Fixed** | Encrypted with `age` (the runner has only the public key) and uploaded to R2. No artifacts. Restore steps in `scripts/restore-backup.md`. | `backup.yml` |
+| 10 | Realtime fans out to every learner | **Fixed** | Only staff subscribe. Free plan: 200 concurrent connections, 100 messages/s. | `backend.js`; e2e |
+| 11 | Learners read draft courses | **Fixed** | Learners see Published courses only. | `test_rls.py` |
+| L | `must_change` only enforced in functions | **Fixed** | `sf_ctx()` / `sf_me()` return nothing for a must-change JWT, so PostgREST and Storage give no access. | `test_rls.py` |
+| L | CORS defaults to `*` | **Fixed** | `ALLOWED_ORIGIN` is required; requests from other origins get 403. | `edge-functions.test.mjs` |
+| L | `findUser` scans all users | **Fixed** | `sf_auth_user_id()` (service role only). | `edge-functions.test.mjs`, `test_rls.py` |
+| L | SCORM completion client-reported | **Unchanged (disclosed)** | Inherent to browser-run SCORM. | — |
+| L | Per-row policy cost | **Fixed and measured** | The caller's context is computed once per statement (`sf_ctx`, InitPlan, cached per transaction). Per-row checks are cached plpgsql expressions; trainer scope is an indexed table; the app pages by keyset instead of OFFSET. | `load_test.py` on PostgreSQL 16, 3,500 people / 20,772 rows: learner sign-in load 51 ms, trainer 137 ms, admin 453 ms, directory 42 ms, 400-row save 98 ms (before: learner 22 s) |
+
+#### Remaining limits
+- **Service-role key on the content site:** it sits in its server-side environment only, never reachable by package code. To narrow it further, copy packages to R2 and give the content site only an R2 bucket binding.
+- **Existing sessions keep working until their JWT expires** after a password reset or deactivation (default 1 h; shorten JWT expiry in Supabase). New sign-ins are blocked immediately.
+- **Untested against real infrastructure:** the Edge Functions haven't run on Supabase's Deno runtime and the gateway's JWT verification is assumed; the `supabase start` CI job is written but hasn't been run here. Load numbers are from a local PostgreSQL 16, not Supabase's Nano compute.
+- **One organisation per login:** with several organisations the app sends `x-sf-org`, and the others are not visible in that session.
+- **Not done:** bundling (~60 global scripts) and splitting the 334 KB template.
+
+### Review 1 (v22 → v23)
+See git history; all items carried forward. Item #4 of that response was corrected above (directory exposed employee IDs).
+
+### v34
+Fixes for the v33 review (weak passwords via the Auth API, the service-role key on the content site, the employee-ID lock-out,
+sessions surviving deactivation/reset, Content-Security-Policy, session storage) are listed, with where each lives and what was
+and was not verified, in `docs/archive/V34-CHANGES.md`. Deployment order: `SETUP-SUPABASE.md` › "v34 deployment".
