@@ -1207,7 +1207,6 @@
     <div>
       <h1 class="ui-28">{{ consoleTitle }}</h1>
     </div>
-    <button class="ui-82 hover-1" on-click="{{ backToLearning }}">← Back to my learning</button>
   </div>
   <div class="set-tabs" role="tablist"><sf-for list="{{ setTabs }}" as="t"><button class="set-tabbtn" role="tab" aria-selected="{{ t.on }}" on-click="{{ t.pick }}" style="background:{{ t.bg }};color:{{ t.fg }};border-color:{{ t.border }}">{{ t.label }}<span class="set-tabn" style="background:{{ t.nBg }}">{{ t.n }}</span></button></sf-for></div>
   <section class="set-sec">
@@ -2494,13 +2493,9 @@
 <div class="ui-98" data-screen-label="Reports">
   <h1 class="ui-43">Reports</h1>
   <div class="reports-1">What happened? Detailed, exportable records of learning activity.</div>
-  <div class="reports-2">
-    <sf-for list="{{ repTypes }}" as="t">
-      <button class="reports-3" on-click="{{ t.pick }}" style="background:{{ t.bg }};color:{{ t.fg }}">
-        <span class="reports-4" style="background:{{ t.dot }}"></span>
-        <span><span class="reports-5">{{ t.label }}</span><span class="reports-6" style="color:{{ t.sub }}">{{ t.short }}</span></span>
-      </button>
-    </sf-for>
+  <div class="rp-nav">
+    <div class="rp-groups" role="tablist" aria-label="Report groups"><sf-for list="{{ repGroupTabs }}" as="g"><button class="rp-g" role="tab" aria-selected="{{ g.on }}" on-click="{{ g.pick }}">{{ g.label }}<span class="rp-gn">{{ g.n }}</span></button></sf-for></div>
+    <div class="rp-pills"><sf-for list="{{ repPills }}" as="p"><button class="rp-p" aria-pressed="{{ p.on }}" title="{{ p.tip }}" on-click="{{ p.pick }}"><span class="rp-dot" style="background:{{ p.dot }}"></span>{{ p.label }}</button></sf-for></div>
   </div>
   <sf-if value="{{ repIsKp }}">
 <div class="ui-42 rep-kp" data-screen-label="Kirkpatrick analysis">

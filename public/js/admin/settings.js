@@ -67,7 +67,7 @@ SkillforgeApp.prototype.amSettings = function (c) {
     setAllTiles: SECTIONS.flatMap(x => x[3].filter(Boolean).map(t => ({ key: t[0], sec: x[1] }))),
     tiles,
     setSections, setCur: curSec,
-    setTabs: setSections.map(x => { const on = x.key === curKey; return { label: x.title, n: x.tiles.length, on, bg: on ? INK : W, fg: on ? '#F8FBFD' : INK, border: on ? INK : '#C9D7E2', nBg: on ? 'rgba(248,251,253,.18)' : '#EAF1F6', pick: () => this.setState({ setTab: x.key }) }; }),
+    setTabs: setSections.map(x => { const on = x.key === curKey; return { label: ({ users:'Users', content:'Content', delivery:'Delivery', comms:'Communication' })[x.key] || x.title, n: x.tiles.length, on, bg: on ? INK : W, fg: on ? '#F8FBFD' : INK, border: on ? INK : '#C9D7E2', nBg: on ? 'rgba(248,251,253,.18)' : '#EAF1F6', pick: () => this.setState({ setTab: x.key }) }; }),
     showAttn: isAdm,
     consoleTitle: isAdm ? 'Admin Console' : 'Settings',
     consoleSub: isAdm ? 'Everything you manage for Northwind, grouped by area.' : 'The Settings tools your role gives you.',

@@ -1,3 +1,4 @@
+const LEARNER_SCREENS = ['home', 'catalog', 'progress', 'calendar', 'discussions', 'docs', 'search'];
 /* Skillforge LMS — the app: initial state, navigation and the view-model pipeline.
  * renderVals() builds the shared context, then each feature module (js/learner, js/staff, js/admin)
  * adds the values its screens bind to. */
@@ -117,6 +118,8 @@ class SkillforgeApp extends Skillforge.Store {
   // v36: remember the top-level page a course was opened from, so the menu highlights Home / My learning / Catalog correctly.
   // The old Training feedback screen now lives in Reports (Kirkpatrick L1–L4 analysis).
   go(screen, extra) { if (screen === 'feedback') { screen = 'reports'; extra = { ...(extra || {}), repType:'kirkpatrick' }; }
+    // v41.6: the learner pages (top menu) always leave Settings, so "← Settings" and the dark gear no longer stay on Home.
+    if (LEARNER_SCREENS.includes(screen)) extra = { ...(extra || {}), adminView:false };
     clearInterval(this.timer); window.scrollTo(0, 0); const cur = this.state.screen, LEARN = ['item', 'course', 'lesson', 'quiz'];
     const navFrom = LEARN.includes(screen) ? (LEARN.includes(cur) ? this.state.navFrom : cur) : null;
     this.setState({ screen, navFrom, roleMenu:false, uMenu:null, playing:false, ...(['qbank', 'quizBuild'].includes(screen) ? {} : { qFromLcms:false }), ...(extra || {}) }); }

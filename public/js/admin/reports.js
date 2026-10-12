@@ -150,9 +150,17 @@ SkillforgeApp.prototype.amReports = function (c) {
   // Only the current page of rows is rendered; KPIs and the CSV use every row.
   const PG = acPage ? { rows: fRows, pager: acPage.pager } : Pager(this, s, 'rep-' + rt, fRows, 50), rowTotal = acPage ? acPage.total : fRows.length;
   const rep = { name:RD.name, desc:RD.desc, grid: visIdx.map(i => gridParts[i] || 'minmax(100px,1fr)').join(' '), cols: visIdx.map(i => RD.cols[i]), rows: PG.rows.map(cells => ({ cells: visIdx.map(i => cells[i]).filter(Boolean) })), rowCount: rowTotal, rowCountLabel: rowTotal.toLocaleString('en-US') + ' rows', kpis: kp.map(([l, v]) => ({ l, v })) };
+  // v41.6: 14 reports grouped into 4 tabs; only the current group's reports are shown, as compact pills.
+  const REP_GROUPS = [['Courses', ['completion', 'allcompletion', 'usercourses', 'progress', 'coursewise', 'compliance']], ['People', ['users', 'learning', 'login']],
+    ['Assessments', ['asmSheet', 'userAsm', 'quiz']], ['Feedback', ['kirkpatrick', 'kpfeedback']]];
+  const grpOf = k => (REP_GROUPS.find(g => g[1].includes(k)) || ['Other'])[0];
+  const repGroups = REP_GROUPS.concat([['Other', allowed.filter(k => !REP_GROUPS.some(g => g[1].includes(k)))]]).map(([g, ks]) => [g, ks.filter(k => allowed.includes(k))]).filter(g => g[1].length);
+  const curG = grpOf(rt);
+  const repGroupTabs = repGroups.map(([g, ks]) => ({ label: g, n: ks.length, on: g === curG, pick: () => this.setState({ repType: ks[0] }) }));
+  const repPills = (repGroups.find(g => g[0] === curG) || [null, []])[1].map(k => ({ label: RDEF[k].name, tip: RDEF[k].short, dot: RDEF[k].dot, on: k === rt, pick: () => this.setState({ repType:k }) }));
   const repTypes = allowed.map(k => { const on = k === rt; return { label:RDEF[k].name, short:RDEF[k].short, dot:RDEF[k].dot, bg: on ? INK : W, fg: on ? '#F8FBFD' : INK, sub: on ? '#C3D2DD' : '#526B7A', pick: () => this.setState({ repType:k }) }; });
   return {
-    repTypes, repIsKp: rt === 'kirkpatrick', repNotKp: rt !== 'kirkpatrick',
+    repTypes, repGroupTabs, repPills, repCurShort: (RDEF[rt] || {}).short || '', repIsKp: rt === 'kirkpatrick', repNotKp: rt !== 'kirkpatrick',
     rep, repPager: PG.pager,
     repColOpen: !!s.repColOpen, repColToggle: () => this.setState({ repColOpen: !s.repColOpen }),
     repColRows: visIdx.map((ci, i) => ({ l: RD.cols[ci], up: () => setVis(a => { if (i > 0) [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; }), down: () => setVis(a => { if (i < a.length - 1) [a[i + 1], a[i]] = [a[i], a[i + 1]]; return a; }), isFirst: i === 0, isLast: i === visIdx.length - 1,
