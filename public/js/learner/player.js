@@ -1,4 +1,6 @@
 /* Skillforge LMS — course overview, lesson player, step player and the assessment (quiz) player. */
+// v41.2: a fresh database has no quizzes yet; this placeholder keeps every screen (incl. sign-in) rendering.
+const NO_QUIZ = Object.freeze({ id: null, title: 'No quiz', ids: [], dynamic: false, drawCount: 0, pass: 0, attempts: '1' });
 SkillforgeApp.prototype.vmPlayer = function (c) {
   const { IK, course, firstOpenItem, icA, icIsItem, icSt, itemRows, markItem, myEnroll, role, s } = c;
   // curriculum
@@ -18,7 +20,7 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   const total = L.min * 60, mmss = x => Math.floor(x / 60) + ':' + String(Math.floor(x % 60)).padStart(2, '0');
   const lc = LESSON_COPY[L.title] || { body:'This ' + L.type.toLowerCase() + ' is part of “' + L.module + '”. Work through it at your own pace, then mark it complete to earn XP and unlock the next step.', points:['Connect the idea to a situation on your team this month.', 'Note one thing you will try before the next lesson.', 'Share a question in Discussions if anything is unclear.'] };
   // quiz — the attempt is drawn from the quiz attached to this course (js/assessment.js)
-  const crsQuiz = (() => { const ac = s.adminCourses.find(c => c.id === s.courseId); const cur = icIsItem && ac.items[s.itemIdx] && ac.items[s.itemIdx].kind === 'quiz' ? ac.items[s.itemIdx] : null; const it = cur || (ac && ac.items.find(x => x.kind === 'quiz')); return s.quizzes.find(z => z.id === (it ? it.quizId : 1)) || s.quizzes[0]; })();
+  const crsQuiz = (() => { const ac = s.adminCourses.find(c => c.id === s.courseId); const cur = icIsItem && ac && ac.items[s.itemIdx] && ac.items[s.itemIdx].kind === 'quiz' ? ac.items[s.itemIdx] : null; const it = cur || (ac && ac.items.find(x => x.kind === 'quiz')); return (s.quizzes || []).find(z => z.id === (it ? it.quizId : 1)) || (s.quizzes || [])[0] || NO_QUIZ; })();
   const me = role.name;
   const myAtt = Assessment.attemptsInfo(crsQuiz, (s.attemptsUsed[me] || {})[crsQuiz.id], (s.extraAttempts[me] || {})[crsQuiz.id]);
   const att = s.attempt, qN = att.length;
