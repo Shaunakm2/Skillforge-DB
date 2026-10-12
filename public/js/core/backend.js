@@ -563,7 +563,7 @@ const Backend = (() => {
   /* v36: the database audit trail for the Audit log screen (admins only: RLS sf_audit_admin), newest first, with the
      actor's app name from sf_member. */
   async function auditList(limit) {
-    const { data, error } = await sb.from('sf_audit').select('at,actor,op,coll,key,version').eq('org_id', org).order('at', { ascending:false }).limit(limit || 500);
+    const { data, error } = await sb.from('sf_audit').select('at,actor,op,coll,key,version,changes').eq('org_id', org).order('at', { ascending:false }).limit(limit || 500);
     if (error) throw error; const ids = [...new Set(data.map(d => d.actor).filter(Boolean))], names = {};
     if (ids.length) { const r = await sb.from('sf_member').select('user_id,app_name').eq('org_id', org).in('user_id', ids); if (!r.error) r.data.forEach(m => { names[m.user_id] = m.app_name; }); }
     return data.map(d => deproto({ ...d, who: names[d.actor] || (d.actor ? 'User ' + String(d.actor).slice(0, 8) : 'System') })); }

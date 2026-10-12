@@ -2672,18 +2672,27 @@
   <div class="ui-65">
     <div><h1 class="ui-66">Audit log</h1><div class="ui-29">{{ auditNote }}</div></div>
     <div class="ui-32">
-      <label class="audit-log-1"><input maxlength="80" class="audit-log-2" value="{{ auditQuery }}" on-input="{{ setAuditQuery }}" placeholder="Filter by person or action"></label>
-      <button class="audit-log-3" on-click="{{ exportAudit }}">Export</button>
+      <button class="audit-log-3" on-click="{{ exportAudit }}">Export CSV</button>
     </div>
   </div>
-  <div class="ui-70">
-    <sf-if value="{{ auditEmpty }}"><div class="ui-100">No audit entries match. Clear the filter to see everything.</div></sf-if>
+  <div class="al-bar">
+    <label class="al-search"><input maxlength="80" value="{{ auditQuery }}" on-input="{{ setAuditQuery }}" placeholder="Search: a name, a course, a document…" aria-label="Search the audit log"></label>
+    <sf-select class="al-sel" value="{{ auditWhenVal }}" on-change="{{ setAuditWhen }}" aria-label="Period"><sf-for list="{{ auditWhenOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
+    <sf-select class="al-sel" value="{{ auditAreaVal }}" on-change="{{ setAuditArea }}" aria-label="Area"><sf-for list="{{ auditAreaOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
+    <sf-select class="al-sel" value="{{ auditWhoVal }}" on-change="{{ setAuditWho }}" aria-label="Person"><sf-for list="{{ auditWhoOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
+    <span class="ui-6 al-count">{{ auditCountLine }}</span>
+  </div>
+  <div class="al-list">
+    <sf-if value="{{ auditEmpty }}"><div class="ui-100">Nothing matches. Try a longer period or clear the filters.</div></sf-if>
     <sf-for list="{{ auditRows }}" as="a">
-      <div class="audit-log-4">
-        <span class="audit-log-5">{{ a.at }}</span>
-        <span class="ui-38"><span class="ui-101" style="background:{{ a.av }}">{{ a.initials }}</span><span class="ui-40">{{ a.who }}</span></span>
-        <span class="ui-2">{{ a.action }}</span>
-        <span class="ui-78">{{ a.target }}</span>
+      <sf-if value="{{ a.dayHead }}"><div class="al-day">{{ a.dayHead }}</div></sf-if>
+      <div class="al-row">
+        <span class="al-time">{{ a.time }}</span>
+        <span class="al-av" style="background:{{ a.av }}">{{ a.initials }}</span>
+        <span class="al-main"><span class="al-line"><b>{{ a.who }}</b> <span class="al-text">{{ a.text }}</span><sf-if value="{{ a.autoTag }}"><span class="al-auto" title="Recorded automatically by the LMS">automatic</span></sf-if></span>
+          <sf-if value="{{ a.open }}"><ul class="al-det"><sf-for list="{{ a.detailList }}" as="d"><li>{{ d.x }}</li></sf-for></ul></sf-if></span>
+        <span class="al-area">{{ a.area }}</span>
+        <sf-if value="{{ a.hasDetails }}"><button class="al-more" on-click="{{ a.toggle }}" aria-expanded="{{ a.open }}">{{ a.chev }} Details</button></sf-if>
       </div>
     </sf-for>
   </div>
@@ -3779,6 +3788,7 @@
 <script src="js/admin/reports.js"></script>
 <script src="js/admin/users.js"></script>
 <script src="js/admin/user-import.js"></script>
+<script src="js/admin/audit.js"></script>
 <script src="js/admin/platform.js"></script>
 <script src="js/admin/roles.js"></script>
 <script src="js/admin/feedback.js"></script>

@@ -524,17 +524,15 @@ grant select, insert, update, delete on public.sf_doc to authenticated;
 grant select on public.sf_member to authenticated;
 
 -- ---------- timestamps + audit trail ----------
+-- v41.10: timestamps only. The audit row is written by sf_doc_audit (migration 002/003), AFTER the change is stored.
+-- (Before, running this file again after 002 brought back an audit insert here, so every change was logged twice.)
 create or replace function public.sf_touch() returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if tg_op = 'DELETE' then
-    insert into sf_audit(org_id, actor, op, coll, key, version) values (old.org_id, auth.uid(), 'delete', old.coll, old.key, old.version); return old;
-  end if;
-  new.updated_at := now(); new.updated_by := auth.uid();
-  insert into sf_audit(org_id, actor, op, coll, key, version) values (new.org_id, auth.uid(), lower(tg_op), new.coll, new.key, new.version);
-  return new;
+  if tg_op = 'DELETE' then return old; end if;
+  new.updated_at := now(); new.updated_by := auth.uid(); return new;
 end $$;
 drop trigger if exists sf_doc_touch on public.sf_doc;
-create trigger sf_doc_touch before insert or update or delete on public.sf_doc for each row execute function public.sf_touch();
+create trigger sf_doc_touch before insert or update on public.sf_doc for each row execute function public.sf_touch();
 
 -- ---------- live updates (subscribed only by staff in the app; RLS applies to every event) ----------
 do $$ begin

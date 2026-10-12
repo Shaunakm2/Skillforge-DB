@@ -6,9 +6,19 @@ SkillforgeApp.prototype.amPlatform = function (c) {
   // v36: audit log source. Connected: the database trail (read once per visit to the screen); offline: sample + this session.
   if (Backend.on && this._scrV === 'audit' && !s.auditDb && !s.auditBusy && !s.auditErr) Promise.resolve().then(() => { if (this.state.auditBusy) return; this.setState({ auditBusy:true });
     Backend.auditList(500).then(r => this.setState({ auditDb: r, auditBusy:false }), e => this.setState({ auditErr: (e && e.message) || 'unknown error', auditBusy:false })); });
-  const OPL = { insert:'Created', update:'Changed', delete:'Deleted' };
-  const auditSrc = Backend.on ? (s.auditDb || []).map(a => ({ at: Fmt.dt(a.at), who: a.who, action: (OPL[a.op] || a.op) + ' · ' + a.coll, target: a.key + (a.version ? ' (v' + a.version + ')' : '') })) : (s.audit || []);
-  const aq = (s.auditQuery || '').trim().toLowerCase(), auditOk = a => !aq || (a.who + ' ' + a.action + ' ' + a.target).toLowerCase().includes(aq);
+  // v41.10: plain-language audit log (js/admin/audit.js). Double rows from the old trigger are skipped here too.
+  const AF = s.auditF || { area:'All', who:'All', when:'7' }, setAF = patch => this.setState(st => ({ auditF: { ...(st.auditF || { area:'All', who:'All', when:'7' }), ...patch } }));
+  const auditAll = (() => { if (this._scrV !== 'audit') return [];
+    if (!Backend.on) return (s.audit || []).map(a => ({ t: '', at: a.at, who: a.who, auto: false, area: 'Other', text: a.action + (a.target ? ' · ' + a.target : ''), details: [], count: 1 }));
+    const raw = s.auditDb || [], twin = new Set(raw.filter(a => a.changes).map(a => a.coll + '|' + a.key + '|' + a.op + '|' + a.version));
+    const clean = raw.filter((a, i) => a.changes || !twin.has(a.coll + '|' + a.key + '|' + a.op + '|' + a.version)).filter((a, i, arr) => !a.changes ? arr.findIndex(b => !b.changes && b.coll === a.coll && b.key === a.key && b.op === a.op && b.version === a.version) === i : true);
+    const A = AuditText.make(s); return A.group(clean.map(A.one)).map(r => ({ ...r, at: Fmt.dt(r.t) })); })();
+  const cutoff = AF.when === 'All' ? '' : new Date(Date.now() - (+AF.when) * 864e5).toISOString();
+  const aq = (s.auditQuery || '').trim().toLowerCase();
+  const auditOk = a => (AF.area === 'All' || a.area === AF.area) && (AF.who === 'All' || a.who === AF.who) && (!cutoff || !a.t || a.t >= cutoff)
+    && (!aq || (a.who + ' ' + a.text + ' ' + a.area + ' ' + (a.details || []).join(' ')).toLowerCase().includes(aq));
+  const auditSrc = auditAll, dayOf = t => { if (!t) return ''; const d = new Date(t), k = d.toDateString(), now = new Date();
+    return k === now.toDateString() ? 'Today' : k === new Date(now - 864e5).toDateString() ? 'Yesterday' : Fmt.medium(t.slice(0, 10)); };
   return {
     autoRows: s.autos.map(a => ({ ...a, ...tg(a.on, () => this.setState(st => ({ autos: st.autos.map(x => x.id === a.id ? { ...x, on: !x.on } : x) }))) })),
     integRows: s.integ.map((x, i) => { const c = VIVIDS[i % 7]; return { ...x, initials: x.name.slice(0, 2).toUpperCase(), color:c, colorFg:VIVID_FG[c], status: x.on ? 'Connected' : 'Not connected', stBg: x.on ? '#DCFCE7' : '#EAF1F6', stFg: x.on ? '#166534' : '#526B7A', btnLabel: x.on ? 'Disconnect' : 'Connect', btnBg: x.on ? W : INK, btnFg: x.on ? INK : '#F8FBFD', toggle: () => { this.setState(st => ({ integ: st.integ.map(y => y.id === x.id ? { ...y, on: !y.on } : y) })); this.toastMsg(x.name + (x.on ? ' disconnected' : ' connected')); } }; }),
@@ -16,11 +26,20 @@ SkillforgeApp.prototype.amPlatform = function (c) {
     setAuditQuery: e => this.setState({ auditQuery: e.target.value }),
     // v36: Export writes the rows on screen to a CSV (it only showed a message). Connected: rows come from the database log.
     exportAudit: () => { const rows = auditSrc.filter(auditOk); if (!rows.length) return this.toastMsg('Nothing to export: no audit rows match the filter.');
-      csvDownload('audit-log-' + TODAY_KEY + '.csv', [['When', 'Who', 'Action', 'Target']].concat(rows.map(a => [a.at, a.who, a.action, a.target]))); this.toastMsg(rows.length.toLocaleString('en-US') + ' audit rows exported'); },
-    auditNote: Backend.on ? (s.auditDb ? 'From the database audit trail: every saved change, newest first (latest ' + auditSrc.length.toLocaleString('en-US') + ').' : s.auditErr ? 'The database audit trail could not be read: ' + s.auditErr : 'Loading the database audit trail…')
+      csvDownload('audit-log-' + TODAY_KEY + '.csv', [['Date and time', 'Who', 'Area', 'What happened', 'Details', 'Recorded by', 'Record (technical)']].concat(rows.map(a => [a.t ? a.t.replace('T', ' ').slice(0, 19) : a.at, a.who, a.area, a.text, (a.details || []).join('; '), a.auto ? 'System (automatic)' : 'Person', a.coll ? a.coll + ' / ' + a.key + (a.version ? ' / v' + a.version : '') + (a.count > 1 ? ' (+' + (a.count - 1) + ' more)' : '') : ''])));
+      this.toastMsg(rows.length.toLocaleString('en-US') + ' audit rows exported'); },
+    auditAreaOpts: ['All'].concat(AuditText.AREAS.filter(x => auditSrc.some(a => a.area === x))).map(v => ({ v, l: v === 'All' ? 'All areas' : v })), auditAreaVal: AF.area, setAuditArea: e => setAF({ area: e.target.value }),
+    auditWhoOpts: ['All'].concat([...new Set(auditSrc.map(a => a.who))].sort()).map(v => ({ v, l: v === 'All' ? 'Everyone' : v })), auditWhoVal: AF.who, setAuditWho: e => setAF({ who: e.target.value }),
+    auditWhenOpts: [['1', 'Last 24 hours'], ['7', 'Last 7 days'], ['30', 'Last 30 days'], ['All', 'All time']].map(([v, l]) => ({ v, l })), auditWhenVal: AF.when, setAuditWhen: e => setAF({ when: e.target.value }),
+    auditCountLine: (n => n.toLocaleString('en-US') + (n === 1 ? ' entry' : ' entries'))(auditSrc.filter(auditOk).length),
+    auditNote: Backend.on ? (s.auditDb ? 'Who did what, and when. Newest first. Select an entry to see the details.' : s.auditErr ? 'The database audit trail could not be read: ' + s.auditErr : 'Loading the database audit trail…')
       : 'Demo: sample history plus the actions taken in this session. Connected, this screen reads the database audit trail.',
     auditEmpty: !auditSrc.filter(auditOk).length,
-    auditRows: auditSrc.filter(auditOk).slice(0, 500).map((a, i) => ({ ...a, initials: ini(a.who), av: AV[i % 5] })),
+    auditRows: (rows => rows.map((a, i) => { const d = dayOf(a.t), k = 'a' + i, open = !!(s.auditOpen || {})[k] || false;
+      return { ...a, initials: a.who === 'System' ? '⚙' : ini(a.who), av: a.who === 'System' ? '#7A8FA0' : ['#0066A1', '#08875A', '#16324F', '#8C5A9E', '#B45309'][[...a.who].reduce((h, ch) => h + ch.charCodeAt(0), 0) % 5],
+        time: a.t ? new Date(a.t).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : a.at, dayHead: d && (i === 0 || dayOf(rows[i - 1].t) !== d) ? d : '',
+        hasDetails: (a.details || []).length > 0, detailList: (a.details || []).map(x => ({ x })), open, autoTag: a.auto && a.who !== 'System',
+        toggle: () => this.setState(st => ({ auditOpen: { ...(st.auditOpen || {}), [k]: !open } })), chev: open ? '▾' : '▸' }; }))(auditSrc.filter(auditOk).slice(0, 500)),
     permRoles: ['Learner', 'Trainer', 'Admin'],
     permRows: s.perms.map(([label, vals]) => ({ label, cells: vals.map(v => ({ on: !!v, bg: v ? '#22C55E' : W, border: v ? '#22C55E' : '#BFCFDB', op: 1, toggle: () => {} })) })),
     brandName: s.brandName,

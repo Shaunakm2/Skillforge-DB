@@ -2203,3 +2203,23 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
 .lm-ct{display:flex;flex-direction:column;gap:2px}.lm-cn{font-weight:800;font-size:15px}
 .lm-type{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F4F8FC;border-radius:12px}
 .lm-change{margin-left:auto;border:0;background:none;color:#0066A1;font:inherit;font-weight:700;cursor:pointer;text-decoration:underline}
+
+/* ---------- v41.10: audit log in plain language ---------- */
+.al-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}
+.al-search{flex:1 1 280px;max-width:420px}.al-search input{width:100%;height:42px;box-sizing:border-box;border:1px solid #C9D7E2;border-radius:12px;padding:0 14px;font:inherit;color:#16324F;background:#FFFFFF}
+.al-sel{height:42px;border:1px solid #C9D7E2;border-radius:12px;padding:0 12px;font:inherit;font-weight:600;color:#16324F;background:#FFFFFF}
+.al-count{margin-left:auto}
+.al-list{background:#FFFFFF;border:1px solid #D7E3EC;border-radius:18px;overflow:hidden}
+.al-day{padding:10px 18px;background:#F4F8FC;border-bottom:1px solid #D7E3EC;font-weight:800;font-size:13px;color:#526B7A;text-transform:uppercase;letter-spacing:.04em}
+.al-row{display:grid;grid-template-columns:78px 34px minmax(0,1fr) auto auto;gap:12px;align-items:start;padding:12px 18px;border-bottom:1px solid #EEF2F5}
+.al-row:last-child{border-bottom:0}
+.al-time{color:#526B7A;font-size:13.5px;padding-top:7px;white-space:nowrap}
+.al-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#FFFFFF;font-weight:800;font-size:12.5px}
+.al-main{display:flex;flex-direction:column;gap:6px;padding-top:6px;min-width:0}
+.al-line{color:#16324F;line-height:1.45}.al-text{color:#334E68}
+.al-auto{margin-left:8px;font-size:11.5px;font-weight:700;color:#526B7A;background:#EAF1F6;border-radius:999px;padding:1px 8px;vertical-align:1px}
+.al-det{margin:0;padding:8px 12px 8px 26px;background:#F4F8FC;border-radius:10px;color:#334E68;font-size:13.5px;line-height:1.55}
+.al-area{font-size:12px;font-weight:700;color:#0066A1;background:#EAF3FA;border-radius:999px;padding:3px 10px;margin-top:6px;white-space:nowrap}
+.al-more{border:0;background:none;color:#0066A1;font:inherit;font-weight:700;font-size:13.5px;cursor:pointer;padding:6px 0;white-space:nowrap}
+.al-more:focus-visible,.al-sel:focus-visible,.al-search input:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
+@media(max-width:760px){.al-row{grid-template-columns:34px minmax(0,1fr)}.al-time{grid-column:2;order:3;padding:0}.al-area,.al-more{grid-column:2}.al-count{margin-left:0}}
