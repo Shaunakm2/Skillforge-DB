@@ -58,6 +58,8 @@ SkillforgeApp.prototype.amSettings = function (c) {
       ['Migrate to or from Skillforge', 'Upload completions from another LMS, or download everything to move out.', (s.extHistory.length) + ' imported records', 'migrate', '#B45309', W, I.move]]],
   ].map(([k, t, d, list]) => [k, t, d, k === 'masters' && !perms.has('masters') ? [] : list.filter(x => can(x[3]))]);
   const mkTile = ([title, desc, stat, id, bg, fg, icon, extra]) => { const light = fg !== INK; return { title, desc, stat, bg, fg, icon, blob: light ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.35)', iconBg: light ? '#FFFFFF' : INK, iconFg: bg === '#16324F' ? INK : bg, chipBg: light ? 'rgba(255,255,255,.2)' : 'rgba(22,50,79,.12)', iconBgSafe: '#FFFFFF', go: () => this.go(id, { adminView:true, ...(extra || {}) }) }; };
+  // v41.12: which Settings tab each page belongs to, so the gear returns to the right tab (e.g. Integrations -> Platform)
+  this._secOf = {}; SECTIONS.forEach(([k, , , list]) => list.forEach(x => { if (x && x[3]) this._secOf[x[3]] = k; }));
   const setSections = SECTIONS.map(([key, title, desc, list]) => ({ key, title, desc, tiles: Tiles.apply(s, 'settings', list.filter(Boolean), x => x[0], (x, l) => [l].concat(x.slice(1))).map(mkTile) })).filter(x => x.tiles.length).map(x => ({ ...x, count: x.tiles.length + (x.tiles.length === 1 ? ' module' : ' modules') }));
   const tiles = setSections.flatMap(x => x.tiles);
   // Section tabs: one section open at a time.

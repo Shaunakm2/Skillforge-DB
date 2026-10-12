@@ -67,7 +67,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
   const meUser = s.users.find(u => u.name === role.name) || {};
   const acctMenu = { me: { name: role.name, initials: ini(role.name), type: role.label, email: meUser.email || '', sub: (meUser.designation || role.label) + (meUser.empId ? ' · ' + meUser.empId : '') },
     goAccount: () => this.go('account', { acctTab:'profile', adminView:false, acctDraft:null }), goPrefs: () => this.go('account', { acctTab:'prefs', adminView:false, acctDraft:null }), goSecurity: () => this.go('account', { acctTab:'security', adminView:false, acctDraft:null }),
-    goHelp: () => this.go('account', { acctTab:'help', adminView:false, acctDraft:null }), menuSettings: (this._perms || new Set()).size > 0, goSettingsMenu: () => this.go('admin', { adminView:true, setTab:null }) };
+    goHelp: () => this.go('account', { acctTab:'help', adminView:false, acctDraft:null }), menuSettings: (this._perms || new Set()).size > 0, goSettingsMenu: () => this.go('admin', { adminView:true, setTab: s.setTab || null }) };
   return {
     authed: s.authed,
     notAuthed: !s.authed && !s.booting, booting: !!s.booting && !s.authed,

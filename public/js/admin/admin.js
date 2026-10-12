@@ -1,3 +1,4 @@
+const SUB_OF = { quizBuild:'quizzes', batch:'batches', courseForm:'courseAdmin', feedback:'reports' };
 /* Skillforge LMS — Settings (admin and trainer) view-model. Runs the admin feature modules in order;
  * each adds its values and shares what later modules need through c. */
 const ADMIN_SCREENS = {
@@ -23,8 +24,10 @@ SkillforgeApp.prototype.adminVals = function (s, all) {
     canAdmin,
     firstName: ((s.users.find(u => u.name === role.name) || {}).preferred || '').trim() || role.name.split(' ')[0],
     consoleLabel: isAdm ? 'ADMIN CONSOLE' : 'SETTINGS',
-    toggleAdmin: () => s.adminView ? this.go('home', { adminView:false }) : this.go('admin', { adminView:true, setTab:null }),
-    gearTitle: s.adminView ? 'Back to my learning' : 'Admin settings',
+    // v41.12: the gear always opens Settings (it used to go Home when you were already inside Settings).
+    // From a Settings page it returns to the tab that page is on; Home is in the top menu.
+    toggleAdmin: () => this.go('admin', { adminView:true, setTab: s.screen === 'admin' ? s.setTab : (SUB_OF[s.screen] && (this._secOf || {})[SUB_OF[s.screen]]) || (this._secOf || {})[s.screen] || s.setTab || null }),
+    gearTitle: 'Settings',
     gearBg: s.adminView ? INK : W,
     gearFg: s.adminView ? '#F8FBFD' : INK,
     gearBorder: s.adminView ? INK : '#D7E3EC',
