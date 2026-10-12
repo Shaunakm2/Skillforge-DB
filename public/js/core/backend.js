@@ -146,6 +146,8 @@ const Backend = (() => {
     st.users = (by.users || []).map(r => r.data);
     const s = { ...baseState, users: st.users };
     SF_LIST.forEach(c => { if (c !== 'users') st[c] = (by[c] || []).map(r => listFromDb(s, c, r.data)); });
+    // v41.4: the three built-in roles (Learner, Trainer, Admin) always exist, even before any role has been saved to a new database.
+    { const have = new Set((st.roles || []).map(r => r.id)); st.roles = ROLES0.filter(r => r.builtin && !have.has(r.id)).concat(st.roles || []); }
     SF_PERSON.forEach(c => { st[c] = Object.fromEntries((by[c] || []).map(r => [nameOf(s, r.key), r.data])); });
     st.assignedOn = {}; (by.assignedOn || []).forEach(r => { const n = nameOf(s, r.key); for (const cid in r.data) st.assignedOn[n + '|' + cid] = r.data[cid]; });
     st.fbLog = Object.fromEntries((by.fbLog || []).map(r => [fbKeyFromDb(s, r.key), r.data]));

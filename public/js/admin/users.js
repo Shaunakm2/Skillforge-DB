@@ -86,7 +86,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
     setUdEmail: setUd('email'),
     setUdDept: setUd('dept'),
     setUdManager: setUd('manager'),
-    udRoleOpts: s.roles.map(r => ({ v: r.id, l: r.name + ' · ' + r.base })), setUdRole: e => { const r = s.roles.find(x => x.id === e.target.value); this.setState(st => ({ ud: { ...(st.ud || ud), roleId: r.id, role: r.base } })); },
+    udRoleOpts: ((s.roles || []).length ? s.roles : ROLES0.filter(r => r.builtin)).map(r => ({ v: r.id, l: r.name + ' · ' + r.base })), setUdRole: e => { const r = (s.roles || []).concat(ROLES0).find(x => x.id === e.target.value); this.setState(st => ({ ud: { ...(st.ud || ud), roleId: r.id, role: r.base } })); },
     udRoleHint: ((s.roles.find(r => r.id === ud.roleId) || {}).desc || ''),
     udTitle: ud.id ? 'Edit account' : 'Create account',
     udBtn: ud.id ? 'Save changes' : 'Create account',   // v36: no invite e-mail is sent
