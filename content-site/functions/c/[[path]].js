@@ -56,6 +56,14 @@ export function safeSegments(rawPath) {
   }
   return out;
 }
+/* v41.16: undo Cloudflare Pages pretty-URL rewriting. Exported for tests. */
+export function prettyRaw(raw) { raw = String(raw || ''); return raw.endsWith('/') ? raw + 'index.html' : raw; }
+export function fixPretty(parts) {
+  if (!parts || parts.length < 2) return parts;
+  const last = parts[parts.length - 1];
+  if (!last.includes('.')) parts[parts.length - 1] = last + '.html';
+  return parts;
+}
 /* The signed URL the function returned must name exactly this package folder + file (decoded), on /object/sign/<bucket>/.
  * Its host is replaced by this site's own SUPABASE_URL, so a wrong or hostile answer can never send us elsewhere. */
 export function signedTarget(answer, base, prefix, segs, bucket = 'lms-scorm') {
@@ -78,7 +86,9 @@ export async function onRequest({ request, env }) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return deny(405, 'Method not allowed');
   const path = new URL(request.url).pathname;
   if (!path.startsWith('/c/')) return deny(404, 'Not found (C1: not a content address)');
-  const parts = safeSegments(path.slice(3));
+  // v41.16: Cloudflare Pages "pretty URLs" turn /c/<token>/index.html into /c/<token>/ and /c/<token>/story.html into
+  // /c/<token>/story before this function runs. Put the page name back: empty last part -> index.html, no extension -> .html
+  const parts = fixPretty(safeSegments(prettyRaw(path.slice(3))));
   if (!parts || parts.length < 2) return deny(404, 'Not found (C2: the address is incomplete)');
   const token = parts[0], file = parts.slice(1), prefix = peekPrefix(token);
   if (!prefix || !env.SUPABASE_URL) return deny(403, 'This link has expired. Open the course again in Skillforge.');
