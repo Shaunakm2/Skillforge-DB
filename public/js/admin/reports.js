@@ -163,7 +163,7 @@ SkillforgeApp.prototype.amReports = function (c) {
     repEmpty: rep.rowCount === 0,
     repRangeOpts: segs(s.repRange, ['7d', '30d', '90d'], v => this.setState({ repRange:v }), v => ({ '7d':'7 days', '30d':'30 days', '90d':'90 days' })[v]),
     repDept: s.repDept,
-    repDeptOptions: [{ v:'All', l:'All departments' }].concat(DEPTS.map(x => ({ v:x, l:x }))),
+    repDeptOptions: [{ v:'All', l:'All departments' }].concat(deptList(s).map(x => ({ v:x, l:x }))),
     setRepDept: e => this.setState({ repDept: e.target.value }),
     // CSV: the all-course completion report is module level; the others export the rows on screen.
     repIsUsers: rt === 'users', repIsAsm: rt === 'asmSheet' || rt === 'userAsm', repIsSheet: rt === 'asmSheet', repIsUserAsm: rt === 'userAsm', repGeneric: !['users', 'asmSheet', 'userAsm'].includes(rt),

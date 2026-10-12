@@ -7,18 +7,18 @@
  *   Badges       What learners can earn: icon, name, colour, rule (metric + threshold), on/off.
  *   Training types and trainee statuses live in Batch management; the tabs here link to them.
  */
-const MASTER_USE = { segments:['batches', 'segment'], traineeTypes:['batches', 'traineeType'], trainingNames:['batches', 'trainingName'], divisions:['users', 'division'], subDivisions:['users', 'subDivision'],
+const MASTER_USE = { segments:['batches', 'segment'], traineeTypes:['batches', 'traineeType'], trainingNames:['batches', 'trainingName'], departments:['users', 'dept'], divisions:['users', 'division'], subDivisions:['users', 'subDivision'],
   divisionHeads:['users', 'divisionHead'], locations:['users', 'site'], brands:['users', 'brand'], workModes:['users', 'wfo'], education:['users', 'education'] };
 SkillforgeApp.prototype.amMasters = function (c) {
   const { s, role, INK, W } = c;
   if (this._scrV !== 'masters') return { isMasters:false };
-  const tab = s.mdTab || 'lists', key = s.mdList || 'trainingNames', M = s.masters, list = M[key] || [];
+  const tab = s.mdTab || 'lists', key = s.mdList || 'trainingNames', M = s.masters, list = M[key] || MASTERS0[key] || [];
   const def = MASTER_DEFS.find(d => d[0] === key);
   const use = MASTER_USE[key], usage = new Map();
   if (use) (use[0] === 'users' ? s.users : s.batches).forEach(r => { const v = r[use[1]]; if (v) usage.set(v, (usage.get(v) || 0) + 1); });
   if (key === 'attritionReasons' || key === 'attritionCats' || key === 'attritionResp') { const f = key === 'attritionReasons' ? 'reason' : key === 'attritionCats' ? 'attType' : 'resp';
     s.batches.forEach(b => Object.values(b.st || {}).forEach(l => l.forEach(e => { if (e[f]) usage.set(e[f], (usage.get(e[f]) || 0) + 1); }))); }
-  const setList = (fn, msg) => { this.setState(st => ({ masters: { ...st.masters, [key]: fn(st.masters[key].slice()) } })); if (msg) this.toastMsg(msg); };
+  const setList = (fn, msg) => { this.setState(st => ({ masters: { ...st.masters, [key]: fn((st.masters[key] || MASTERS0[key] || []).slice()) } })); if (msg) this.toastMsg(msg); };
   const valid = (v, except) => { v = (v || '').trim().replace(/\s+/g, ' ');
     if (!v) return [null, 'Type a value']; if (v.length > 60) return [null, 'Keep it under 60 characters']; if (/[<>]/.test(v)) return [null, '< and > aren’t allowed'];
     if (list.some(x => x.toLowerCase() === v.toLowerCase() && x !== except)) return [null, '“' + v + '” is already in the list']; return [v, '']; };
@@ -27,13 +27,13 @@ SkillforgeApp.prototype.amMasters = function (c) {
     return { batches: s.batches.map(b => b[use[1]] === from ? { ...b, [use[1]]: to } : b) }; };
   const q = (s.mdQ || '').trim().toLowerCase(), E = s.mdEdit || {};
   const listVals = {
-    mdLists: MASTER_DEFS.map(([k, l]) => ({ k, l, n: (M[k] || []).length, on: k === key, bg: k === key ? '#EDF5FA' : W, bd: k === key ? '#0066A1' : 'transparent', pick: () => this.setState({ mdList: k, mdQ:'', mdEdit:null, mdNew:'' }) })),
+    mdLists: MASTER_DEFS.map(([k, l]) => ({ k, l, n: (M[k] || MASTERS0[k] || []).length, on: k === key, bg: k === key ? '#EDF5FA' : W, bd: k === key ? '#0066A1' : 'transparent', pick: () => this.setState({ mdList: k, mdQ:'', mdEdit:null, mdNew:'' }) })),
     mdDef: { label: def[1], usedBy: def[2], desc: def[3] }, mdQ: s.mdQ || '', setMdQ: e => this.setState({ mdQ: e.target.value }),
     mdItems: list.map((v, i) => ({ v, i, n: usage.get(v) || 0, used: (usage.get(v) || 0) > 0, usedLabel: usage.get(v) ? (usage.get(v)).toLocaleString('en-US') + ' in use' : 'Not used',
       editing: E.i === i, notEditing: E.i !== i, draft: E.i === i ? E.v : v,
       edit: () => this.setState({ mdEdit: { i, v } }), setDraft: e => this.setState({ mdEdit: { i, v: e.target.value } }), cancel: () => this.setState({ mdEdit:null }),
       save: () => { const [nv, err] = valid(E.v, v); if (err) return this.toastMsg(err); if (nv === v) return this.setState({ mdEdit:null });
-        this.setState(st => ({ masters: { ...st.masters, [key]: st.masters[key].map(x => x === v ? nv : x) }, mdEdit:null, ...renameEverywhere(v, nv) }));
+        this.setState(st => ({ masters: { ...st.masters, [key]: (st.masters[key] || MASTERS0[key] || []).map(x => x === v ? nv : x) }, mdEdit:null, ...renameEverywhere(v, nv) }));
         this.toastMsg('Renamed to “' + nv + '”' + (usage.get(v) ? ' · ' + usage.get(v) + ' records updated' : '')); },
       up: () => setList(l => { if (i > 0) [l[i - 1], l[i]] = [l[i], l[i - 1]]; return l; }), isFirst: i === 0,
       del: () => { if (usage.get(v)) return this.toastMsg('“' + v + '” is used by ' + usage.get(v) + ' records. Rename it instead, or change those records first.'); setList(l => l.filter(x => x !== v), '“' + v + '” removed'); } }))

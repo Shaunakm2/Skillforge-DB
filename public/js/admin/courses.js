@@ -153,7 +153,7 @@ SkillforgeApp.prototype.amCourses = function (c) {
     setCQuizPick: e => this.setState({ cQuizPick: Number(e.target.value) }),
     featRows: FEAT.map(([k, label, desc]) => ({ label, desc, ...tg(cd.features[k], () => setCd({ features: { ...cd.features, [k]: !cd.features[k] } })) })),
     courseRepRows: COURSE_REPS.map(([k, label]) => ({ label, ...tg(cd.reports[k], () => setCd({ reports: { ...cd.reports, [k]: !cd.reports[k] } })) })),
-    deptChips: DEPTS.map(dp => { const on = !!cd.depts[dp]; return { label:dp, bg: on ? '#CCFBF1' : W, border: on ? '#08AE6E' : '#C9D7E2', pick: () => setCd({ depts: { ...cd.depts, [dp]: !on } }) }; }),
+    deptChips: deptList(s).map(dp => { const on = !!cd.depts[dp]; return { label:dp, bg: on ? '#CCFBF1' : W, border: on ? '#08AE6E' : '#C9D7E2', pick: () => setCd({ depts: { ...cd.depts, [dp]: !on } }) }; }),
     enrollOpts: segs(cd.enroll, ['Manual', 'Role-based', 'On hire'], v => setCd({ enroll:v })),
     enrollHint: { 'Manual':'You assign people or departments.', 'Role-based':'Everyone in the selected departments, including future joiners.', 'On hire':'New accounts are enrolled on their start date.' }[cd.enroll],
     recertOpts: segs(cd.recert, ['Never', '12 months', '24 months'], v => setCd({ recert:v })),

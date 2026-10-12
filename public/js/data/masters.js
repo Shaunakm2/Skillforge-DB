@@ -6,6 +6,7 @@ const MASTER_DEFS = [
   ['segments', 'Training segment', 'Batches · MIS “Training Segment”', 'Broad family a training belongs to.'],
   ['traineeTypes', 'Type of trainee', 'Batches · MIS “Type of Trainee”', 'New hire or existing employee.'],
   ['trainingNames', 'Training name', 'Batches · MIS “Training Name”', 'The programme a batch runs.'],
+  ['departments', 'Department', 'Users, course audiences, reports', 'Team the person belongs to. Shown in Create account.'],
   ['divisions', 'Division', 'Users · MIS “Division”', 'Top-level business division.'],
   ['subDivisions', 'Sub division', 'Users · MIS “Sub Divison”', 'Team or account group inside a division.'],
   ['divisionHeads', 'Division head', 'Users · MIS “Division Head”', 'Head for each division.'],
@@ -20,6 +21,7 @@ const MASTER_DEFS = [
 const MASTERS0 = {
   segments: ['Functional Training', 'Communication Training', 'Leadership Training', 'Soft Skills Training', 'Core Elements', 'Essential Training', 'Special Request Training'],
   traineeTypes: ['New Hire', 'Existing'],
+  departments: ['Customer Success', 'Sales', 'Engineering', 'Operations', 'Marketing', 'Finance', 'Learning & Development', 'IT'],
   // Sample values only (fictional Northwind data). Replace with your own lists in Settings › Master data.
   trainingNames: ['New Hire Induction', 'Customer Support Basics', 'Customer Support Advanced', 'Customer Support – Fast track', 'Inside Sales Programme', 'Field Sales Programme',
     'Finance Services Programme', 'Payables Process Training', 'Service Desk Programme', 'Process Refresher', 'Product Knowledge Update', 'Compliance Essentials', 'Data Privacy Essentials',
@@ -52,3 +54,6 @@ const BADGES0 = [
   { id:'bd7', glyph:'5', name:'High five', desc:'Complete 5 courses', metric:'courses', n:5, color:'#CA8A04', on:true },
   { id:'bd8', glyph:'E', name:'Essentials done', desc:'All essential trainings finished on time', metric:'essentials', n:1, color:'#DB2777', on:true },
 ];
+
+/* v41.2: departments are editable in Settings › Master data. Older saved settings without the list fall back to the defaults. */
+function deptList(s) { const d = s && s.masters && s.masters.departments; return Array.isArray(d) && d.length ? d : MASTERS0.departments; }

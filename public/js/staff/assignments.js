@@ -166,7 +166,7 @@ SkillforgeApp.prototype.assignVals = function (s, role) {
     caCourseInactive: !!course && availability(course) !== 'Active', caInactiveNote: course ? 'This course is ' + availability(course).toLowerCase() + '. People can be assigned now and will see it once it is live.' : '',
     caDue: s.caDue, setCaDue: e => this.setState({ caDue: e.target.value }),
     caQuery: s.caQuery, setCaQuery: e => this.setState({ caQuery: e.target.value }),
-    caDeptOpts: [{ v:'All', l:'All departments' }].concat(DEPTS.map(d => ({ v:d, l:d }))), caDeptVal: s.caDept, setCaDept: e => this.setState({ caDept: e.target.value }),
+    caDeptOpts: [{ v:'All', l:'All departments' }].concat(deptList(s).map(d => ({ v:d, l:d }))), caDeptVal: s.caDept, setCaDept: e => this.setState({ caDept: e.target.value }),
     caRoleOpts: [{ v:'All', l:'All roles' }].concat(['Learner', 'Trainer', 'Admin'].map(r => ({ v:r, l:r }))), caRoleVal: s.caRole, setCaRole: e => this.setState({ caRole: e.target.value }),
     caShowChips: ['All', 'Assigned', 'Not assigned'].map(k => chip(s.caShow, k, k, () => this.setState({ caShow:k, caSel:{} }))),
     caPager: CPG.pager, caCountLabel: rows.length.toLocaleString('en-US') + ' people',
