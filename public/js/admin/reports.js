@@ -125,7 +125,7 @@ SkillforgeApp.prototype.amReports = function (c) {
   // ---- assessment reports: date-time window ----
   const AR = s.ar, inWin = t => (!AR.from || t >= AR.from) && (!AR.to || t <= AR.to + (AR.to.length === 16 ? ':59' : ''));
   const fmtDT = t => t ? Fmt.dt(t) : '—';
-  const arQuiz = s.quizzes.find(z => String(z.id) === String(AR.quiz)) || s.quizzes[0];
+  const arQuiz = s.quizzes.find(z => String(z.id) === String(AR.quiz)) || s.quizzes[0] || NO_QUIZ;   // v41.5: no quizzes yet
   const arUser = s.users.find(u => u.name === AR.user) || s.users.find(u => s.attemptRecs.some(r => r.user === u.name)) || s.users[0];
   const recsQ = s.attemptRecs.filter(r => r.quizId === arQuiz.id && inWin(r.submittedAt));
   // keyAccess: the person could read the answer keys (Question bank / Assessments permission) when they took it

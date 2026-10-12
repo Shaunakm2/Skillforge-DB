@@ -3,10 +3,11 @@
  * Anyone given the role inherits its access, and its courses are assigned to them.
  */
 SkillforgeApp.prototype.amRoles = function (c) {
-  const { s, INK, W } = c;
+  const { INK, W } = c; let { s } = c;
   if (this._scrV !== 'perms') return {};
   const SEC = { users:'User management', content:'Learning content', delivery:'Training delivery', comms:'Communication', reports:'Reports', platform:'Platform', migration:'Migration' };
   const members = r => s.users.filter(u => u.roleId === r.id);
+  if (!(s.roles || []).length) s = { ...s, roles: ROLES0.filter(r => r.builtin) };   // v41.5: never an empty role list
   const cur = s.roles.find(r => r.id === s.roleSel) || s.roles[0];
   const D = s.roleDraft && s.roleDraft.id === cur.id ? s.roleDraft : null;
   const R = D || cur, isAdminBase = R.base === 'Admin';

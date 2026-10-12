@@ -1,6 +1,6 @@
 /* Skillforge LMS — course overview, lesson player, step player and the assessment (quiz) player. */
 // v41.2: a fresh database has no quizzes yet; this placeholder keeps every screen (incl. sign-in) rendering.
-const NO_QUIZ = Object.freeze({ id: null, title: 'No quiz', ids: [], dynamic: false, drawCount: 0, pass: 0, attempts: '1' });
+const NO_QUIZ = Object.freeze({ id: null, name: 'No quiz', title: 'No quiz', ids: [], dynamic: false, drawCount: 0, pass: 0, attempts: '1' });
 SkillforgeApp.prototype.vmPlayer = function (c) {
   const { IK, course, firstOpenItem, icA, icIsItem, icSt, itemRows, markItem, myEnroll, role, s } = c;
   // curriculum

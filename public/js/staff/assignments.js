@@ -95,7 +95,9 @@ SkillforgeApp.prototype.assignVals = function (s, role) {
       },
       // bulk
       caTemplate: () => { const ex = s.adminCourses.filter(c => c.status === 'Published').slice(0, 2), us = active.filter(u => u.role === 'Learner').slice(0, 3);
-        const rows = [BULK_HEAD, [ex[0].code, us[0].empId, 'Assign', '2026-11-15'], [ex[1].code, us[1].empId, 'Assign', ''], [ex[0].code, us[2].empId, 'Unassign', '']];
+        // v41.5: works with fewer than 2 published courses / 3 learners (new database): sample codes fill the gaps
+        const cc = i => (ex[i] || ex[0] || { code:'CRS-0001' }).code, ee = i => (us[i] || us[0] || { empId:'EMP-0001' }).empId;
+        const rows = [BULK_HEAD, [cc(0), ee(0), 'Assign', Progress.plus(TODAY_KEY, 30)], [cc(1), ee(1), 'Assign', ''], [cc(0), ee(2), 'Unassign', '']];
         csvDownload('CourseApplicability-Import.csv', rows); this.toastMsg('Template downloaded'); },
       caFileName: B.name || '', caHasFile: !!B.text, caNoFile: !B.text,
       caPickFile: e => { const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -189,7 +191,7 @@ SkillforgeApp.prototype.assignVals = function (s, role) {
     caCancelUnassign: () => this.setState({ caConfirm:false }),
     caBulkUnassign: () => { const todo = sel.filter(has); setEnroll(todo.map(u => u.name), null); this.setState({ caSel:{}, caConfirm:false }); this.toastMsg(course.title + ' unassigned from ' + todo.length + (todo.length === 1 ? ' person' : ' people')); },
     caClear: () => this.setState({ caSel:{}, caConfirm:false }),
-    caExport: () => { const rws = [['Course', (course.code || '') + ' · ' + course.title], [], ['Name', 'Employee ID', 'Email', 'Department', 'Role', 'Assigned', 'Due date']];
+    caExport: () => { if (!course || !course.id) return this.toastMsg('Pick a course first'); const rws = [['Course', (course.code || '') + ' · ' + course.title], [], ['Name', 'Employee ID', 'Email', 'Department', 'Role', 'Assigned', 'Due date']];
       rows.forEach(u => rws.push([u.name, u.empId || '', u.email, u.dept, u.role, has(u) ? 'Yes' : 'No', has(u) ? s.enroll[u.name][cid] : '']));
       csvDownload('skillforge-assignments-' + (course.code || 'course') + '-' + TODAY_KEY + '.csv', rws); this.toastMsg(rows.length + ' rows exported'); },
   };

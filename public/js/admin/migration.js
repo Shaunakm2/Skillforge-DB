@@ -96,7 +96,8 @@ SkillforgeApp.prototype.amMigration = function (c) {
   const MR = M.result;
   const inVals = {
     mgTemplate: () => { const us = s.users.filter(u => u.role === 'Learner').slice(0, 3);
-      csvDownload('lms-migration-template.csv', [MIG_HEAD, [us[0].empId, '', 'CRS-1003', '', 'Cornerstone OnDemand', 'Completed', '2025-04-01', '2025-04-12', '86', 'CSOD-90012'], ['', us[1].email, '', 'Anti-bribery and corruption', 'SAP Litmos', 'Completed', '2025-01-10', '2025-01-11', '', 'LIT-2231'], [us[2].empId, '', '', 'Advanced Excel', 'Moodle', 'In progress', '2026-08-01', '', '', '']]);
+      const U = i => us[i] || us[0] || { empId:'EMP-0001', email:'name@company.com' };   // v41.5: works before any users exist
+      csvDownload('lms-migration-template.csv', [MIG_HEAD, [U(0).empId, '', 'CRS-1003', '', 'Cornerstone OnDemand', 'Completed', '2025-04-01', '2025-04-12', '86', 'CSOD-90012'], ['', U(1).email, '', 'Anti-bribery and corruption', 'SAP Litmos', 'Completed', '2025-01-10', '2025-01-11', '', 'LIT-2231'], [U(2).empId, '', '', 'Advanced Excel', 'Moodle', 'In progress', '2026-08-01', '', '', '']]);
       this.toastMsg('Template downloaded'); },
     mgFileName: M.name || '', mgNoFile: !M.text, mgMsg: M.msg || '', mgHasMsg: !!M.msg,
     mgPick: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (!/\.csv$/i.test(f.name)) { e.target.value = ''; return setM({ name:'', text:'', msg:'Upload a .csv file. In Excel, use File › Save As › CSV.' }); } f.text().then(t => setM({ name: f.name, text: t, msg:'', result:null })); },
