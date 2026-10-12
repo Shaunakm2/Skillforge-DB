@@ -28,7 +28,7 @@ if (SB && CT === SB) throw new Error('CONTENT_ORIGIN must be a different origin 
 const WS = SB ? SB.replace(/^http/, 'ws') : '';
 // v41.11: sites that may be shown inside the LMS (YouTube privacy mode, Vimeo, H5P) + EMBED_ORIGINS from js/config.js (or SF_EMBED_ORIGINS).
 // Same default list as EMBED_ORIGINS in js/data/seed.js. Each entry must be an https origin (a leading *. wildcard is allowed).
-const EMB = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://h5p.org', 'https://*.h5p.com']
+const EMB = !SB ? [] : ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://h5p.org', 'https://*.h5p.com']
   .concat(String(process.env.SF_EMBED_ORIGINS || cfgVal('EMBED_ORIGINS') || '').split(/[\s,]+/).filter(Boolean))
   .map(o => { if (!/^https:\/\/(\*\.)?[a-z0-9.-]+(:\d+)?$/i.test(o.replace(/\/$/, ''))) throw new Error('EMBED_ORIGINS: not an https origin: ' + o); return o.replace(/\/$/, ''); });
 const policy = withAncestors => [
@@ -39,7 +39,7 @@ const policy = withAncestors => [
   "font-src 'self' https://fonts.gstatic.com",
   ['img-src', "'self' data: blob:", SB].filter(Boolean).join(' '),
   ['media-src', "'self' blob:", SB].filter(Boolean).join(' '),
-  ['connect-src', "'self'", SB, WS].filter(Boolean).join(' '),
+  ['connect-src', "'self'", SB, WS, CT].filter(Boolean).join(' '),          // v41.15: + content site (its /health check)
   ['frame-src', "'self' blob:", SB, CT, ...EMB].filter(Boolean).join(' '),          // stored documents, the content site, and video / H5P / listed embed sites (v41.11)
   "worker-src 'self' blob:", "object-src 'none'", "base-uri 'self'", "form-action 'self'",
   ...(withAncestors ? ["frame-ancestors 'self'"] : [])].join('; ');

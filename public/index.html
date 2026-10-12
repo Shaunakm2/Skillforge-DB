@@ -2709,6 +2709,19 @@
 </div>
 </sf-if>
 
+<sf-if value="{{ isContentCheck }}">
+<div class="ui-98" data-screen-label="SCORM setup check">
+  <div class="ui-65"><div><h1 class="ui-66">SCORM setup check</h1><div class="ui-29">Runs every check that decides whether SCORM, HTML5 and xAPI packages can play, and says what to fix. Content site: {{ ccOrigin }}</div></div>
+    <button class="ui-91" on-click="{{ ccRun }}" disabled="{{ ccBusy }}">Run check</button></div>
+  <sf-if value="{{ ccBusy }}"><div class="um">Checking… this takes a few seconds.</div></sf-if>
+  <sf-if value="{{ ccNone }}"><div class="um">Select <b>Run check</b>. It opens one package the way a learner would and follows it through every step.</div></sf-if>
+  <sf-if value="{{ ccHas }}"><div class="cc-sum" style="background:{{ ccSumBg }};color:{{ ccSumFg }}">{{ ccSummary }} <span class="ui-6">{{ ccWhen }}</span></div>
+    <div class="al-list"><sf-for list="{{ ccRows }}" as="r"><sf-if value="{{ r.head }}"><div class="al-day">{{ r.head }}</div></sf-if>
+      <div class="cc-row"><span class="cc-m" style="background:{{ r.mBg }}">{{ r.mark }}</span><span class="al-main"><span class="ui-95">{{ r.name }}</span><span class="ui-6">{{ r.detail }}</span>
+        <sf-if value="{{ r.hasFix }}"><span class="cc-fix"><b>Fix:</b> {{ r.fix }}</span></sf-if></span></div></sf-for></div></sf-if>
+</div>
+</sf-if>
+
 <sf-if value="{{ isAudit }}">
 <div class="ui-98" data-screen-label="Audit log">
   <div class="ui-65">
@@ -3829,6 +3842,7 @@
 <script src="js/staff/tools.js"></script>
 <script src="js/staff/batches.js"></script>
 <script src="js/staff/assignments.js"></script>
+<script src="js/admin/contentcheck.js"></script>
 <script src="js/admin/admin.js"></script>
 <script src="js/admin/settings.js"></script>
 <script src="js/admin/questions.js"></script>

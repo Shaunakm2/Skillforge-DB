@@ -77,9 +77,9 @@ const URL_CACHE_MS = 30 * 1000, urlCache = new Map();
 export async function onRequest({ request, env }) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return deny(405, 'Method not allowed');
   const path = new URL(request.url).pathname;
-  if (!path.startsWith('/c/')) return deny(404, 'Not found');
+  if (!path.startsWith('/c/')) return deny(404, 'Not found (C1: not a content address)');
   const parts = safeSegments(path.slice(3));
-  if (!parts || parts.length < 2) return deny(404, 'Not found');
+  if (!parts || parts.length < 2) return deny(404, 'Not found (C2: the address is incomplete)');
   const token = parts[0], file = parts.slice(1), prefix = peekPrefix(token);
   if (!prefix || !env.SUPABASE_URL) return deny(403, 'This link has expired. Open the course again in Skillforge.');
   const name = file[file.length - 1], ext = (name.includes('.') ? name.split('.').pop() : '').toLowerCase(), isPage = ext === 'html' || ext === 'htm';
@@ -89,7 +89,7 @@ export async function onRequest({ request, env }) {
     const fnUrl = env.CONTENT_FN_URL || String(env.SUPABASE_URL).replace(/\/$/, '') + '/functions/v1/content';
     let r; try { r = await fetch(fnUrl, { method: 'POST', headers: { 'content-type': 'application/json', ...(env.SUPABASE_ANON_KEY ? { apikey: env.SUPABASE_ANON_KEY } : {}) }, body: JSON.stringify({ token, file }) }); } catch (e) { return deny(502, 'Content service unavailable'); }
     if (r.status === 403) return deny(403, 'This link has expired. Open the course again in Skillforge.');
-    if (r.status === 404) return deny(404, 'Not found');
+    if (r.status === 404) return deny(404, 'Not found (C3: the content service said the file does not exist, or SUPABASE_URL on this site is wrong. Open /health on this site.)');
     if (!r.ok) return deny(502, 'Content service unavailable');
     let a; try { a = await r.json(); } catch (e) { a = null; }
     url = a && signedTarget(a.url, env.SUPABASE_URL, prefix, file);
@@ -97,7 +97,7 @@ export async function onRequest({ request, env }) {
     if (!isPage) { if (urlCache.size > 5000) urlCache.clear(); urlCache.set(ck, { t: now, url }); }
   }
   const obj = await fetch(url);                      // signed URL: no key needed
-  if (!obj.ok) return deny(404, 'Not found');
+  if (!obj.ok) return deny(404, 'Not found (C4: storage refused the file, status ' + obj.status + ')');
   const h = headersFor(ext, env.APP_ORIGIN);
   if (request.method === 'HEAD') return new Response(null, { status: 200, headers: h });
   if (isPage) return new Response(injectBridge(await obj.text(), env.APP_ORIGIN), { status: 200, headers: h });

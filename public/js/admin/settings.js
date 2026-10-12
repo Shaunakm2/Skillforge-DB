@@ -54,6 +54,7 @@ SkillforgeApp.prototype.amSettings = function (c) {
       ['Tile management', 'Show, hide, rename and reorder tiles on Home, Settings, batch cards, Training overview and the learner menu.', Object.keys(TILE_GROUPS).length + ' tile groups', 'masters', '#9333EA', W, I.layers, { mdTab:'tiles' }],
       ['App settings', 'Switch features on or off (gamification, badges, discussions, calendar, access requests…), defaults, and a map of everything you can customise.', Object.values((s.platform || PLATFORM0).feat).filter(Boolean).length + ' features on', 'masters', '#0F766E', W, I.shield, { mdTab:'app' }]]],
     ['migration', 'Migration', 'Data coming in from HRMS and APIs, and moving learning records in or out of Skillforge.', [
+      ['SCORM setup check', 'Tests the content site, the “content” function and every SCORM / HTML5 package, and says exactly what to fix.', 'Run check', 'contentCheck', '#0F766E', W, I.sync],
       ['Data migration report', 'Every change received from HRMS or other APIs between two dates.', migCount + ' changes logged', 'migReport', '#0369A1', W, I.sync],
       ['Migrate to or from Skillforge', 'Upload completions from another LMS, or download everything to move out.', (s.extHistory.length) + ' imported records', 'migrate', '#B45309', W, I.move]]],
   ].map(([k, t, d, list]) => [k, t, d, k === 'masters' && !perms.has('masters') ? [] : list.filter(x => can(x[3]))]);

@@ -37,7 +37,7 @@ const MODULES = [
   ['audit', 'Audit log', 'reports', ['audit']],
   ['integrations', 'Integrations, ZingHR sync, database & storage', 'platform', ['integrations', 'zinghr', 'database']],
   ['branding', 'Branding', 'platform', ['branding']],
-  ['migration', 'Migration', 'migration', ['migReport', 'migrate']],
+  ['migration', 'Migration', 'migration', ['migReport', 'migrate', 'contentCheck']],
   ['masters', 'Master data (MIS lists, holidays, badges)', 'masters', ['masters']],
 ];
 const ALL_PERMS = Object.fromEntries(MODULES.map(m => [m[0], true]));

@@ -5,9 +5,9 @@ const ADMIN_SCREENS = {
   amSettings: ['admin'], amMigration: ['migReport', 'migrate'], amQuestions: ['qbank', 'quizBuild', 'quizzes'], amCategories: ['categories'], amAnnouncements: ['announcements'],
   amLcms: ['lcms'], amQuizzes: ['quizzes', 'quizBuild'], amCourses: ['courseAdmin'], amPaths: ['paths'], amReports: ['reports'], amUsers: ['users'], amUserImport: ['users'],
   amRoles: ['perms'], amFeedback: ['feedback', 'reports'], amPlaces: ['places'], amBookmarks: ['bookmarks'], amCerts: ['certs'], amQuestionMeta: ['qbank'],
-  amLearnerExtras: ['progress', 'home', 'calendar'], amZingHR: ['zinghr'], amDashboard: ['dashboard', 'training'], amKpis: ['kpis'], amDocs: ['docs', 'docAdmin'], amMasters: ['masters'], amDatabase: ['database'],
+  amLearnerExtras: ['progress', 'home', 'calendar'], amZingHR: ['zinghr'], amDashboard: ['dashboard', 'training'], amKpis: ['kpis'], amDocs: ['docs', 'docAdmin'], amMasters: ['masters'], amDatabase: ['database'], amContentCheck: ['contentCheck'],
 };
-const ADMIN_PIPELINE = ["amSettings", "amMigration", "amQuestions", "amCategories", "amAnnouncements", "amLcms", "amQuizzes", "amCourses", "amPaths", "amReports", "amUsers", "amUserImport", "amPlatform", "amRoles", "amFeedback", "amPlaces", "amBookmarks", "amCerts", "amZingHR", "amDashboard", "amKpis", "amDocs", "amMasters", "amDatabase", "amQuestionMeta", "amLearnerExtras"];
+const ADMIN_PIPELINE = ["amSettings", "amMigration", "amQuestions", "amCategories", "amAnnouncements", "amLcms", "amQuizzes", "amCourses", "amPaths", "amReports", "amUsers", "amUserImport", "amPlatform", "amRoles", "amFeedback", "amPlaces", "amBookmarks", "amCerts", "amZingHR", "amDashboard", "amKpis", "amDocs", "amMasters", "amDatabase", "amQuestionMeta", "amLearnerExtras", "amContentCheck"];
 SkillforgeApp.prototype.adminVals = function (s, all) {
   const scrV = this._scrV;
   const role = this.roleOf(s);
@@ -53,7 +53,7 @@ SkillforgeApp.prototype.adminVals = function (s, all) {
     isIntegrations: scrV === 'integrations',
     isAudit: scrV === 'audit',
     isPerms: scrV === 'perms',
-    isBranding: scrV === 'branding',
+    isBranding: scrV === 'branding', isContentCheck: scrV === 'contentCheck',
   };
   // v41.13: Supabase Free plan usage meter (Settings home, LCMS, Documents library). Testing only: USAGE_METER in js/config.js.
   const UM = Backend.Usage, umHere = UM.on() && ['admin', 'lcms', 'docAdmin'].includes(scrV);

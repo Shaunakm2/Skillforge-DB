@@ -12,8 +12,9 @@ test('connected build: only the project and the content site, no wildcards, no "
   assert.strictEqual(b.status, 0, b.err);
   for (const c of [b.csp, b.meta]) {
     assert.ok(!/\*\.supabase\.co/.test(c) && !/frame-src[^;]*\bhttps:(\s|;|$)/.test(c), c);
-    assert.strictEqual(dir(c, 'connect-src'), "connect-src 'self' https://abcd.supabase.co wss://abcd.supabase.co");
-    assert.strictEqual(dir(c, 'frame-src'), "frame-src 'self' blob: https://abcd.supabase.co https://content.example.com");
+    assert.strictEqual(dir(c, 'connect-src'), "connect-src 'self' https://abcd.supabase.co wss://abcd.supabase.co https://content.example.com");
+    // v41.11: + the fixed video / H5P embed hosts (no general https: wildcard; *.h5p.com is one named service)
+    assert.strictEqual(dir(c, 'frame-src'), "frame-src 'self' blob: https://abcd.supabase.co https://content.example.com https://www.youtube-nocookie.com https://player.vimeo.com https://h5p.org https://*.h5p.com");
     assert.strictEqual(dir(c, 'img-src'), "img-src 'self' data: blob: https://abcd.supabase.co");
     assert.strictEqual(dir(c, 'style-src-elem'), "style-src-elem 'self' https://fonts.googleapis.com", 'no injected <style>');
     assert.strictEqual(dir(c, 'style-src-attr'), "style-src-attr 'unsafe-inline'"); assert.strictEqual(dir(c, 'script-src'), "script-src 'self'");
