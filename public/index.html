@@ -140,11 +140,6 @@
 </header>
 
 <main class="lay-1">
-<sf-if value="{{ showAdminBack }}">
-  <div class="lay-2">
-    <button class="ui-7" on-click="{{ goAdminHome }}">← Settings</button>
-  </div>
-</sf-if>
 
 <!-- LEARNER HOME -->
 <sf-if value="{{ isDenied }}">
@@ -2351,11 +2346,11 @@
 <div class="ui-42" data-screen-label="LCMS">
   <div class="ui-65">
     <div><h1 class="ui-66">LCMS</h1><div class="ui-29">The upload hub for every module used in courses: documents, video, audio, SCORM, images, links and assessments.</div></div>
-    <div class="ui-87"><button class="ui-82" on-click="{{ newAssessment }}">+ Assessment</button><button class="ui-82" on-click="{{ newForm }}">+ Feedback form</button>    <button class="ui-91 hover-8 sf-lcms-new" on-click="{{ newModule }}">+ New module</button></div>
+    <div class="ui-87"><button class="ui-91 hover-8 sf-lcms-new" on-click="{{ newModule }}">+ Add module</button></div>
   </div>
-  <div class="sf-lcms-stats"><sf-for list="{{ lcmsStats }}" as="x"><div class="ui-68"><div class="ui-45">{{ x.l }}</div><div class="ui-69">{{ x.v }}</div></div></sf-for></div>
+  <div class="lm-stats"><sf-for list="{{ lcmsStats }}" as="x"><span class="lm-stat"><b>{{ x.v }}</b> {{ x.l }}</span></sf-for></div>
   <div class="ui-83">
-    <div class="ui-87"><sf-for list="{{ lcmsChips }}" as="ch"><button class="question-bank-10" on-click="{{ ch.pick }}" style="border:1px solid {{ ch.border }};background:{{ ch.bg }};color:{{ ch.fg }}">{{ ch.label }}</button></sf-for></div>
+    <sf-select class="lm-typesel" value="{{ lcmsTypeVal }}" on-change="{{ setLcmsType }}" aria-label="Module type"><sf-for list="{{ lcmsTypeOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
     <label class="question-bank-11 sf-cc-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#526B7A" stroke-width="2.4"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><input maxlength="80" class="ui-84" value="{{ lcmsQuery }}" on-input="{{ setLcmsQuery }}" placeholder="Search modules, MOD ID or file name"></label>
   </div>
   <div class="ui-85"><div class="sf-lcms-table">
@@ -3227,7 +3222,23 @@
   <div class="ovl-1" on-click="{{ stop }}">
     <div class="ovl-17 sf-mod-modal" on-click="{{ stop }}">
       <div class="ui-41"><div><div class="create-course-4">LCMS</div><h2 class="ovl-3">{{ modTitleLabel }}</h2></div><button class="ovl-4" on-click="{{ closeMod }}">✕</button></div>
-      <div class="ui-92"><span class="ui-8">Module type</span><div class="ui-87"><sf-for list="{{ modTypes }}" as="o"><button class="ui-97" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div></div>
+      <sf-if value="{{ modStepPick }}">
+        <div class="lm-pick">
+          <sf-if value="{{ modCanUpload }}">
+          <label class="lm-drop" data-over="{{ modDragOver }}" on-dragover="{{ modDragOverFn }}" on-dragleave="{{ modDragLeave }}" on-drop="{{ modDropFile }}">
+            <span class="lm-drop-ic" aria-hidden="true">⬆</span>
+            <span class="lm-drop-t">Upload a file</span>
+            <span class="ui-6">Drag a file here or <u>browse</u>. The type is detected for you: PDF / Word / PowerPoint / Excel, video, audio, image, or a SCORM .zip.</span>
+            <input class="asm-file" type="file" accept="{{ modAnyAccept }}" on-change="{{ modPickAny }}">
+          </label>
+          <div class="lm-or"><span>or create</span></div>
+          </sf-if>
+          <div class="lm-cards"><sf-for list="{{ modPickCards }}" as="k"><button class="lm-card" on-click="{{ k.pick }}"><span class="lm-g" style="background:{{ k.bg }};color:{{ k.fg }}">{{ k.glyph }}</span><span class="lm-ct"><span class="lm-cn">{{ k.label }}</span><span class="ui-6">{{ k.hint }}</span></span></button></sf-for></div>
+          <sf-if value="{{ modErr }}"><div class="sf-login-err" role="alert">{{ md.err }}</div></sf-if>
+        </div>
+      </sf-if>
+      <sf-if value="{{ modStepForm }}">
+      <div class="lm-type"><span class="lm-g" style="background:{{ modTypeBg }};color:{{ modTypeFg }}">{{ modTypeGlyph }}</span><span class="ui-95">{{ md.type }}</span><sf-if value="{{ modCanChange }}"><button class="lm-change" on-click="{{ modBackToPick }}">Change type</button></sf-if></div>
       <sf-if value="{{ mdScormBusy }}"><div class="ovl-22">{{ mdScormBusy }}</div></sf-if>
       <sf-if value="{{ modIsFile }}">
         <div class="sf-drop">
@@ -3261,6 +3272,7 @@
       <sf-if value="{{ modHasUsed }}"><div class="sf-complete-note">{{ modUsedNote }}</div></sf-if>
       <sf-if value="{{ modErr }}"><div class="sf-login-err" role="alert">{{ md.err }}</div></sf-if>
       <div class="ovl-26"><button class="ui-60" on-click="{{ closeMod }}">Cancel</button><button class="ui-91" on-click="{{ saveMod }}">Save module</button></div>
+      </sf-if>
     </div>
   </div>
 </sf-if>

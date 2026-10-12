@@ -22,5 +22,7 @@ const NavMemory = (() => {
     return out;
   }
   function clear() { last = ''; try { sessionStorage.removeItem(KEY); } catch (e) {} }
-  return { save, load, clear };
+  /* v41.8: the navigation keys of a state, for browser history entries (back / forward). */
+  function snap(s) { const o = {}; KEYS.forEach(k => { if (plain(s[k])) o[k] = s[k]; }); if (o.screen === 'quiz') o.screen = 'course'; return o; }
+  return { save, load, clear, snap };
 })();

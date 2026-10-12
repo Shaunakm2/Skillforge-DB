@@ -13,21 +13,40 @@ SkillforgeApp.prototype.amLcms = function (c) {
       edit: () => { if (formsOnly && !MOD_TYPES[m.type].form) return this.toastMsg('Only admins can change this module'); this.setState({ mod: { ...JSON.parse(JSON.stringify(m)), file: m.file ? { ...m.file } : null, err:'' } }); }, preview: () => (Backend.on && m.type === 'SCORM' && m.file && m.file.path ? Backend.scormPreview(m.id).then(u => this.setState({ modPreview: m.id, pvUrl: u })).catch(e => this.toastMsg(e.message)) : this.setState({ modPreview: m.id, pvUrl: '' })),
       del: () => { if (u.length) return this.toastMsg('Used in ' + u.map(c => c.title).join(', ') + '. Remove it from ' + (u.length === 1 ? 'that course' : 'those courses') + ' first.'); this.setState({ modDelete: m.id }); } }; });
   const md = s.mod || {}, setMd = patch => this.setState(st => ({ mod: { ...st.mod, err:'', ...patch } })), MT = MOD_TYPES[md.type] || {};
+  // v41.8: file types are detected from the file; the rest are created from a card
+  const FILE_TYPES = ['SCORM / xAPI', 'Video', 'Audio', 'Image', 'Document'];
+  const blankOf = t => ({ id:null, type:t, step:'form', title:'', desc:'', mins: MOD_TYPES[t].form ? 3 : 10, file:null, url:'', text:'', quizId: (s.quizzes[0] || {}).id || null,
+    qs: t === 'Feedback form' ? JSON.parse(JSON.stringify(KP_DEFAULT().L1.qs)) : [{ t:'', kind:'rating' }], level:'L1', audience:'Learner', days:0, applyAll:false, courses:[], trainings:[], err:'' });
   // Connected + SCORM: the .zip is extracted in the browser and every file stored in the private SCORM bucket,
   // served same-origin from /content so the package can reach the SCORM API.
   const pickScorm = f => { setMd({ file:null, err:'', scormBusy:'Reading the package…' });
       Files.scorm(f, (n, t) => setMd({ scormBusy:'Uploading ' + n + ' of ' + t + ' files…' })).then(file => setMd({ file, scormBusy:'', title: md.title || file.title || f.name.replace(/\.zip$/i, '') }))
         .catch(e => setMd({ scormBusy:'', err: e.message })); };
+  const takeFile = f => { const t = FILE_TYPES.find(k => MOD_TYPES[k].ok(f));
+    if (!t) return setMd({ err: '“' + f.name + '” isn’t a supported file. Use PDF, Word, PowerPoint, Excel, text, video, audio, an image, or a SCORM .zip.' });
+    const title = f.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+    if (Backend.on && t === 'SCORM / xAPI') { this.setState({ mod: { ...blankOf(t), title } }); return pickScorm(f); }
+    this.setState({ mod: { ...blankOf(t), title, file: { src: Files.local(f, 'lcms'), name: f.name, size: f.size } } }); };
   const pv = s.lcms.find(m => m.id === s.modPreview);
   const pvItem = pv ? itemFromModule(pv) : null;
   const lcmsVals = {
     modRows, lcmsEmpty: modRows.length === 0, lcmsCount: s.lcms.length, lcmsQuery: s.lcmsQuery, setLcmsQuery: e => this.setState({ lcmsQuery: e.target.value }),
+    lcmsTypeVal: s.lcmsType, setLcmsType: e => this.setState({ lcmsType: e.target.value }),
+    lcmsTypeOpts: ['All'].concat(TYPES).map(t => ({ v: t, l: (t === 'All' ? 'All types' : t) + ' · ' + (t === 'All' ? s.lcms.length : s.lcms.filter(m => m.type === t).length) })),
     lcmsChips: ['All'].concat(TYPES).map(t => { const n = t === 'All' ? s.lcms.length : s.lcms.filter(m => m.type === t).length, on = s.lcmsType === t; return { label: t + ' · ' + n, bg: on ? INK : W, fg: on ? '#F8FBFD' : INK, border: on ? INK : '#C9D7E2', pick: () => this.setState({ lcmsType:t }) }; }),
-    lcmsStats: [['Modules', s.lcms.length], ['Assessments', s.lcms.filter(m => m.type === 'Assessment').length], ['Media & documents', s.lcms.filter(m => !['Assessment', 'Acknowledgment', 'Web link'].includes(m.type)).length], ['Not used in a course', s.lcms.filter(m => !usedIn(m.id).length).length]].map(([l, v]) => ({ l, v })),
-    newModule: () => this.setState({ mod: { id:null, type: formsOnly ? 'Feedback form' : 'Document', title:'', desc:'', mins: formsOnly ? 3 : 10, file:null, url:'', text:'', quizId: (s.quizzes[0] || {}).id || null, qs:[{ t:'', kind:'rating' }], level:'L1', audience:'Learner', days:0, applyAll:false, courses:[], trainings:[], err:'' } }),
-    newAssessment: () => this.setState({ mod: { id:null, type:'Assessment', title:'', desc:'', mins:10, quizId: (s.quizzes[0] || {}).id || null, err:'' } }),
-    newForm: () => this.setState({ mod: { id:null, type:'Feedback form', title:'', desc:'', mins:3, qs: JSON.parse(JSON.stringify(KP_DEFAULT().L1.qs)), level:'L1', audience:'Learner', days:0, applyAll:false, courses:[], trainings:[], err:'' } }), lcmsFormsOnly: formsOnly,
-    modOpen: !!s.mod, md, modTitleLabel: md.id ? 'Edit module · ' + md.code : 'New module', closeMod: () => this.setState({ mod:null }),
+    lcmsStats: [['modules', s.lcms.length], ['assessments', s.lcms.filter(m => m.type === 'Assessment').length], ['media & documents', s.lcms.filter(m => !['Assessment', 'Acknowledgment', 'Web link'].includes(m.type)).length], ['not used in a course', s.lcms.filter(m => !usedIn(m.id).length).length]].map(([l, v]) => ({ l, v })),
+    // v41.8: one "+ Add module" button. Step 1 picks what to add (upload a file — the type is detected — or create one); step 2 is that type's form.
+    newModule: () => this.setState({ mod: { id:null, step:'pick', err:'' } }), lcmsFormsOnly: formsOnly,
+    modStepPick: md.step === 'pick', modStepForm: !!s.mod && md.step !== 'pick', modCanUpload: !formsOnly, modDragOver: !!md.over,
+    modAnyAccept: FILE_TYPES.map(t => MOD_TYPES[t].accept).join(','),
+    modPickAny: e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) takeFile(f); },
+    modDragOverFn: e => { e.preventDefault(); if (!md.over) setMd({ over:true }); },
+    modDragLeave: () => setMd({ over:false }),
+    modDropFile: e => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; setMd({ over:false }); if (f) takeFile(f); },
+    modPickCards: TYPES.filter(t => !FILE_TYPES.includes(t)).map(t => ({ label: t, hint: MOD_TYPES[t].hint, glyph: MOD_TYPES[t].glyph, bg: MOD_TYPES[t].bg, fg: MOD_TYPES[t].fg, pick: () => this.setState({ mod: blankOf(t) }) })),
+    modTypeGlyph: MT.glyph || '', modTypeBg: MT.bg || '', modTypeFg: MT.fg || '', modCanChange: !md.id && !md.scormBusy,
+    modBackToPick: () => this.setState({ mod: { id:null, step:'pick', err:'' } }),
+    modOpen: !!s.mod, md, modTitleLabel: md.id ? 'Edit module · ' + md.code : md.step === 'pick' ? 'Add a module' : 'New ' + (md.type || 'module').toLowerCase(), closeMod: () => this.setState({ mod:null }),
     modTypes: segs(md.type, TYPES, v => setMd({ type:v, file: MOD_TYPES[v].accept && md.file && MOD_TYPES[v].ok({ name: md.file.name, type:'' }) ? md.file : null })),
     // Survey and feedback-form editor
     modIsForm: !!MT.form, modIsKp: !!MT.kp,

@@ -66,6 +66,9 @@ class SkillforgeApp extends Skillforge.Store {
   // The signed-in user's name replaces the demo persona, so their own assignments and attempts are used.
   roleOf(s) { const r = ROLES.find(x => x.id === s.role); return s.meName && s.meRole === s.role ? { ...r, name: s.meName, who: s.meName + ' · ' + (s.meTitle || r.label) } : r; }
   componentDidMount() {
+    window.addEventListener('popstate', e => this.onBrowserBack(e));
+    // closing or reloading the tab with an editor open asks first (the browser shows its own message)
+    window.addEventListener('beforeunload', e => { if (this.state.authed && this.openEditor()) { e.preventDefault(); e.returnValue = ''; } });
     window.addEventListener('sf-toast', e => this.toastMsg(String(e.detail || '').slice(0, 200)));
     // v39: Escape closes the small toolbar menus (Users: Export, Create account)
     window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.state.docView) this.setState({ docView: null }); else if (e.key === 'Escape' && this.state.uMenu) this.setState({ uMenu: null }); });
@@ -122,7 +125,24 @@ class SkillforgeApp extends Skillforge.Store {
     if (LEARNER_SCREENS.includes(screen)) extra = { ...(extra || {}), adminView:false };
     clearInterval(this.timer); window.scrollTo(0, 0); const cur = this.state.screen, LEARN = ['item', 'course', 'lesson', 'quiz'];
     const navFrom = LEARN.includes(screen) ? (LEARN.includes(cur) ? this.state.navFrom : cur) : null;
-    this.setState({ screen, navFrom, roleMenu:false, uMenu:null, playing:false, ...(['qbank', 'quizBuild'].includes(screen) ? {} : { qFromLcms:false }), ...(extra || {}) }); }
+    const before = this.state.authed ? JSON.stringify(NavMemory.snap(this.state)) : '';
+    this.setState({ screen, navFrom, roleMenu:false, uMenu:null, playing:false, ...(['qbank', 'quizBuild'].includes(screen) ? {} : { qFromLcms:false }), ...(extra || {}) });
+    // v41.8: every page change is a browser history entry, so the browser Back / Forward buttons move between LMS pages.
+    if (this.state.authed && !this._fromPop) { const nav = NavMemory.snap(this.state), t = JSON.stringify(nav);
+      try { if (!before || !history.state || !history.state.sf) history.replaceState({ sf: nav }, ''); else if (t !== before) history.pushState({ sf: nav }, ''); } catch (e) {} } }
+  /* v41.8: open editors that may hold unsaved work, and pop-ups that Back closes first. */
+  openEditor(s) { s = s || this.state; return s.mod ? 'module' : s.cDraft && s.screen === 'courseAdmin' ? 'course' : s.ud ? 'account' : s.docEd ? 'document' : s.kpiEd ? 'KPI' : s.roleDraft ? 'role' : ''; }
+  closeOverlays() { return { mod:null, cDraft:null, ud:null, docEd:null, kpiEd:null, roleDraft:null, docView:null, modPreview:null, modDelete:null, uMenu:null, roleMenu:false, notifOpen:false }; }
+  onBrowserBack(e) {
+    const s = this.state; if (!s.authed) return;
+    const target = e.state && e.state.sf, here = NavMemory.snap(s);
+    const ed = this.openEditor(), popup = !!(s.docView || s.modPreview || s.modDelete);
+    const stay = () => { try { history.pushState({ sf: here }, ''); } catch (x) {} };
+    if (ed && !window.confirm('You have unsaved changes in this ' + ed + '. Leave without saving?\n\nSelect Cancel to stay and save first.')) return stay();
+    if (ed || popup) { this.setState(this.closeOverlays()); return stay(); }   // Back closes the open pop-up first; you stay on the page
+    if (!target || !target.screen) return;
+    this._fromPop = true; try { const { screen, ...rest } = target; this.go(screen, { ...rest, ...this.closeOverlays() }); } finally { this._fromPop = false; }
+  }
   /* Older lesson-based courses store lesson completion in the same per-person records (step index = lesson order). */
   meName() { return this.roleOf(this.state).name; }
   lessonDone(cid, key, s) { s = s || this.state; const i = FLAT.findIndex(l => l.key === key); return !!(((s.itemDone[this.meName()] || {})[cid] || {})[i]); }

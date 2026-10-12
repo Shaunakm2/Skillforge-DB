@@ -144,7 +144,7 @@ const cssUrlOk = u => { if (safeUrl(u) === null) return false; const low = u.toL
 /* A value bound INTO a style (style="background:{{ x }}") is one value: it may not add declarations or rules. */
 const stylePartOk = v => !/[;{}]/.test(String(v));
 const CSV_MAX = 10 * 1048576;
-const EVENT_ATTR = { 'on-click': 'click', 'on-input': 'input', 'on-change': 'change', 'on-keydown': 'keydown', 'on-ended': 'ended', 'on-pointerdown': 'pointerdown', 'on-pointermove': 'pointermove', 'on-pointerup': 'pointerup', 'on-pointerleave': 'pointerleave' };
+const EVENT_ATTR = { 'on-click': 'click', 'on-input': 'input', 'on-change': 'change', 'on-keydown': 'keydown', 'on-ended': 'ended', 'on-pointerdown': 'pointerdown', 'on-pointermove': 'pointermove', 'on-pointerup': 'pointerup', 'on-pointerleave': 'pointerleave', 'on-drop': 'drop', 'on-dragover': 'dragover', 'on-dragleave': 'dragleave' };
 
   function compileElement(el) {
     let tag = el.localName;
