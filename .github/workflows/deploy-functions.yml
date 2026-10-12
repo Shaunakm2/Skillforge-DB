@@ -10,9 +10,10 @@ jobs:
       PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/setup-node@v4
         with:
-          version: latest
-      - run: supabase functions deploy learning --project-ref "$PROJECT_REF"
-      - run: supabase functions deploy admin-users --project-ref "$PROJECT_REF"
-      - run: supabase functions deploy content --no-verify-jwt --project-ref "$PROJECT_REF"
+          node-version: 20
+      - run: npx --yes supabase@2 --version
+      - run: npx --yes supabase@2 functions deploy learning --project-ref "$PROJECT_REF"
+      - run: npx --yes supabase@2 functions deploy admin-users --project-ref "$PROJECT_REF"
+      - run: npx --yes supabase@2 functions deploy content --no-verify-jwt --project-ref "$PROJECT_REF"
