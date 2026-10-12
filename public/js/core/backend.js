@@ -537,13 +537,42 @@ const Backend = (() => {
       if (!on) throw new Error('Connect Supabase to upload SCORM packages');
       if (!(await sniff(new File([f], f.name, { type: 'application/zip' })))) throw new Error('That file is not a ZIP');
       const Z = globalThis.Unzip, files = await Z.read(await f.arrayBuffer()), info = Z.packageInfo(files);   // v41.11: SCORM, xAPI / cmi5 or HTML5
+      { const full = await spaceCheck(files.reduce((n, x) => n + x.data.length, 0)); if (full) throw new Error(full); }
       const pkg = Date.now().toString(36) + Math.random().toString(36).slice(2, 8), prefix = org + '/scorm/' + pkg + '/';
       let n = 0;
       for (const x of files) { const { error } = await sb.storage.from(SCORM_BUCKET).upload(prefix + x.name, new Blob([x.data], { type: Z.mimeOf(x.name) }), { contentType: Z.mimeOf(x.name), upsert: false });
         if (error) throw new Error('Upload failed at ' + x.name + ': ' + error.message); n++; if (onProgress) onProgress(n, files.length); }
+      spaceAdd(files.reduce((n, x) => n + x.data.length, 0));
       return { name: f.name, size: f.size, path: prefix, launch: info.launch, version: info.version, std: info.std, title: info.title, src: '' };
     },
   };
+  /* ---------- v41.13: Supabase Free plan usage meter (testing) ----------
+   * Free plan: 1 GB file storage, 500 MB database. Supabase does not charge on the Free plan; when a quota is exceeded the
+   * project gets a grace period and is then restricted (uploads / the whole project can stop). This keeps us well below that:
+   * live totals from sf_usage(), uploads that would go over the limit are refused, and a warning shows from 75 %.
+   * Switch off in js/config.js with USAGE_METER: false (e.g. after moving to a paid plan). */
+  const LIM = { storage: (+cfg.FREE_STORAGE_MB || 1024) * 1048576, db: (+cfg.FREE_DB_MB || 500) * 1048576 };
+  const meterOn = cfg.USAGE_METER !== false;
+  let usage = null, usageAt = 0, usageBusy = null;
+  async function usageLoad(force) {
+    if (!on || !meterOn) return null;
+    if (!force && usage && Date.now() - usageAt < 60000) return usage;
+    if (usageBusy) return usageBusy;
+    usageBusy = sb.rpc('sf_usage').then(({ data, error }) => { usageBusy = null; if (error || !data) return usage; usage = data; usageAt = Date.now(); if (app) app.setState({ beUsage: usage }); return usage; },
+      () => { usageBusy = null; return usage; });
+    return usageBusy;
+  }
+  const mb = n => n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB';
+  /* Before an upload: refuse it if it would take Storage over the Free plan limit (returns an error message, or ''). */
+  async function spaceCheck(bytes) {
+    if (!on || !meterOn) return ''; const u = await usageLoad(); if (!u) return '';
+    const left = LIM.storage - u.storage;
+    return bytes > left ? 'Not uploaded: this file is ' + mb(bytes) + ' but only ' + mb(Math.max(0, left)) + ' of the ' + mb(LIM.storage) + ' free Supabase storage is left. Delete unused files or modules first.' : '';
+  }
+  function spaceAdd(bytes) { if (usage) { usage = { ...usage, storage: usage.storage + bytes }; if (app) app.setState({ beUsage: usage });
+    const p = usage.storage / LIM.storage; if (p >= 0.75) notify('Supabase storage ' + Math.round(p * 100) + ' % used: ' + mb(LIM.storage - usage.storage) + ' left of the free ' + mb(LIM.storage) + '.'); } }
+  const Usage = { load: usageLoad, check: spaceCheck, LIM, on: () => on && meterOn, mb };
+
   async function upload(f, folder, blob) {
     const swap = patch => { const sw = v => { if (!v || typeof v !== 'object') return v; if (Array.isArray(v)) { let ch = false; const o = v.map(x => { const y = sw(x); if (y !== x) ch = true; return y; }); return ch ? o : v; }
       if (v.src === blob) return { ...v, ...patch }; let ch = false; const o = {}; for (const k in v) { o[k] = sw(v[k]); if (o[k] !== v[k]) ch = true; } return ch ? o : v; };
@@ -552,11 +581,12 @@ const Backend = (() => {
     if (f.type === 'image/svg+xml' || /\.svgz?$/i.test(f.name)) { swap({ src: '', uploadError: 'SVG files are not accepted' }); return setStatus(f.name + ' was not uploaded: SVG files can contain scripts. Use PNG, JPG, GIF or WebP.', false); }
     if (!(await sniff(f))) { swap({ src: '', uploadError: 'The file content does not match its type' }); return setStatus(f.name + ' was not uploaded: its content does not match its type (' + (f.type || 'unknown') + ').', false); }
     const safe = f.name.replace(/[^A-Za-z0-9._-]+/g, '-').slice(-80), path = org + '/' + folder + '/' + new Date().toISOString().slice(0, 7) + '/' + Date.now() + '-' + safe;
+    { const full = await spaceCheck(f.size || 0); if (full) { swap({ src: '', uploadError: full }); notify(full); return setStatus(full, false); } }
     setStatus('Uploading ' + f.name + '…', true);
     const { error } = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type || undefined, upsert: false });
     if (error) { swap({ src: '', uploadError: error.message }); return setStatus('Upload failed: ' + error.message, false); }
     const { data } = await sb.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 8);
-    swap({ src: data.signedUrl, path }); setStatus('Uploaded ' + f.name, true);
+    swap({ src: data.signedUrl, path }); setStatus('Uploaded ' + f.name, true); spaceAdd(f.size || 0);
   }
 
   const fbKey = k => fbKeyToDb(app.state, k), empOfName = n => empOf(app.state, n);
@@ -567,7 +597,7 @@ const Backend = (() => {
     if (error) throw error; const ids = [...new Set(data.map(d => d.actor).filter(Boolean))], names = {};
     if (ids.length) { const r = await sb.from('sf_member').select('user_id,app_name').eq('org_id', org).in('user_id', ids); if (!r.error) r.data.forEach(m => { names[m.user_id] = m.app_name; }); }
     return data.map(d => deproto({ ...d, who: names[d.actor] || (d.actor ? 'User ' + String(d.actor).slice(0, 8) : 'System') })); }
-  return { auditList, deproto, scormLaunch, scormPreview, scormReport, scormLeave, scormFlush, scormActive, fbKey, empOfName, on, configured, org, BUCKET, start, observe, signIn, signOut, setNewPassword, resetLink, adminUsers, call, pull, afterSignIn, seed, createLogins, membersWithLogin,
+  return { Usage, auditList, deproto, scormLaunch, scormPreview, scormReport, scormLeave, scormFlush, scormActive, fbKey, empOfName, on, configured, org, BUCKET, start, observe, signIn, signOut, setNewPassword, resetLink, adminUsers, call, pull, afterSignIn, seed, createLogins, membersWithLogin,
     Files, status: () => status, me: () => me, rowsOf, stateOf, merge, canWrite, client: () => sb, _sniff: sniff };
 })();
 const Files = Backend.Files;

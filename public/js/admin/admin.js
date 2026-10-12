@@ -55,6 +55,18 @@ SkillforgeApp.prototype.adminVals = function (s, all) {
     isPerms: scrV === 'perms',
     isBranding: scrV === 'branding',
   };
+  // v41.13: Supabase Free plan usage meter (Settings home, LCMS, Documents library). Testing only: USAGE_METER in js/config.js.
+  const UM = Backend.Usage, umHere = UM.on() && ['admin', 'lcms', 'docAdmin'].includes(scrV);
+  if (umHere && !s.beUsage && !this._umAsked) { this._umAsked = true; Promise.resolve().then(() => UM.load()); }
+  if (umHere) { const u = s.beUsage, row = (label, used, lim) => { const p = Math.min(100, used / lim * 100);
+      return { label, pct: Math.round(p) + '%', w: Math.max(1, p).toFixed(1) + '%', col: p >= 90 ? '#D64545' : p >= 75 ? '#D97706' : '#08AE6E',
+        text: UM.mb(used) + ' used of ' + UM.mb(lim) + ' · ' + UM.mb(Math.max(0, lim - used)) + ' left' }; };
+    const rows = u ? [row('File storage', u.storage, UM.LIM.storage), row('Database', u.db, UM.LIM.db)] : [], worst = u ? Math.max(u.storage / UM.LIM.storage, u.db / UM.LIM.db) : 0;
+    Object.assign(vals, { umShow: true, umHas: !!u, umRows: rows, umLoading: !u,
+      umState: worst >= 0.9 ? 'Almost full' : worst >= 0.75 ? 'Getting full' : 'Plenty of space', umStBg: worst >= 0.9 ? '#FDECEC' : worst >= 0.75 ? '#FEF3C7' : '#DCFCE7', umStFg: worst >= 0.9 ? '#A63232' : worst >= 0.75 ? '#92400E' : '#166534',
+      umWhen: u ? 'Checked ' + new Date(u.at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) + ' · ' + u.files.toLocaleString('en-US') + ' files' : '',
+      umRefresh: () => UM.load(true).then(r => this.toastMsg(r ? 'Usage updated' : 'Could not read the usage. Run migration 007 in Supabase.')) });
+  } else vals.umShow = false;
   // Each module computes only on the screens that use it, so a page never pays for the others (matters at 3,500 users).
   const on = ADMIN_SCREENS, scr = this._scrV;
   ADMIN_PIPELINE.forEach(fn => { const list = on[fn]; if (!list || list.includes(scr)) Object.assign(vals, this[fn](c)); });

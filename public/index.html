@@ -1233,6 +1233,12 @@
       <h1 class="ui-28">{{ consoleTitle }}</h1>
     </div>
   </div>
+<sf-if value="{{ umShow }}"><div class="um" role="region" aria-label="Supabase free plan usage">
+  <div class="um-head"><span class="ui-95">Supabase free plan usage</span><span class="um-tag">testing</span><sf-if value="{{ umHas }}"><span class="doc-st" style="background:{{ umStBg }};color:{{ umStFg }}">{{ umState }}</span></sf-if><span class="sf-grow"></span><span class="ui-6">{{ umWhen }}</span><button class="al-more" on-click="{{ umRefresh }}">Refresh</button></div>
+  <sf-if value="{{ umLoading }}"><div class="ui-6">Checking usage…</div></sf-if>
+  <div class="um-rows"><sf-for list="{{ umRows }}" as="r"><div class="um-row"><span class="um-l">{{ r.label }}</span><span class="um-bar"><span style="width:{{ r.w }};background:{{ r.col }}"></span></span><span class="um-t">{{ r.text }}</span></div></sf-for></div>
+  <div class="ui-6">The Free plan doesn’t charge you. Going over the limit gets the project restricted, so uploads that would cross it are stopped here. Data transfer (5 GB a month) is only shown in the Supabase dashboard › Organization › Usage.</div>
+</div></sf-if>
   <div class="set-tabs" role="tablist"><sf-for list="{{ setTabs }}" as="t"><button class="set-tabbtn" role="tab" aria-selected="{{ t.on }}" on-click="{{ t.pick }}" style="background:{{ t.bg }};color:{{ t.fg }};border-color:{{ t.border }}">{{ t.label }}<span class="set-tabn" style="background:{{ t.nBg }}">{{ t.n }}</span></button></sf-for></div>
   <section class="set-sec">
     <div class="set-head"><h2 class="set-h">{{ setCur.title }}</h2><span class="ui-6">{{ setCur.desc }}</span></div>
@@ -2378,6 +2384,12 @@
     <div><h1 class="ui-66">LCMS</h1><div class="ui-29">The upload hub for every module used in courses: documents, video, audio, SCORM, images, links and assessments.</div></div>
     <div class="ui-87"><button class="ui-91 hover-8 sf-lcms-new" on-click="{{ newModule }}">+ Add module</button></div>
   </div>
+<sf-if value="{{ umShow }}"><div class="um" role="region" aria-label="Supabase free plan usage">
+  <div class="um-head"><span class="ui-95">Supabase free plan usage</span><span class="um-tag">testing</span><sf-if value="{{ umHas }}"><span class="doc-st" style="background:{{ umStBg }};color:{{ umStFg }}">{{ umState }}</span></sf-if><span class="sf-grow"></span><span class="ui-6">{{ umWhen }}</span><button class="al-more" on-click="{{ umRefresh }}">Refresh</button></div>
+  <sf-if value="{{ umLoading }}"><div class="ui-6">Checking usage…</div></sf-if>
+  <div class="um-rows"><sf-for list="{{ umRows }}" as="r"><div class="um-row"><span class="um-l">{{ r.label }}</span><span class="um-bar"><span style="width:{{ r.w }};background:{{ r.col }}"></span></span><span class="um-t">{{ r.text }}</span></div></sf-for></div>
+  <div class="ui-6">The Free plan doesn’t charge you. Going over the limit gets the project restricted, so uploads that would cross it are stopped here. Data transfer (5 GB a month) is only shown in the Supabase dashboard › Organization › Usage.</div>
+</div></sf-if>
   <div class="lm-stats"><sf-for list="{{ lcmsStats }}" as="x"><span class="lm-stat"><b>{{ x.v }}</b> {{ x.l }}</span></sf-for></div>
   <div class="ui-83">
     <sf-select class="lm-typesel" value="{{ lcmsTypeVal }}" on-change="{{ setLcmsType }}" aria-label="Module type"><sf-for list="{{ lcmsTypeOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
@@ -3268,6 +3280,7 @@
             <span class="lm-drop-ic" aria-hidden="true">⬆</span>
             <span class="lm-drop-t">Upload a file</span>
             <span class="ui-6">Drag a file here or <u>browse</u>. The type is detected for you: PDF / Word / PowerPoint / Excel, video, podcast / audio, image, or a .zip package (SCORM, xAPI / cmi5 or HTML5).</span>
+            <sf-if value="{{ modSpaceLeft }}"><span class="ui-6"><b>{{ modSpaceLeft }}</b></span></sf-if>
             <input class="asm-file" type="file" accept="{{ modAnyAccept }}" on-change="{{ modPickAny }}">
           </label>
           <div class="lm-or"><span>or create</span></div>

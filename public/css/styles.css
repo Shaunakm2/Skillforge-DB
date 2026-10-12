@@ -2241,3 +2241,14 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
 
 .lm-asg{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-top:1px solid #EEF2F5}
 .lm-rv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.lm-rv .ovl-21{flex:1 1 320px}
+
+/* ---------- v41.13: Supabase free plan usage meter ---------- */
+.um{display:flex;flex-direction:column;gap:10px;padding:14px 18px;margin:4px 0 16px;background:#FFFFFF;border:1px solid #D7E3EC;border-radius:16px}
+.um-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.um-tag{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#526B7A;background:#EAF1F6;border-radius:999px;padding:2px 8px}
+.um-rows{display:flex;flex-direction:column;gap:8px}
+.um-row{display:grid;grid-template-columns:110px minmax(120px,1fr) 300px;gap:12px;align-items:center}
+.um-l{font-weight:700;color:#16324F;font-size:14px}
+.um-bar{height:10px;background:#EAF1F6;border-radius:999px;overflow:hidden}.um-bar span{display:block;height:100%;border-radius:999px}
+.um-t{color:#334E68;font-size:13.5px;white-space:nowrap}
+@media(max-width:640px){.um-row{grid-template-columns:1fr}.um-t{white-space:normal}}

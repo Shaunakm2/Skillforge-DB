@@ -50,6 +50,7 @@ SkillforgeApp.prototype.amLcms = function (c) {
     lcmsStats: [['modules', s.lcms.length], ['tests', s.lcms.filter(m => (MOD_TYPES[m.type] || {}).quiz).length], ['media, packages & links', s.lcms.filter(m => { const T = MOD_TYPES[m.type] || {}; return !!(T.accept || T.link); }).length], ['not used in a course', s.lcms.filter(m => !usedIn(m.id).length).length]].map(([l, v]) => ({ l, v })),
     // v41.8: one "+ Add module" button. Step 1 picks what to add (upload a file — the type is detected — or create one); step 2 is that type's form.
     newModule: () => this.setState({ mod: { id:null, step:'pick', err:'' } }), lcmsFormsOnly: formsOnly,
+    modSpaceLeft: Backend.Usage.on() && s.beUsage ? 'Space left on the free plan: ' + Backend.Usage.mb(Math.max(0, Backend.Usage.LIM.storage - s.beUsage.storage)) + '.' : '',
     modStepPick: md.step === 'pick', modStepForm: !!s.mod && md.step !== 'pick', modCanUpload: !formsOnly, modDragOver: !!md.over,
     modAnyAccept: FILE_TYPES.map(t => MOD_TYPES[t].accept).join(','),
     modPickAny: e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) takeFile(f); },
