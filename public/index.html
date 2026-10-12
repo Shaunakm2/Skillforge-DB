@@ -2022,6 +2022,21 @@
 </div>
 </sf-if>
 
+<sf-if value="{{ docViewOpen }}">
+<div class="ovl-1 dv-ovl" role="dialog" aria-modal="true" aria-label="{{ dvTitle }}">
+  <div class="dv-box">
+    <div class="dv-head"><div class="dv-ttl"><div class="dv-t">{{ dvTitle }}</div><div class="ui-6">{{ dvMeta }}</div></div>
+      <a class="ui-82 dv-tab" href="{{ dvUrl }}" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a>
+      <sf-if value="{{ dvCanDl }}"><button class="ui-82" on-click="{{ dvDl }}">Download</button></sf-if>
+      <button class="dv-x" aria-label="Close" on-click="{{ dvClose }}">✕</button></div>
+    <sf-if value="{{ dvInline }}"><iframe class="dv-frame" src="{{ dvUrl }}" title="{{ dvTitle }}"></iframe></sf-if>
+    <sf-if value="{{ dvNoInline }}"><div class="dv-none"><div class="ui-95">This file type can’t be shown inside Skillforge.</div><div class="ui-6">Use Open in new tab or Download to read it, then come back here to acknowledge.</div></div></sf-if>
+    <div class="dv-foot"><sf-if value="{{ dvCanAck }}"><span class="ui-6 sf-grow">Read the whole document, then confirm.</span><button class="ui-91 dv-ack" on-click="{{ dvAck }}">I have read and understood</button></sf-if>
+      <sf-if value="{{ dvAcked }}"><span class="doc-st dv-done">✓ {{ dvAckedT }}</span><span class="sf-grow"></span><button class="ui-82" on-click="{{ dvClose }}">Close</button></sf-if></div>
+  </div>
+</div>
+</sf-if>
+
 <!-- DOCUMENTS LIBRARY (managers) -->
 <sf-if value="{{ isDocAdmin }}">
 <div class="ui-42" data-screen-label="Documents library">

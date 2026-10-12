@@ -69,11 +69,11 @@ SkillforgeApp.prototype.amDocs = function (c) {
       p[d.id] = e; all[me] = p; return { docAck: all }; });
     return Promise.resolve();
   };
+  // v41.7: documents open inside the LMS (viewer pop-up), so the view is always recorded and Acknowledge unlocks at once.
+  // (Before: window.open with "noopener" always returns null, so every open looked like a blocked pop-up and was never recorded.)
   const open = d => () => { const v = verOf(d), url = Docs.safeUrl(v.file && v.file.src);
     if (!url) return this.toastMsg(v.file && v.file.path ? 'The file link is not ready yet. Try again in a moment.' : 'This document has no file.');
-    const w = window.open(url, '_blank', 'noopener,noreferrer');
-    // v35: only count the document as opened when the tab actually opened (a blocked pop-up is not a view)
-    if (!w && !/^blob:/.test(url)) return this.toastMsg('Your browser blocked the new tab. Allow pop-ups for this site, then select Open again.');
+    this.setState({ docView: d.id });
     record(d, false).catch(() => {}); };
   // v35: the fallback file name takes its extension from the real file type (it was always .pdf)
   const DOC_MIME_EXT = { 'application/pdf':'pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx', 'application/msword':'doc',
@@ -82,8 +82,15 @@ SkillforgeApp.prototype.amDocs = function (c) {
   const download = d => () => { const v = verOf(d), url = Docs.safeUrl(v.file && v.file.src); if (!url || !d.download) return;
     fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(b => { const u2 = URL.createObjectURL(b), a = document.createElement('a'); a.href = u2; a.download = (v.file.name || d.code + '.' + (DOC_MIME_EXT[(b.type || '').split(';')[0].trim().toLowerCase()] || 'bin')).replace(/[^A-Za-z0-9._ -]+/g, '-'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u2), 2000); })
       .catch(() => window.open(url, '_blank', 'noopener,noreferrer')); record(d, false).catch(() => {}); };
-  const acknowledge = d => () => { if (Docs.ackState(d, mine[d.id]) === 'none' || mine[d.id].viewedV !== d.cur) return this.toastMsg('Open the document first, then acknowledge it.');
+  const acknowledge = d => () => { if (Docs.ackState(d, mine[d.id]) === 'none' || mine[d.id].viewedV !== d.cur) { this.toastMsg('Read the document first. It is open now: acknowledge at the bottom when you are done.'); return open(d)(); }
     record(d, true).then(() => this.toastMsg('Thank you. Your acknowledgement of “' + d.title + '” is recorded.')).catch(() => {}); };
+  const viewer = (() => { const d = s.docView && DOCS.find(x => x.id === s.docView); if (!d) return { docViewOpen:false };
+    const v = verOf(d), url = Docs.safeUrl(v.file && v.file.src) || '', a = mine[d.id], st = Docs.ackState(d, a), ext = String((v.file && v.file.name) || '').split('.').pop().toLowerCase();
+    const inline = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'mp4', 'mp3'].includes(ext) || /^blob:/.test(url);
+    return { docViewOpen:true, dvTitle: d.title, dvMeta: d.code + ' · v' + d.cur + ' · ' + kind(v.file), dvUrl: url, dvInline: inline, dvNoInline: !inline,
+      dvCanDl: !!d.download && !!url, dvDl: download(d), dvCanAck: !!d.mandatory && st !== 'ack', dvAcked: st === 'ack', dvAckedT: st === 'ack' ? 'Acknowledged ' + fmtT(a.ackAt) : '',
+      dvAck: () => record(d, true).then(() => this.toastMsg('Thank you. Your acknowledgement of “' + d.title + '” is recorded.')).catch(() => {}),
+      dvClose: () => this.setState({ docView: null }) }; })();
   const reviewFlag = d => d.status === 'Archived' ? '' : d.expiry && d.expiry < TODAY_KEY ? 'Expired' : d.review && d.review < TODAY_KEY ? 'Review overdue' : d.expiry && d.expiry <= Progress.plus(TODAY_KEY, 30) ? 'Expires soon' : d.review && d.review <= Progress.plus(TODAY_KEY, 30) ? 'Review due soon' : '';
   const ST = { Published:['#DCFCE7', '#166534'], Draft:['#EAF1F6', '#526B7A'], Archived:['#E5ECF7', '#2F4A7A'] };
   const audLabel = d => (d.audience || []).includes('All') ? 'Everyone' : (d.audience || []).join(', ');
@@ -97,7 +104,7 @@ SkillforgeApp.prototype.amDocs = function (c) {
       && (!q || (d.title + ' ' + d.code + ' ' + (d.desc || '') + ' ' + (d.tags || []).join(' ') + ' ' + d.cat).toLowerCase().includes(q)))
       .sort((a, b) => (pend.includes(b) - pend.includes(a)) || a.title.localeCompare(b.title));
     const setF = patch => this.setState(st => ({ docF: { ...(st.docF || { q:'', cat:'All', show:'All' }), ...patch } }));
-    return { isDocs:true, isDocAdmin:false, docsQ: F.q || '', setDocsQ: e => setF({ q: e.target.value }),
+    return { ...viewer, isDocs:true, isDocAdmin:false, docsQ: F.q || '', setDocsQ: e => setF({ q: e.target.value }),
       docsCats: ['All'].concat(cats.filter(x => vis.some(d => d.cat === x))).map(x => ({ ...UI.chip(F.cat, x, x === 'All' ? 'All categories' : x, () => setF({ cat: x })), n: x === 'All' ? vis.length : vis.filter(d => d.cat === x).length })),
       docsShow: [['All', 'All documents'], ['Required', 'Required reading'], ['Pending', 'To acknowledge (' + pend.length + ')']].map(([k, l]) => UI.chip(F.show, k, l, () => setF({ show: k }))),
       docsHasPending: pend.length > 0, docsPendingLine: pend.length === 1 ? '1 required document is waiting for your acknowledgement.' : pend.length + ' required documents are waiting for your acknowledgement.',
@@ -205,7 +212,7 @@ SkillforgeApp.prototype.amDocs = function (c) {
         Files.put(blob, 'docs').then(r => { this._docBlob = null; finish({ name: blob.name, size: blob.size, type: blob.type, path: r.path, src: r.src }); })
           .catch(e2 => this.setState(st => ({ docEd: st.docEd && { ...st.docEd, busy: false, err: e2.message + '. Nothing was saved; try again.' } }))); } };
   }
-  return { isDocs:false, isDocAdmin:true,
+  return { ...viewer, isDocs:false, isDocAdmin:true,
     docTabs: [['library', 'Library'], ['acks', 'Acknowledgements'], ['cats', 'Categories']].map(([k, l]) => ({ on: tab === k, label: l, pick: () => this.setState({ docTab: k }) })),
     docIsLib: tab === 'library', docIsAcks: tab === 'acks', docIsCats: tab === 'cats', docNoReq: tab === 'acks' && !ackDoc,
     docMQ: MF.q || '', setDocMQ: e => { const x = e.target.value; this.setState(st => ({ docMF: { ...(st.docMF || { q:'', st:'All' }), q: x } })); },

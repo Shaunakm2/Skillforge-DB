@@ -68,7 +68,7 @@ class SkillforgeApp extends Skillforge.Store {
   componentDidMount() {
     window.addEventListener('sf-toast', e => this.toastMsg(String(e.detail || '').slice(0, 200)));
     // v39: Escape closes the small toolbar menus (Users: Export, Create account)
-    window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.state.uMenu) this.setState({ uMenu: null }); });
+    window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.state.docView) this.setState({ docView: null }); else if (e.key === 'Escape' && this.state.uMenu) this.setState({ uMenu: null }); });
     try { const im = sessionStorage.getItem('sf-idle'); if (im) { sessionStorage.removeItem('sf-idle'); this.setState(s2 => ({ login: { ...s2.login, err: 'You were signed out after ' + (+im || 30) + ' minutes without activity.' } })); } } catch (e) {}
     // Idle sign-out (App settings › Sign out after inactivity, default 30 minutes): shared PCs are common in training rooms.
     // Activity in any tab counts (localStorage), so a second open tab doesn't sign someone out while they work in the first.
