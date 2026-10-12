@@ -4,11 +4,15 @@ SkillforgeApp.prototype.vmAuth = function (c) {
   // sign in
   const RMAP = { 'Learner':'learner', 'Trainer':'instructor', 'Admin':'admin' };
   const L0 = s.login, setL = patch => this.setState(st => ({ login: { ...st.login, err:'', ...patch } }));
-  const signInAs = u => {
+  const signInAs = (u, opts) => {
     const rid = RMAP[u.role] || 'learner', r = ROLES.find(x => x.id === rid);
+    const back = opts && opts.restore ? NavMemory.load(this.state, u.name) : null;
+    if (!back) NavMemory.clear();
     try { if (L0.remember) localStorage.setItem('sf-remember', u.email); else localStorage.removeItem('sf-remember'); } catch (e) {}
     this.setState(st => ({ users: st.users.map(x => x.id === u.id ? { ...x, lastLogin:'Just now', status: x.status === 'Invited' ? 'Active' : x.status } : x), login: { ...st.login, pw:'', err:'' } }));
-    this.go(r.home, { essPopup:true, authed:true, role:rid, meName:u.name, meRole:rid, meTitle:u.designation || u.role, adminView:false, roleMenu:false, notifOpen:false });
+    const base = { authed:true, role:rid, meName:u.name, meRole:rid, meTitle:u.designation || u.role, adminView:false, roleMenu:false, notifOpen:false };
+    if (back) { const { screen, ...rest } = back; this.go(screen, { ...base, ...rest, essPopup:false }); return; }   // page refresh: same page, no welcome
+    this.go(r.home, { ...base, essPopup:true });
     this.toastMsg('Welcome, ' + u.name.split(' ')[0]);
   };
   const doLogin = () => {
@@ -58,7 +62,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     // Login background: decorative shapes drift slightly with the pointer (direct style update, no re-render).
     lgParallax: e => { const el = e.currentTarget, r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
       el.querySelectorAll('.lgx-i').forEach(n => { const d = +n.dataset.d || 0; n.style.translate = (x * d).toFixed(1) + 'px ' + (y * d).toFixed(1) + 'px'; }); },
-    signOut: () => { if (Backend.on) { Backend.signOut().finally(() => location.reload()); return; } this.setState({ authed:false, roleMenu:false, notifOpen:false, meName:null, meRole:null, loginView:'signin', gq:'', userModal:false, qModal:false, annModal:false, enrModal:null, attModal:null, cDraft:null, mod:null, modPreview:null, bDraft:null, ttDraft:null, sm:null, caM:null, am:null }); window.scrollTo(0, 0); },
+    signOut: () => { NavMemory.clear(); if (Backend.on) { Backend.signOut().finally(() => location.reload()); return; } this.setState({ authed:false, roleMenu:false, notifOpen:false, meName:null, meRole:null, loginView:'signin', gq:'', userModal:false, qModal:false, annModal:false, enrModal:null, attModal:null, cDraft:null, mod:null, modPreview:null, bDraft:null, ttDraft:null, sm:null, caM:null, am:null }); window.scrollTo(0, 0); },
   };
   const meUser = s.users.find(u => u.name === role.name) || {};
   const acctMenu = { me: { name: role.name, initials: ini(role.name), type: role.label, email: meUser.email || '', sub: (meUser.designation || role.label) + (meUser.empId ? ' · ' + meUser.empId : '') },
@@ -66,7 +70,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     goHelp: () => this.go('account', { acctTab:'help', adminView:false, acctDraft:null }), menuSettings: (this._perms || new Set()).size > 0, goSettingsMenu: () => this.go('admin', { adminView:true, setTab:null }) };
   return {
     authed: s.authed,
-    notAuthed: !s.authed,
+    notAuthed: !s.authed && !s.booting, booting: !!s.booting && !s.authed,
     ...loginVals,
     ...acctMenu,
     navItems,

@@ -460,8 +460,11 @@ const Backend = (() => {
   async function start(a) {
     app = a; if (!on) { a.setState({ beStatus: status }); return; }
     a.setState({ beOn: true, beStatus: status });
-    const { data: sess } = await sb.auth.getSession();
-    if (sess && sess.session) { const r = await afterSignIn(); a.onBackendSignedIn && a.onBackendSignedIn(r); }
+    // v41.2: while the saved sign-in is checked the app shows a short "Loading" screen (state.booting), not the
+    // sign-in form, and a restored session returns to the page the person was on (NavMemory), not the landing page.
+    try { const { data: sess } = await sb.auth.getSession();
+      if (sess && sess.session) { const r = await afterSignIn(); a.onBackendSignedIn && a.onBackendSignedIn(r, { restore: true }); } }
+    finally { a.setState({ booting: false }); }
   }
 
   /* ---------- seeding and logins (admins) ---------- */

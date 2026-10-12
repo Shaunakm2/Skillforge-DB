@@ -18,6 +18,8 @@
 <div class="hdr-1 {{ rootCls }} {{ featCls }}">
 
 <!-- SIGN IN -->
+<sf-if value="{{ booting }}"><div class="sf-boot" role="status" aria-live="polite"><span class="sf-boot-logo">S</span><span class="sf-boot-txt">Loading Skillforge…</span></div></sf-if>
+
 <sf-if value="{{ notAuthed }}">
 <div class="sf-l2" data-screen-label="Sign in" on-pointermove="{{ lgParallax }}">
   <div class="lgx" aria-hidden="true">
@@ -3713,6 +3715,7 @@
 <script src="js/data/extras.js"></script>
 <script src="js/core/assessment.js"></script>
 <script src="js/core/helpers.js"></script>
+<script src="js/core/navmemory.js"></script>
 <script src="js/core/access.js"></script>
 <script src="js/core/progress.js"></script>
 <script src="js/core/badges.js"></script>

@@ -11,7 +11,7 @@ class SkillforgeApp extends Skillforge.Store {
     const PINNED = { 'Maya Okafor': { present:17, negotiation:0, safety:0 }, 'Daniel Reyes': { change:50, inclusive:0, safety:25 }, 'Lena Fischer': { feedback:42, present:17, negotiation:0 } };
     const itemDone0 = Progress.seedRecords(USERS0, ESS0.enroll, ADMIN_COURSES0, ESS0.assignedOn, PINNED);
     this.state = {
-      authed:false, login:{ email: (() => { try { return localStorage.getItem('sf-remember') || ''; } catch (e) { return ''; } })(), pw:'', remember:true, show:false, err:'' }, loginView:'signin', meName:null, meRole:null, meTitle:'',
+      authed:false, booting: !!Backend.on, login:{ email: (() => { try { return localStorage.getItem('sf-remember') || ''; } catch (e) { return ''; } })(), pw:'', remember:true, show:false, err:'' }, loginView:'signin', meName:null, meRole:null, meTitle:'',
       role:'learner', screen:'home', roleMenu:false, courseId:'change', lessonKey:'2-0', xp:8420, lessonsToday:0, quests:{ discuss:false },
       playing:false, t:0, tab:'overview', notes:'', from:'home',
       qi:0, qSel:null, qChecked:false, qCorrect:0, qDone:false, attempt:[], answers:{}, qText:'', qMulti:{}, qMatch:{}, qOrder:null, attemptQuiz:null,
@@ -49,7 +49,7 @@ class SkillforgeApp extends Skillforge.Store {
     if (!Backend.configured) this.state.docAck = docAckSeed(this.state.users);
   }
   /* After Supabase sign-in: person and role come from the server membership (sf_member), not from the user record. */
-  onBackendSignedIn(r) {
+  onBackendSignedIn(r, opts) {
     if (!r) return;
     if (r.mustChange) { this.setState(st => ({ authed:false, loginView:'newpw', login: { ...st.login, busy:false, pw:'', err:'' } })); return; }
     const me = r.me, st = this.state;
@@ -60,7 +60,7 @@ class SkillforgeApp extends Skillforge.Store {
     if (u.expires && u.expires < TODAY_KEY) { Backend.signOut(); this.setState(s2 => ({ login: { ...s2.login, busy:false, err:'This account expired on ' + Fmt.medium(u.expires) + '. Contact your L&D administrator.' } })); return; }
     if (u.status === 'Deactivated') { Backend.signOut(); this.setState(s2 => ({ login: { ...s2.login, busy:false, err:'This account is deactivated. Contact your L&D administrator.' } })); return; }
     this.setState(s2 => ({ login: { ...s2.login, busy:false } }));
-    if (this._signInAs) this._signInAs({ ...u, role: me.role });
+    if (this._signInAs) this._signInAs({ ...u, role: me.role }, opts);
   }
   // The signed-in user's name replaces the demo persona, so their own assignments and attempts are used.
   roleOf(s) { const r = ROLES.find(x => x.id === s.role); return s.meName && s.meRole === s.role ? { ...r, name: s.meName, who: s.meName + ' · ' + (s.meTitle || r.label) } : r; }
@@ -169,6 +169,7 @@ class SkillforgeApp extends Skillforge.Store {
     const need = Access.screenPerms[s.screen];
     const scrV = (need && !need.some(p => perms.has(p))) || (s.screen === 'admin' && !perms.size) ? 'denied' : s.screen;
     this._scrV = scrV;
+    if (s.authed) NavMemory.save(s);
     // App settings: feature switches, menu labels/order/visibility (Tile management › Learner menu) and defaults.
     const PF = s.platform || PLATFORM0, feat = PF.feat || {};
     DEFAULT_PASSWORD = (PF.defaults && PF.defaults.password) || 'Pass@123';
