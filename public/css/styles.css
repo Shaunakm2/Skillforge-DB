@@ -2223,3 +2223,21 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
 .al-more{border:0;background:none;color:#0066A1;font:inherit;font-weight:700;font-size:13.5px;cursor:pointer;padding:6px 0;white-space:nowrap}
 .al-more:focus-visible,.al-sel:focus-visible,.al-search input:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
 @media(max-width:760px){.al-row{grid-template-columns:34px minmax(0,1fr)}.al-time{grid-column:2;order:3;padding:0}.al-area,.al-more{grid-column:2}.al-count{margin-left:0}}
+
+/* ---------- v41.11: LCMS — more module types ---------- */
+.lm-gh{font-size:12.5px;font-weight:800;color:#526B7A;text-transform:uppercase;letter-spacing:.04em;margin:4px 0 -4px}
+.lm-box{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid #D7E3EC;border-radius:14px;background:#FAFCFE}
+.lm-lv{display:flex;align-items:center;gap:8px;margin-top:6px}.lm-lv .ovl-21{flex:1}.lm-lv .lm-num{flex:0 0 84px}
+
+.lm-embed{aspect-ratio:16/9;height:auto;min-height:360px}
+.lm-ck{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border:1px solid #D7E3EC;border-radius:12px;background:#FFFFFF;font:inherit;color:#16324F;cursor:pointer;margin-top:8px}
+.lm-ck[aria-checked="true"]{border-color:#08AE6E;background:#F0FBF6}.lm-ck:disabled{cursor:default}
+.lm-ck:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
+.lm-box2{width:24px;height:24px;border-radius:7px;border:2px solid #9CB3C4;display:grid;place-items:center;font-weight:800;color:#FFFFFF;flex:none}
+.lm-ck[aria-checked="true"] .lm-box2{background:#08AE6E;border-color:#08AE6E}
+.lm-brief{white-space:pre-wrap;line-height:1.55;color:#16324F;padding:12px 14px;background:#F4F8FC;border-radius:12px}
+.lm-cmt{padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;color:#78350F}
+.lm-mine{display:flex;flex-direction:column;gap:6px}.lm-pre{white-space:pre-wrap;color:#334E68;line-height:1.5}
+
+.lm-asg{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-top:1px solid #EEF2F5}
+.lm-rv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.lm-rv .ovl-21{flex:1 1 320px}

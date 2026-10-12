@@ -495,7 +495,7 @@
         <div class="sf-step-bar"><span class="ui-6">This step completes when the video finishes.</span></div>
       </sf-if></sf-if>
       <sf-if value="{{ itScormLaunch }}">
-        <sf-if value="{{ scormOff }}"><div class="sf-scorm-launch"><div class="ui-8">{{ it.fileName }}</div><div class="ui-6">Interactive package. It reports your completion automatically.</div><sf-if value="{{ itHasBookmark }}"><div class="ui-6">Resumes from: {{ itBookmark }}</div></sf-if><button class="ui-91" on-click="{{ launchScorm }}">Launch package</button></div></sf-if>
+        <sf-if value="{{ scormOff }}"><div class="sf-scorm-launch"><div class="ui-8">{{ it.fileName }}</div><div class="ui-6">{{ itPkgNote }}</div><sf-if value="{{ itHasBookmark }}"><div class="ui-6">Resumes from: {{ itBookmark }}</div></sf-if><button class="ui-91" on-click="{{ launchScorm }}">Launch package</button></div></sf-if>
         <sf-if value="{{ scormOn }}"><iframe class="sf-scorm" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" referrerpolicy="no-referrer" allow="fullscreen" src="{{ it.src }}" title="{{ it.title }}"></iframe></sf-if>
       </sf-if>
       <sf-if value="{{ itScormSim }}">
@@ -517,7 +517,25 @@
         <div class="sf-scorm-launch"><div class="ui-8">{{ it.fileName }}</div><div class="ui-6">Open the document, read it, then mark it complete.</div>
           <div class="ui-87"><a class="ui-60 sf-a-btn" href="{{ it.src }}" target="_blank" rel="noopener" download="{{ it.fileName }}">Open document ↗</a><sf-if value="{{ itShowMark }}"><button class="ui-91" on-click="{{ itMarkDoc }}">I've read this document</button></sf-if></div></div>
       </sf-if></sf-if>
-      <sf-if value="{{ itIsLink }}"><sf-if value="{{ it.src }}">
+      <sf-if value="{{ itIsEmbed }}">
+        <iframe class="sf-doc lm-embed" src="{{ itEmbedSrc }}" title="{{ it.title }}" allow="fullscreen; picture-in-picture; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"></iframe>
+      </sf-if>
+      <sf-if value="{{ itIsLinkOut }}"><div class="sf-scorm-launch"><div class="ui-8">{{ it.fileName }}</div><div class="ui-6">{{ itLinkOutNote }}</div>
+          <div class="ui-87"><a class="ui-60 sf-a-btn" href="{{ it.src }}" target="_blank" rel="noopener">Open ↗</a><sf-if value="{{ itShowMark }}"><button class="ui-91" on-click="{{ itMarkLink }}">Mark complete</button></sf-if></div></div></sf-if>
+      <sf-if value="{{ itIsChecklist }}"><div class="sv-box"><div class="ui-6">Tick each item when it’s done, then submit. {{ ckLine }}</div>
+        <sf-for list="{{ ckRows }}" as="r"><button class="lm-ck" role="checkbox" aria-checked="{{ r.on }}" on-click="{{ r.toggle }}" disabled="{{ r.locked }}"><span class="lm-box2">{{ r.mark }}</span><span>{{ r.t }}</span></button></sf-for>
+        <sf-if value="{{ ckCanSubmit }}"><button class="ui-91 bt-left" on-click="{{ ckSubmit }}">Submit checklist</button></sf-if></div></sf-if>
+      <sf-if value="{{ itIsAsg }}"><div class="sv-box">
+        <div class="lm-brief">{{ asgBrief }}</div>
+        <sf-if value="{{ asgHasSub }}"><span class="doc-st" style="background:{{ asgStBg }};color:{{ asgStFg }}">{{ asgStatus }}</span></sf-if>
+        <sf-if value="{{ asgHasComment }}"><div class="lm-cmt"><b>Trainer’s comment:</b> {{ asgComment }}</div></sf-if>
+        <sf-if value="{{ asgShowMine }}"><div class="lm-mine"><div class="ui-8">Your submission</div><div class="lm-pre">{{ asgMyText }}</div><sf-if value="{{ asgMyLink }}"><a class="sf-link" href="{{ asgMyLink }}" target="_blank" rel="noopener">{{ asgMyLink }} ↗</a></sf-if></div></sf-if>
+        <sf-if value="{{ asgCan }}">
+          <label class="ui-61"><span class="ui-8">Your answer</span><textarea maxlength="4000" class="ui-64" rows="6" value="{{ asgText }}" on-input="{{ setAsgText }}" placeholder="Write your answer here"></textarea></label>
+          <sf-if value="{{ asgAllowLink }}"><label class="ui-61"><span class="ui-8">Link to your work (optional)</span><input maxlength="500" class="ovl-21" value="{{ asgLink }}" on-input="{{ setAsgLink }}" placeholder="https://… (e.g. a OneDrive file shared with your trainer)"></label></sf-if>
+          <button class="ui-91 bt-left" on-click="{{ asgSubmit }}">Submit for review</button>
+        </sf-if></div></sf-if>
+      <sf-if value="{{ itIsLink }}"><sf-if value="{{ itLinkLegacy }}">
         <div class="sf-scorm-launch"><div class="ui-8">{{ it.fileName }}</div><div class="ui-6">This page opens in a new tab.</div>
           <div class="ui-87"><a class="ui-60 sf-a-btn" href="{{ it.src }}" target="_blank" rel="noopener">Open link ↗</a><sf-if value="{{ itShowMark }}"><button class="ui-91" on-click="{{ itMarkLink }}">Mark complete</button></sf-if></div></div>
       </sf-if></sf-if>
@@ -1037,6 +1055,18 @@
     <sf-for list="{{ gbStats }}" as="s">
       <div class="ui-68"><div class="ui-45">{{ s.l }}</div><div class="ui-69">{{ s.v }}</div></div>
     </sf-for>
+  </div>
+  <div class="ui-70 asm-review">
+    <div class="asm-review-head"><div><h2 class="asm-h2">Assignments to review</h2><div class="ui-6">{{ asgSummary }}</div></div>
+      <div class="ui-87"><sf-for list="{{ asgTabs }}" as="t"><button class="ui-97" on-click="{{ t.pick }}" style="border:1px solid {{ t.border }};background:{{ t.bg }};color:{{ t.fg }}">{{ t.label }}</button></sf-for></div></div>
+    <sf-if value="{{ asgNone }}"><div class="ui-100">{{ asgNoneText }}</div></sf-if>
+    <sf-for list="{{ asgRows }}" as="a"><div class="lm-asg">
+      <div class="sf-label-row"><span class="ui-95">{{ a.learner }}</span><span class="ui-6">{{ a.where }}</span><span class="doc-st" style="background:{{ a.stBg }};color:{{ a.stFg }}">{{ a.status }}</span></div>
+      <div class="lm-pre">{{ a.text }}</div><sf-if value="{{ a.link }}"><a class="sf-link" href="{{ a.link }}" target="_blank" rel="noopener noreferrer">{{ a.link }} ↗</a></sf-if>
+      <sf-if value="{{ a.hasComment }}"><div class="lm-cmt"><b>Comment:</b> {{ a.comment }}</div></sf-if>
+      <sf-if value="{{ a.open }}"><div class="lm-rv"><input maxlength="1000" class="ovl-21" value="{{ a.draft }}" on-input="{{ a.setDraft }}" placeholder="Comment for the learner (required when you return it)">
+        <button class="ui-82" on-click="{{ a.ret }}">Return for changes</button><button class="ui-91" on-click="{{ a.ok }}">Accept</button></div></sf-if>
+    </div></sf-for>
   </div>
   <div class="ui-70 asm-review">
     <div class="asm-review-head">
@@ -3237,17 +3267,17 @@
           <label class="lm-drop" data-over="{{ modDragOver }}" on-dragover="{{ modDragOverFn }}" on-dragleave="{{ modDragLeave }}" on-drop="{{ modDropFile }}">
             <span class="lm-drop-ic" aria-hidden="true">⬆</span>
             <span class="lm-drop-t">Upload a file</span>
-            <span class="ui-6">Drag a file here or <u>browse</u>. The type is detected for you: PDF / Word / PowerPoint / Excel, video, audio, image, or a SCORM .zip.</span>
+            <span class="ui-6">Drag a file here or <u>browse</u>. The type is detected for you: PDF / Word / PowerPoint / Excel, video, podcast / audio, image, or a .zip package (SCORM, xAPI / cmi5 or HTML5).</span>
             <input class="asm-file" type="file" accept="{{ modAnyAccept }}" on-change="{{ modPickAny }}">
           </label>
           <div class="lm-or"><span>or create</span></div>
           </sf-if>
-          <div class="lm-cards"><sf-for list="{{ modPickCards }}" as="k"><button class="lm-card" on-click="{{ k.pick }}"><span class="lm-g" style="background:{{ k.bg }};color:{{ k.fg }}">{{ k.glyph }}</span><span class="lm-ct"><span class="lm-cn">{{ k.label }}</span><span class="ui-6">{{ k.hint }}</span></span></button></sf-for></div>
+          <sf-for list="{{ modPickGroups }}" as="g"><div class="lm-gh">{{ g.h }}</div><div class="lm-cards"><sf-for list="{{ g.cards }}" as="k"><button class="lm-card" on-click="{{ k.pick }}"><span class="lm-g" style="background:{{ k.bg }};color:{{ k.fg }}">{{ k.glyph }}</span><span class="lm-ct"><span class="lm-cn">{{ k.label }}</span><span class="ui-6">{{ k.hint }}</span></span></button></sf-for></div></sf-for>
           <sf-if value="{{ modErr }}"><div class="sf-login-err" role="alert">{{ md.err }}</div></sf-if>
         </div>
       </sf-if>
       <sf-if value="{{ modStepForm }}">
-      <div class="lm-type"><span class="lm-g" style="background:{{ modTypeBg }};color:{{ modTypeFg }}">{{ modTypeGlyph }}</span><span class="ui-95">{{ md.type }}</span><sf-if value="{{ modCanChange }}"><button class="lm-change" on-click="{{ modBackToPick }}">Change type</button></sf-if></div>
+      <div class="lm-type"><span class="lm-g" style="background:{{ modTypeBg }};color:{{ modTypeFg }}">{{ modTypeGlyph }}</span><span class="ui-95">{{ modTypeLabel }}</span><sf-if value="{{ modCanChange }}"><button class="lm-change" on-click="{{ modBackToPick }}">Change type</button></sf-if></div>
       <sf-if value="{{ mdScormBusy }}"><div class="ovl-22">{{ mdScormBusy }}</div></sf-if>
       <sf-if value="{{ modIsFile }}">
         <div class="sf-drop">
@@ -3256,7 +3286,7 @@
           <span class="ui-6">Supported: {{ modHint }}</span>
         </div>
       </sf-if>
-      <sf-if value="{{ modIsLink }}"><label class="ui-61"><span class="ui-8">Web address</span><input maxlength="2048" class="ovl-21" value="{{ md.url }}" on-input="{{ setMdUrl }}" placeholder="https://"></label></sf-if>
+      <sf-if value="{{ modIsLink }}"><label class="ui-61"><span class="ui-8">{{ modLinkLabel }}</span><input maxlength="2048" class="ovl-21" value="{{ md.url }}" on-input="{{ setMdUrl }}" placeholder="{{ modLinkPh }}"><span class="ui-6">{{ modLinkNote }}</span></label></sf-if>
       <sf-if value="{{ modIsQuiz }}">
         <label class="ui-61"><span class="ui-8">Assessment</span><sf-select class="ovl-31" value="{{ modQuizVal }}" on-change="{{ setMdQuiz }}"><sf-for list="{{ modQuizOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select><span class="ui-6">{{ modQuizSummary }}</span></label>
         <div class="ovl-22">Need a new one? <button class="sf-link" on-click="{{ buildQuizFromLcms }}">Build an assessment from the question bank →</button> Pick the questions, set the pass mark, attempts and randomisation, and it's added here when you save.</div>
@@ -3272,6 +3302,18 @@
       <sf-if value="{{ modIsForm }}"><div class="ui-61"><span class="ui-8">Questions</span>
         <sf-for list="{{ mdQs }}" as="q"><div class="fb-q kq-q"><span class="bt-day-n">Q{{ q.n }}</span><input class="ovl-21" maxlength="200" value="{{ q.t }}" on-input="{{ q.setT }}" placeholder="Write the question"><sf-select class="ovl-31" value="{{ q.kind }}" on-change="{{ q.setKind }}"><sf-for list="{{ q.kindOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select><button class="create-course-22" on-click="{{ q.up }}" disabled="{{ q.isFirst }}">↑</button><button class="create-course-23" on-click="{{ q.del }}">✕</button></div></sf-for>
         <button class="asm-add bt-left" on-click="{{ mdAddQ }}">+ Add question</button></div></sf-if>
+      <sf-if value="{{ modIsComp }}"><div class="lm-box">
+        <label class="ui-61"><span class="ui-8">Competency</span><input maxlength="80" class="ovl-21" value="{{ md.comp }}" on-input="{{ setMdComp }}" placeholder="e.g. Customer empathy, Excel, Product knowledge"></label>
+        <div class="ui-61"><span class="ui-8">Proficiency levels</span><span class="ui-6">The learner is placed at the highest level whose minimum score they reach.</span>
+          <sf-for list="{{ mdLevelRows }}" as="l"><div class="lm-lv"><input maxlength="40" class="ovl-21" value="{{ l.n }}" on-input="{{ l.setN }}" aria-label="Level name"><span class="ui-6">from</span><input class="ovl-21 lm-num" type="number" min="0" max="100" value="{{ l.min }}" on-input="{{ l.setMin }}" aria-label="Minimum score" disabled="{{ l.first }}"><span class="ui-6">%</span><sf-if value="{{ l.canDel }}"><button class="asm-remove" on-click="{{ l.del }}">Remove</button></sf-if></div></sf-for>
+          <button class="asm-add bt-left" on-click="{{ mdAddLevel }}">+ Add level</button></div></div></sf-if>
+      <sf-if value="{{ modIsList }}"><div class="ui-61"><span class="ui-8">Checklist items</span><span class="ui-6">The learner ticks every item, then submits. Up to 30 items.</span>
+        <sf-for list="{{ mdListRows }}" as="r"><div class="lm-lv"><span class="bt-day-n">{{ r.n }}</span><input maxlength="200" class="ovl-21" value="{{ r.t }}" on-input="{{ r.set }}" placeholder="e.g. Collected the ID badge"><button class="asm-remove" on-click="{{ r.del }}">Remove</button></div></sf-for>
+        <button class="asm-add bt-left" on-click="{{ mdAddItem }}">+ Add item</button></div></sf-if>
+      <sf-if value="{{ modIsAsg }}"><div class="lm-box">
+        <label class="ui-61"><span class="ui-8">Instructions for the learner</span><textarea maxlength="2000" class="ui-64" rows="4" value="{{ md.text }}" on-input="{{ setMdText }}" placeholder="What should they do and submit? How will it be judged?"></textarea></label>
+        <div class="create-course-39"><span class="ui-3"><span class="ui-95">Allow a link to their work</span><span class="create-course-40">e.g. a OneDrive / SharePoint file shared with the trainer. Off: written answer only.</span></span><button class="create-course-41" on-click="{{ mdAllowLink.toggle }}" style="background:{{ mdAllowLink.track }}" role="switch" aria-checked="{{ mdAllowLink.on }}" aria-label="Allow a link"><span class="create-course-42" style="left:{{ mdAllowLink.knob }}"></span></button></div>
+        <span class="ui-6">A trainer with the Gradebook permission reviews it in Settings › Gradebook: accept to complete the step, or return it with comments.</span></div></sf-if>
       <sf-if value="{{ modIsText }}"><label class="ui-61"><span class="ui-8">Statement learners agree to</span><textarea maxlength="2000" class="ui-64" rows="2" value="{{ md.text }}" on-input="{{ setMdText }}" placeholder="e.g. I have read and will follow the code of conduct."></textarea></label></sf-if>
       <label class="ui-61"><span class="ui-8">Title</span><input maxlength="120" class="ovl-21" value="{{ md.title }}" on-input="{{ setMdTitle }}" placeholder="What learners see as the step name"></label>
       <div class="sf-mod-grid">

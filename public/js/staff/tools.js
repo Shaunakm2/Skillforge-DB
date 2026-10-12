@@ -52,6 +52,27 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
     return out.sort((x, y) => x.name.localeCompare(y.name) || x.course.localeCompare(y.course)); })();
   const gbFilt = gbAll.filter(r => !gq || (r.name + ' ' + r.course).toLowerCase().includes(gq)), GBP = Pager(this, s, 'gb', gbFilt, 50);
   const gbRows = GBP.rows.map(r => ({ ...r, initials: ini(r.name), av: AV[Math.floor(Progress.hash(r.name) * 5) % 5], cells: [{ v: r.course, bg:'transparent', fg:'#16324F', cls:'gb-txt' }, { v: r.done, bg:'#EAF1F6', fg:'#334E68', cls:'' }, { ...cell(r.best), cls:'' }, { ...cell(r.low), cls:'' }], avg: r.avgN === null ? '—' : r.avgN }));
+  // v41.11: assignment submissions — accept (completes the learner's step) or return with a comment
+  const asgVals = () => { const INK = '#16324F', W = '#FFFFFF';
+    const all = (s.asgSub || []).slice().sort((x, y) => String(y.at).localeCompare(String(x.at))), tab = s.asgTab || 'pending';
+    const list = tab === 'pending' ? all.filter(x => x.status === 'Submitted') : all.filter(x => x.status !== 'Submitted');
+    const cTitle = id => ((s.adminCourses || []).find(c => c.id === id) || {}).title || 'a course';
+    const decide = (x, accept) => { const comment = ((s.asgRv || {})[x.id] || '').trim();
+      if (!accept && !comment) return this.toastMsg('Write what to change before returning it');
+      const done = () => { this.setState(st => ({ asgRv: { ...(st.asgRv || {}), [x.id]: '' } })); this.toastMsg(accept ? 'Accepted. ' + (x.learner || 'The learner') + '’s step is complete.' : 'Returned to ' + (x.learner || 'the learner')); };
+      if (Backend.on) return Backend.call('reviewAssignment', { id: x.id, decision: accept ? 'accept' : 'return', comment }).then(done).catch(e => this.toastMsg(e.message));
+      this.setState(st => { const out = { asgSub: (st.asgSub || []).map(y => y.id === x.id ? { ...y, status: accept ? 'Accepted' : 'Returned', comment, reviewedBy: this.roleOf(st).name, reviewedAt: new Date().toISOString() } : y) };
+        if (accept) { const L = x.learner, me = { ...(st.itemDone[L] || {}) }; me[x.courseId] = { ...(me[x.courseId] || {}), [x.step]: { at: TODAY_KEY, src: 'assignment' } }; out.itemDone = { ...st.itemDone, [L]: me }; }
+        return out; }); done(); };
+    const n = all.filter(x => x.status === 'Submitted').length;
+    return { asgSummary: n ? n + (n === 1 ? ' submission is' : ' submissions are') + ' waiting for review' : 'Nothing waiting. Learners’ assignment submissions appear here.',
+      asgTabs: [['pending', 'To review (' + n + ')'], ['done', 'Reviewed']].map(([k, l]) => { const on = tab === k; return { label: l, bg: on ? INK : W, fg: on ? '#F8FBFD' : INK, border: on ? INK : '#C9D7E2', pick: () => this.setState({ asgTab: k }) }; }),
+      asgNone: !list.length, asgNoneText: tab === 'pending' ? 'No submissions to review.' : 'Nothing reviewed yet.',
+      asgRows: list.slice(0, 100).map(x => ({ learner: x.learner || x.learnerEmp, where: (x.title || 'Assignment') + ' · ' + cTitle(x.courseId) + ' · ' + Fmt.dt(x.at), status: x.status,
+        stBg: x.status === 'Accepted' ? '#DCFCE7' : x.status === 'Returned' ? '#FEF3C7' : '#EAF1F6', stFg: x.status === 'Accepted' ? '#166534' : x.status === 'Returned' ? '#92400E' : '#16324F',
+        text: x.text || '(no written answer)', link: x.link || '', comment: x.comment || '', hasComment: !!x.comment && x.status !== 'Submitted', open: x.status === 'Submitted',
+        draft: (s.asgRv || {})[x.id] || '', setDraft: e => { const v = e.target.value; this.setState(st => ({ asgRv: { ...(st.asgRv || {}), [x.id]: v } })); },
+        ok: () => decide(x, true), ret: () => decide(x, false) })) }; };
   // written answers — trainer rates each one from 0 to the question's points
   const setRv = (id, patch) => this.setState(st => ({ rvDraft: { ...st.rvDraft, [id]: { ...(st.rvDraft[id] || {}), ...patch } } }));
   const rvAll = s.reviews.map((r, i) => {
@@ -154,6 +175,7 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
     rvTabs,
     rvEmpty: rvList.length === 0,
     rvEmptyLabel: s.rvTab === 'pending' ? 'All written answers are rated.' : 'No rated answers yet.',
+    ...asgVals(),
     rvSummary: rvPending ? rvPending + (rvPending === 1 ? ' answer needs' : ' answers need') + ' your rating' : 'Nothing waiting for a rating',
     exportCsv: () => { if (!gbFilt.length) return this.toastMsg('Nothing to export: no gradebook rows match.');   // v36: writes the file (it only showed a message)
       csvDownload('gradebook-' + TODAY_KEY + '.csv', [['Learner', 'Department', 'Course', 'Assessments done', 'Best %', 'Lowest %', 'Average %', 'Status']].concat(gbFilt.map(r => [r.name, r.dept, r.course, r.done, r.best === null ? '' : r.best, r.low === null ? '' : r.low, r.avgN === null ? '' : r.avgN, r.status])));

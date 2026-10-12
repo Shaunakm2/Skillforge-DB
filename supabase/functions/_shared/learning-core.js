@@ -32,7 +32,8 @@
   const str = (v, max, name) => { v = String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F<>]/g, '').trim(); if (v.length > max) fail(400, name + ' is too long (' + max + ' characters max)'); return v; };
   const uid = () => { const b = new Uint8Array(16); globalThis.crypto.getRandomValues(b); return Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); };
   const viewNeed = mins => Math.min(60, Math.max(15, Math.round((mins || 5) * 6)));
-  const VIEW_KINDS = ['pdf', 'doc', 'image', 'link', 'lesson', 'video', 'audio'];
+  const VIEW_KINDS = ['pdf', 'doc', 'image', 'link', 'lesson', 'video', 'audio', 'html', 'xapi', 'embed', 'youtube'];   // v41.11: + packages without SCORM tracking, H5P, YouTube
+  const PKG_KINDS = ['scorm', 'html', 'xapi'];   // played on the content site
   const can = (ctx, p) => ctx.role === 'Admin' || (ctx.perms || []).includes(p);
   // Who can read answer keys (question bank / assessment authoring). Gradebook alone does NOT include keys.
   const KEY_PERMS = ['qbank', 'quizzes'];
@@ -201,6 +202,8 @@
     if (it.kind === 'quiz') fail(400, 'Assessments complete when you pass them');
     if (it.kind === 'survey') fail(400, 'Submit the survey to complete this step');
     if (it.kind === 'scorm') fail(400, 'SCORM steps complete when the package reports completion');
+    if (it.kind === 'checklist') fail(400, 'Tick every item and submit the checklist to complete this step');
+    if (it.kind === 'assignment') fail(400, 'Submit your assignment: it completes when a trainer accepts it');
     const f = c.features || {};
     if (VIEW_KINDS.includes(it.kind) && !f.selfComplete) {
       const o = await db.get('stepOpen', ctx.emp + '|' + c.id + '|' + i); if (!o) fail(409, 'Open this step first');
@@ -218,6 +221,43 @@
     await update(db, 'surveyResp', ctx.emp, d => { d = d || {}; d[c.id + ':' + i] = { answers, at: iso(ctx.now) }; return d; }, {});
     await markDone(db, ctx, c.id, i, { at: day(ctx.now, ctx.tz), src: 'survey' });
     return { done: true };
+  }
+
+  /* ---------- v41.11: checklist and assignment steps ---------- */
+  async function submitChecklist(db, ctx, b) {
+    const { c, i, it } = await checkStep(db, ctx, b.courseId, b.step);
+    if (it.kind !== 'checklist') fail(400, 'This step is not a checklist');
+    const n = (it.list || []).length, t = Array.isArray(b.ticks) ? b.ticks : [];
+    if (!n) fail(400, 'This checklist has no items');
+    if (t.length !== n || t.some(x => x !== true)) fail(400, 'Tick every item first');
+    await update(db, 'surveyResp', ctx.emp, d => { d = d || {}; d[c.id + ':' + i] = { ticks: t, at: iso(ctx.now) }; return d; }, {});
+    await markDone(db, ctx, c.id, i, { at: day(ctx.now, ctx.tz), src: 'checklist' });
+    return { done: true };
+  }
+  const asgKey = (emp, cid, i) => emp + '|' + cid + '|' + i;
+  async function submitAssignment(db, ctx, b) {
+    const { c, i, it, st } = await checkStep(db, ctx, b.courseId, b.step);
+    if (it.kind !== 'assignment') fail(400, 'This step is not an assignment');
+    if (st.done) fail(409, 'This assignment is already accepted');
+    const text = str(b.text, 4000, 'Your answer'), link = str(b.link, 500, 'The link');
+    if (!text && !link) fail(400, 'Write your answer or add a link to your work');
+    if (link && (!/^https:\/\/\S+\.\S+/.test(link) || it.allowLink === false)) fail(400, it.allowLink === false ? 'This assignment takes a written answer only' : 'The link must start with https://');
+    const key = asgKey(ctx.emp, c.id, i);
+    await update(db, 'asgSub', key, d => { const h = (d && d.history) || []; if (d && d.status === 'Submitted') fail(409, 'Already submitted: wait for the review');
+      return { id: key, learnerEmp: ctx.emp, courseId: c.id, step: i, title: it.title || 'Assignment', text, link, status: 'Submitted', at: iso(ctx.now),
+        history: h.concat(d ? [{ text: d.text, link: d.link, at: d.at, status: d.status, comment: d.comment || '', by: d.reviewedBy || '' }] : []).slice(-10) }; }, null);
+    return { submitted: true };
+  }
+  async function reviewAssignment(db, ctx, b) {
+    if (!can(ctx, 'gradebook')) fail(403, 'Reviewing assignments needs the Gradebook permission');
+    const cur = await db.get('asgSub', String(b.id || '')); if (!cur) fail(404, 'Submission not found');
+    if (cur.data.status !== 'Submitted') fail(409, 'This submission was already reviewed');
+    const accept = b.decision === 'accept', comment = str(b.comment, 1000, 'Comment');
+    if (!accept && !comment) fail(400, 'Say what to change when you return an assignment');
+    const d = cur.data;
+    await update(db, 'asgSub', d.id, x => ({ ...x, status: accept ? 'Accepted' : 'Returned', comment, reviewedBy: ctx.emp, reviewedAt: iso(ctx.now) }));
+    if (accept) await markDone(db, { ...ctx, emp: d.learnerEmp }, d.courseId, d.step, { at: day(ctx.now, ctx.tz), src: 'assignment' });
+    return { status: accept ? 'Accepted' : 'Returned' };
   }
 
   /* ---------- feedback, requests, profile, forum ---------- */
@@ -291,7 +331,7 @@
       mod = (await db.get('lcms', String(b.moduleId)) || fail(404, 'Module not found')).data;
     } else {
       ({ c, i, it } = await checkStep(db, ctx, b.courseId, b.step));
-      if (it.kind !== 'scorm' || !it.moduleId) fail(400, 'This step is not a SCORM package');
+      if (!PKG_KINDS.includes(it.kind) || !it.moduleId) fail(400, 'This step is not a package');
       mod = (await db.get('lcms', String(it.moduleId)) || fail(404, 'Package not found')).data;
     }
     const f = mod.file || {};
@@ -369,7 +409,7 @@
 
   // rows no browser ever reads (Row Level Security hides them from everyone except the service role)
   const SERVER_PRIVATE = ['attempt', 'stepOpen', 'scormSess'];
-  const ACTIONS = { scormLaunch, scormPing, scormEnd, scormCommit, startAttempt, answer, submit, rescore, openStep, completeStep, submitSurvey, answerFeedback, requestAccess, decideRequest, updateProfile, post, docSeen, signedIn };
+  const ACTIONS = { scormLaunch, scormPing, scormEnd, scormCommit, startAttempt, answer, submit, rescore, openStep, completeStep, submitSurvey, submitChecklist, submitAssignment, reviewAssignment, answerFeedback, requestAccess, decideRequest, updateProfile, post, docSeen, signedIn };
   async function handle(db, ctx, action, body) {
     const fn = Object.prototype.hasOwnProperty.call(ACTIONS, action) ? ACTIONS[action] : null; if (!fn) fail(400, 'Unknown action');
     // Ids and keys sent by the browser are used as record keys: built-in object property names are never valid ones.

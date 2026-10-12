@@ -27,7 +27,7 @@ SkillforgeApp.prototype.amSettings = function (c) {
     ['delivery', 'Training delivery', 'Batches, classrooms, gradebook and training feedback.', [
       ['Batch management', 'Batches, outcomes, history, training types, statuses and holidays.', s.batches.filter(b => batchStatus(b) === 'Ongoing').length + ' ongoing', 'batches', '#4F46E5', W, I.batch],
       ['Training places', 'Classrooms, seating capacity and IT infrastructure.', s.places.length + ' rooms', 'places', '#0E7490', W, I.room],
-      ['Gradebook', 'Scores per learner, and written answers to rate.', s.reviews.filter(r => r.rating === null).length + ' answers to rate', 'gradebook', '#0D9488', W, I.report]]],
+      ['Gradebook', 'Scores per learner, written answers to rate and assignments to review.', (s.reviews.filter(r => r.rating === null).length + (s.asgSub || []).filter(x => x.status === 'Submitted').length) + ' to review', 'gradebook', '#0D9488', W, I.report]]],
     ['comms', 'Communication', 'What learners see and get reminded about.', [
       ['Announcements', 'Homepage banners with a live-until date.', s.anns.filter(a => annStatus(a) === 'Live').length + ' live', 'announcements', '#E11D48', W, I.megaphone],
       ['Notifications & automations', 'Reminders, escalations and re-enrollment.', s.autos.filter(a => a.on).length + ' rules on', 'automations', '#22C55E', INK, I.bell],

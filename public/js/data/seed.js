@@ -248,21 +248,53 @@ const GROUPS0 = [
    It only counts as complete once the learner passes the assessment. */
 /* ---------- LCMS: the upload hub for every module used in courses ---------- */
 const MOD_TYPES = {
-  'Document':      { kind:'doc',  glyph:'▤', bg:'#FDECEC', fg:'#A63232', accept:'.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt', hint:'PDF, Word, PowerPoint, Excel or text', ok: f => /\.(pdf|docx?|pptx?|xlsx?|txt)$/i.test(f.name) },
-  'Video':         { kind:'video', glyph:'▶', bg:'#CCFBF1', fg:'#115E59', accept:'video/*,.mp4,.webm,.mov', hint:'MP4, WebM or MOV', ok: f => f.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(f.name) },
-  'Audio':         { kind:'audio', glyph:'♪', bg:'#EDE9FE', fg:'#5B21B6', accept:'audio/*,.mp3,.wav,.m4a,.ogg', hint:'MP3, WAV, M4A or OGG', ok: f => f.type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg)$/i.test(f.name) },
-  'SCORM / xAPI':  { kind:'scorm', glyph:'▦', bg:'#DBEAFE', fg:'#1E40AF', accept:'.zip,application/zip', hint:'SCORM 1.2, SCORM 2004 or xAPI package (.zip)', ok: f => /\.zip$/i.test(f.name) },
-  'Image':         { kind:'image', glyph:'▣', bg:'#FEF3C7', fg:'#92400E', accept:'image/png,image/jpeg,image/gif,image/webp', hint:'PNG, JPG, GIF or WebP', ok: f => /^image\/(png|jpeg|gif|webp)$/.test(f.type) },
-  'Web link':      { kind:'link', glyph:'↗', bg:'#E0F2FE', fg:'#075985', accept:'', hint:'Any https:// address', link:true },
-  'Assessment':    { kind:'quiz', glyph:'?', bg:'#FFEDD5', fg:'#9A3412', accept:'', hint:'Built from the question bank', quiz:true },
-  'Acknowledgment':{ kind:'ack', glyph:'✓', bg:'#FCE7F3', fg:'#9D174D', accept:'', hint:'A statement learners must agree to', text:true },
-  'Survey':        { kind:'survey', glyph:'☰', bg:'#E0F2FE', fg:'#0369A1', accept:'', hint:'Questions learners answer as a course step (not scored)', form:true },
-  'Feedback form': { kind:'feedback', glyph:'★', bg:'#F3E8FF', fg:'#7E22CE', accept:'', hint:'Kirkpatrick L1–L4 form sent after a course or training', form:true, kp:true },
+  // v41.11: the full LCMS type list. Keys are stored on each module, so existing keys never change; "label" is what people see.
+  // pkg = a .zip played on the content site · embed = shown inside the LMS from another site · quiz = built on the question bank
+  'SCORM / xAPI':     { label:'SCORM', kind:'scorm', glyph:'▦', bg:'#DBEAFE', fg:'#1E40AF', accept:'.zip,application/zip', hint:'SCORM 1.2 or SCORM 2004 package (.zip)', ok: f => /\.zip$/i.test(f.name), pkg:true },
+  'Non-SCORM':        { label:'Non-SCORM (HTML5)', kind:'html', glyph:'</>', bg:'#E0E7FF', fg:'#3730A3', accept:'.zip,application/zip', hint:'HTML5 package (.zip) with an index.html, e.g. Articulate / Captivate web output', ok: f => /\.zip$/i.test(f.name), pkg:true },
+  'xAPI / cmi5':      { label:'xAPI / cmi5', kind:'xapi', glyph:'⚙', bg:'#E0F2FE', fg:'#0C4A6E', accept:'.zip,application/zip', hint:'xAPI (tincan.xml) or cmi5 (cmi5.xml) package (.zip)', ok: f => /\.zip$/i.test(f.name), pkg:true },
+  'H5P':              { label:'H5P', kind:'embed', glyph:'H', bg:'#DCFCE7', fg:'#166534', accept:'', hint:'Embed link of an H5P activity (H5P.com, H5P.org or your own H5P site)', link:true, embed:true },
+  'Document':         { kind:'doc',  glyph:'▤', bg:'#FDECEC', fg:'#A63232', accept:'.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt', hint:'PDF, Word, PowerPoint, Excel or text', ok: f => /\.(pdf|docx?|pptx?|xlsx?|txt)$/i.test(f.name) },
+  'Video':            { kind:'video', glyph:'▶', bg:'#CCFBF1', fg:'#115E59', accept:'video/*,.mp4,.webm,.mov', hint:'MP4, WebM or MOV', ok: f => f.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(f.name) },
+  'Audio':            { label:'Podcast / audio', kind:'audio', glyph:'♪', bg:'#EDE9FE', fg:'#5B21B6', accept:'audio/*,.mp3,.wav,.m4a,.ogg', hint:'MP3, WAV, M4A or OGG', ok: f => f.type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg)$/i.test(f.name) },
+  'YouTube / Vimeo':  { label:'YouTube / Vimeo', kind:'youtube', glyph:'▷', bg:'#FEE2E2', fg:'#B91C1C', accept:'', hint:'A YouTube or Vimeo video link', link:true },
+  'Web link':         { label:'External content', kind:'link', glyph:'↗', bg:'#E0F2FE', fg:'#075985', accept:'', hint:'Any https:// page. Shown inside the LMS when the site allows it, otherwise in a new tab', link:true },
+  'Image':            { kind:'image', glyph:'▣', bg:'#FEF3C7', fg:'#92400E', accept:'image/png,image/jpeg,image/gif,image/webp', hint:'PNG, JPG, GIF or WebP', ok: f => /^image\/(png|jpeg|gif|webp)$/.test(f.type) },
+  'Assessment':       { kind:'quiz', glyph:'?', bg:'#FFEDD5', fg:'#9A3412', accept:'', hint:'Scored test built from the question bank', quiz:true },
+  'Competency test':  { kind:'quiz', glyph:'◎', bg:'#FEF9C3', fg:'#854D0E', accept:'', hint:'Assessment that places the learner at a proficiency level for a competency', quiz:true, comp:true },
+  'Feedback form':    { label:'Feedback', kind:'feedback', glyph:'★', bg:'#F3E8FF', fg:'#7E22CE', accept:'', hint:'Kirkpatrick L1–L4 form sent after a course or training', form:true, kp:true },
+  'Survey':           { kind:'survey', glyph:'☰', bg:'#E0F2FE', fg:'#0369A1', accept:'', hint:'Questions learners answer as a course step (not scored)', form:true },
+  'Checklist':        { kind:'checklist', glyph:'☑', bg:'#ECFCCB', fg:'#3F6212', accept:'', hint:'Items the learner ticks off, e.g. an on-the-job task list', list:true },
+  'Assignment':       { kind:'assignment', glyph:'✎', bg:'#FFE4E6', fg:'#9F1239', accept:'', hint:'Learner submits work; a trainer accepts it or returns it with comments', asg:true },
+  'Acknowledgment':   { kind:'ack', glyph:'✓', bg:'#FCE7F3', fg:'#9D174D', accept:'', hint:'A statement learners must agree to', text:true },
+};
+const modLabel = t => (MOD_TYPES[t] && MOD_TYPES[t].label) || t;
+/* Course-step kinds: glyph, colours and the name learners see (shared by the course builder, course page and player). */
+const KIND_EXTRA = { html:['</>', '#E0E7FF', '#3730A3', 'HTML5 package'], xapi:['⚙', '#E0F2FE', '#0C4A6E', 'xAPI / cmi5'], embed:['H', '#DCFCE7', '#166534', 'H5P activity'],
+  youtube:['▷', '#FEE2E2', '#B91C1C', 'Video'], checklist:['☑', '#ECFCCB', '#3F6212', 'Checklist'], assignment:['✎', '#FFE4E6', '#9F1239', 'Assignment'],
+  scorm:['▦', '#DBEAFE', '#1E40AF', 'SCORM'], link:['↗', '#E0F2FE', '#075985', 'External content'], audio:['♪', '#EDE9FE', '#5B21B6', 'Podcast / audio'] };
+/* Sites that may be shown inside the LMS (the build writes the same list into the Content-Security-Policy frame-src).
+ * Add your own in js/config.js: EMBED_ORIGINS: 'https://forms.office.com, https://web.microsoftstream.com' */
+const EMBED_ORIGINS = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://h5p.org', 'https://*.h5p.com']
+  .concat(String(((typeof window !== 'undefined' && window.SKILLFORGE_CONFIG) || {}).EMBED_ORIGINS || '').split(/[\s,]+/).filter(Boolean));
+const Embed = {
+  ok(url) { let u; try { u = new URL(url); } catch (e) { return false; } if (u.protocol !== 'https:') return false;
+    return EMBED_ORIGINS.some(o => { const m = /^https:\/\/\*\.(.+)$/.exec(o); return m ? u.hostname.endsWith('.' + m[1]) : u.origin === o.replace(/\/$/, ''); }); },
+  // YouTube / Vimeo page link -> privacy-friendly embed address (null if not a video link)
+  video(url) { let u; try { u = new URL(String(url).trim()); } catch (e) { return null; } const h = u.hostname.replace(/^www\.|^m\./, '');
+    let id = null;
+    if (h === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
+    else if (h === 'youtube.com' || h === 'youtube-nocookie.com') id = u.searchParams.get('v') || (u.pathname.match(/^\/(?:embed|shorts|live)\/([^/?#]+)/) || [])[1];
+    if (id && /^[A-Za-z0-9_-]{6,15}$/.test(id)) return 'https://www.youtube-nocookie.com/embed/' + id + '?rel=0';
+    if (h === 'vimeo.com' || h === 'player.vimeo.com') { const v = (u.pathname.match(/(?:\/video)?\/(\d{5,12})/) || [])[1]; if (v) return 'https://player.vimeo.com/video/' + v; }
+    return null; },
 };
 /* Map a module to the course-step shape the player uses. PDFs open inline; other documents download. */
 const modKind = m => m.type === 'Document' ? (m.file && /\.pdf$/i.test(m.file.name || '') ? 'pdf' : 'doc') : MOD_TYPES[m.type].kind;
 const itemFromModule = m => ({ kind: modKind(m), moduleId: m.id, title: m.title, quizId: m.quizId, mins: m.mins, qs: m.qs || null,
-  file: m.type === 'Web link' ? { src: m.url, name: m.url } : m.file || null, text: m.text || '' });
+  ...(m.type === 'Competency test' ? { comp: m.comp || '', levels: m.levels || [] } : {}), ...(m.type === 'Checklist' ? { list: m.list || [] } : {}),
+  ...(m.type === 'Assignment' ? { brief: m.text || '', allowLink: m.allowLink !== false } : {}), ...(m.type === 'YouTube / Vimeo' ? { embedUrl: Embed.video(m.url) || '' } : {}),
+  file: ['Web link', 'H5P', 'YouTube / Vimeo'].includes(m.type) ? { src: m.url, name: m.url } : m.file || null, text: m.type === 'Assignment' ? '' : m.text || '' });
 const LCMS0 = [
   { id:'m1', type:'Document', title:'Workplace safety handbook', desc:'Hazards, reporting and emergency exits.', mins:10, file:{ src:MEDIA_DIR + 'workplace-safety-handbook.pdf', name:'workplace-safety-handbook.pdf', size:5007 } },
   { id:'m2', type:'Video', title:'Safety briefing', desc:'A short briefing from the facilities team.', mins:2, file:{ src:MEDIA_DIR + 'acknowledging-loss.mp4', name:'safety-briefing.mp4', size:114828 } },

@@ -51,5 +51,24 @@
   const MIME = { html:'text/html', htm:'text/html', js:'text/javascript', css:'text/css', json:'application/json', xml:'application/xml', xsd:'application/xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', svg:'image/svg+xml', webp:'image/webp',
     mp4:'video/mp4', webm:'video/webm', mp3:'audio/mpeg', wav:'audio/wav', woff:'font/woff', woff2:'font/woff2', ttf:'font/ttf', pdf:'application/pdf', txt:'text/plain', swf:'application/x-shockwave-flash' };
   const mimeOf = name => MIME[(name.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
-  globalThis.Unzip = { read, scormLaunch, mimeOf };
+  /* v41.11: which kind of package is this zip?  { std: 'scorm'|'cmi5'|'xapi'|'html', launch, version, title }
+   * SCORM: imsmanifest.xml · cmi5: cmi5.xml (<url>) · xAPI: tincan.xml (<launch>) · otherwise an HTML5 package with an .html start page.
+   * A native .h5p (h5p.json) can't be played without the H5P player: the error says how to use it instead. */
+  function packageInfo(files) {
+    const top = n => files.find(f => f.name.toLowerCase() === n), txt = f => new TextDecoder().decode(f.data), tag = (x, t) => ((x.match(new RegExp('<' + t + '[^>]*>\\s*(?:<!\\[CDATA\\[)?\\s*([^<\\]]+?)\\s*(?:\\]\\]>)?\\s*</' + t + '>', 'i')) || [])[1] || '').trim();
+    const exists = h => files.some(f => f.name === h.split('?')[0].split('#')[0]);
+    if (top('imsmanifest.xml')) return { std: 'scorm', ...scormLaunch(files) };
+    if (top('h5p.json')) throw new Error('This is a native H5P file. Publish it on H5P.com / H5P.org (or your H5P site) and add it as an H5P embed link, or export it as SCORM / HTML5 (for example with the free Lumi app).');
+    const c5 = top('cmi5.xml'); if (c5) { const x = txt(c5), url = tag(x, 'url'); if (!url || /^https?:/i.test(url)) throw new Error('cmi5.xml has no launch file inside the package');
+      if (!exists(url)) throw new Error('The launch file ' + url + ' is missing from the ZIP'); return { std: 'cmi5', launch: url, version: 'cmi5', title: tag(x, 'langstring') || tag(x, 'title') }; }
+    const tc = top('tincan.xml'); if (tc) { const x = txt(tc), url = tag(x, 'launch'); if (!url || /^https?:/i.test(url)) throw new Error('tincan.xml has no launch file inside the package');
+      if (!exists(url)) throw new Error('The launch file ' + url + ' is missing from the ZIP'); return { std: 'xapi', launch: url, version: 'xAPI', title: tag(x, 'name') }; }
+    const pages = files.map(f => f.name).filter(n => /\.html?$/i.test(n));
+    const pick = ['index.html', 'index.htm', 'story.html', 'index_lms.html', 'default.html'].find(n => pages.includes(n)) || pages.filter(n => !n.includes('/')).sort()[0] || pages.sort((a, b) => a.split('/').length - b.split('/').length)[0];
+    if (!pick) throw new Error('This ZIP has no web page to start (no index.html), so it can’t be played');
+    const t = files.find(f => f.name === pick), title = (txt(t).match(/<title>\s*([^<]+?)\s*<\/title>/i) || [])[1] || '';
+    return { std: 'html', launch: pick, version: 'HTML5', title: title.trim() };
+  }
+  const PKG_TYPE = { scorm: 'SCORM / xAPI', cmi5: 'xAPI / cmi5', xapi: 'xAPI / cmi5', html: 'Non-SCORM' };
+  globalThis.Unzip = { read, scormLaunch, packageInfo, PKG_TYPE, mimeOf };
 })();

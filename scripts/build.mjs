@@ -26,6 +26,11 @@ const SB = originOf('SUPABASE_URL', process.env.SF_SUPABASE_URL || cfgVal('SUPAB
 if (SB && !String(process.env.SF_ORG_ID || cfgVal('ORG_ID') || '').trim()) throw new Error('ORG_ID is empty in js/config.js (or SF_ORG_ID): a connected build needs an organisation id');
 if (SB && CT === SB) throw new Error('CONTENT_ORIGIN must be a different origin from SUPABASE_URL (and from the app)');
 const WS = SB ? SB.replace(/^http/, 'ws') : '';
+// v41.11: sites that may be shown inside the LMS (YouTube privacy mode, Vimeo, H5P) + EMBED_ORIGINS from js/config.js (or SF_EMBED_ORIGINS).
+// Same default list as EMBED_ORIGINS in js/data/seed.js. Each entry must be an https origin (a leading *. wildcard is allowed).
+const EMB = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://h5p.org', 'https://*.h5p.com']
+  .concat(String(process.env.SF_EMBED_ORIGINS || cfgVal('EMBED_ORIGINS') || '').split(/[\s,]+/).filter(Boolean))
+  .map(o => { if (!/^https:\/\/(\*\.)?[a-z0-9.-]+(:\d+)?$/i.test(o.replace(/\/$/, ''))) throw new Error('EMBED_ORIGINS: not an https origin: ' + o); return o.replace(/\/$/, ''); });
 const policy = withAncestors => [
   "default-src 'self'", "script-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",          // fallback for browsers without the two lines below
@@ -35,7 +40,7 @@ const policy = withAncestors => [
   ['img-src', "'self' data: blob:", SB].filter(Boolean).join(' '),
   ['media-src', "'self' blob:", SB].filter(Boolean).join(' '),
   ['connect-src', "'self'", SB, WS].filter(Boolean).join(' '),
-  ['frame-src', "'self' blob:", SB, CT].filter(Boolean).join(' '),          // stored documents (signed links) and the SCORM content site
+  ['frame-src', "'self' blob:", SB, CT, ...EMB].filter(Boolean).join(' '),          // stored documents, the content site, and video / H5P / listed embed sites (v41.11)
   "worker-src 'self' blob:", "object-src 'none'", "base-uri 'self'", "form-action 'self'",
   ...(withAncestors ? ["frame-ancestors 'self'"] : [])].join('; ');
 const hdr = path.join(OUT, '_headers');

@@ -103,7 +103,8 @@ const Progress = (() => {
   /* Index of everyone's assignments, built from s.enroll (only the people who have assignments are visited). */
   const assignmentList = memo((enroll) => { const out = []; Object.keys(enroll).forEach(u => Object.keys(enroll[u] || {}).forEach(cid => out.push([u, cid]))); return out; });
 
-  const MODULE_TYPE = { pdf:'Document', doc:'Document', video:'Video', audio:'Audio', scorm:'SCORM / xAPI', image:'Image', link:'Web link', quiz:'Assessment', ack:'Acknowledgment', lesson:'Lesson' };
+  const MODULE_TYPE = { pdf:'Document', doc:'Document', video:'Video', audio:'Podcast / audio', scorm:'SCORM', image:'Image', link:'External content', quiz:'Assessment', ack:'Acknowledgment', lesson:'Lesson',
+    html:'Non-SCORM (HTML5)', xapi:'xAPI / cmi5', embed:'H5P', youtube:'YouTube / Vimeo', checklist:'Checklist', assignment:'Assignment', survey:'Survey' };
   /* Module-level rows for every assignment (all-course completion report and "move out" export). */
   function completionRows(s, keep) {
     const head = ['Employee ID', 'Name', 'Department', 'User type', 'Course ID', 'Course', 'Essential', 'Assigned on', 'Due date', 'Course started', 'Course completed', 'Course completion %', 'Course status',

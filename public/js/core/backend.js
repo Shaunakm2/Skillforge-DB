@@ -15,7 +15,7 @@
  *            "learning" function (learners: only files of courses assigned to them).
  */
 const SF_LIST = ['users', 'adminCourses', 'lcms', 'qs', 'quizzes', 'batches', 'ttypes', 'statuses', 'holidays', 'places', 'roles', 'anns', 'accessReqs',
-  'badges', 'paths', 'cats', 'groups', 'extHistory', 'syncLog', 'attemptRecs', 'attemptLog', 'bmLog', 'reviews', 'threads', 'docs'];
+  'badges', 'paths', 'cats', 'groups', 'extHistory', 'syncLog', 'attemptRecs', 'attemptLog', 'bmLog', 'reviews', 'threads', 'docs', 'asgSub'];
 const SF_PERSON = ['enroll', 'itemDone', 'itemQuiz', 'attemptsUsed', 'extraAttempts', 'bookmarks', 'surveyResp', 'prefs', 'docAck', 'loginLog'];
 const SF_SETTINGS = ['masters', 'tiles', 'repCols', 'dash', 'certTpl', 'zh', 'autos', 'integ', 'kp', 'platform', 'brand', 'docCfg'];
 const SF_BRAND = ['brandName', 'brandAccent', 'brandMsg'];
@@ -114,7 +114,7 @@ const Backend = (() => {
     const n = x => nameOf(s, x), o = { ...d };
     const byKey = k => { const u = (s.users || []).find(x => idOf(x) === String(k)); return u ? u.name : ''; };
     if (c === 'accessReqs') { o.user = o.user || n(d.empId); if (d.managerKey) o.manager = byKey(d.managerKey) || o.manager; }
-    if (c === 'reviews') o.learner = o.learner || n(d.learnerEmp);
+    if (c === 'reviews' || c === 'asgSub') o.learner = o.learner || n(d.learnerEmp);
     if ((c === 'attemptRecs' || c === 'extHistory') && !o.user) o.user = n(d.empId);
     if (c === 'threads') { o.author = byKey(d.authorKey) || o.author || 'Member'; o.replies = (d.replies || []).map(r => ({ ...r, author: byKey(r.authorKey) || r.author || 'Member', text: r.text || r.body, time: r.time || (r.at ? Fmt.dt(r.at) : '') })); o.when = o.when || (d.at ? Fmt.dt(d.at) : ''); o.votes = o.votes || 0; o.text = o.text || d.body; }
     return o;
@@ -191,7 +191,7 @@ const Backend = (() => {
     if (!me) return false;
     if (me.role === 'Admin') return !['attempt', 'stepOpen'].includes(coll);
     const P = p => (me.perms || []).includes(p);
-    if (['attempt','stepOpen','itemDone','itemQuiz','attemptsUsed','attemptRecs','reviews','surveyResp','fbLog','threads','accessReqs','roles','docAck','loginLog'].includes(coll)) return false;
+    if (['attempt','stepOpen','itemDone','itemQuiz','attemptsUsed','attemptRecs','reviews','surveyResp','fbLog','threads','accessReqs','roles','docAck','loginLog','asgSub'].includes(coll)) return false;
     if (['prefs', 'bookmarks'].includes(coll)) return key === me.emp;
     if (coll === 'batches') return P('batches') && (!data || data.trainerEmp === me.emp);
     if (coll === 'enroll' || coll === 'assignedOn') return P('assignments');
@@ -536,12 +536,12 @@ const Backend = (() => {
     async scorm(f, onProgress) {
       if (!on) throw new Error('Connect Supabase to upload SCORM packages');
       if (!(await sniff(new File([f], f.name, { type: 'application/zip' })))) throw new Error('That file is not a ZIP');
-      const Z = globalThis.Unzip, files = await Z.read(await f.arrayBuffer()), info = Z.scormLaunch(files);
+      const Z = globalThis.Unzip, files = await Z.read(await f.arrayBuffer()), info = Z.packageInfo(files);   // v41.11: SCORM, xAPI / cmi5 or HTML5
       const pkg = Date.now().toString(36) + Math.random().toString(36).slice(2, 8), prefix = org + '/scorm/' + pkg + '/';
       let n = 0;
       for (const x of files) { const { error } = await sb.storage.from(SCORM_BUCKET).upload(prefix + x.name, new Blob([x.data], { type: Z.mimeOf(x.name) }), { contentType: Z.mimeOf(x.name), upsert: false });
         if (error) throw new Error('Upload failed at ' + x.name + ': ' + error.message); n++; if (onProgress) onProgress(n, files.length); }
-      return { name: f.name, size: f.size, path: prefix, launch: info.launch, version: info.version, title: info.title, src: '' };
+      return { name: f.name, size: f.size, path: prefix, launch: info.launch, version: info.version, std: info.std, title: info.title, src: '' };
     },
   };
   async function upload(f, folder, blob) {

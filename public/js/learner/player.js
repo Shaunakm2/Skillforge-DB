@@ -135,7 +135,7 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   this._scormDone = curIt && curIt.kind === 'scorm' && !curSt.done ? () => markItem(course.id, s.itemIdx, 'SCORM package complete') : null;
   // SCORM 1.2 / 2004 runtime for the package in the player: completion, score and resume point.
   // Connected: a launch session belongs to one step; moving elsewhere ends it (its link stops working).
-  if (Backend.on && !(curIt && curIt.kind === 'scorm' && s.screen === 'item' && Backend.scormActive(course.id, s.itemIdx))) Backend.scormLeave();
+  if (Backend.on && !(curIt && ['scorm', 'html', 'xapi'].includes(curIt.kind) && s.screen === 'item' && Backend.scormActive(course.id, s.itemIdx))) Backend.scormLeave();
   this._scormServerDone = () => this.toastMsg('SCORM package complete');
   if (curIt && curIt.kind === 'scorm' && s.screen === 'item') { const meU = s.users.find(u => u.name === role.name) || {};
     ScormRT.bind({ user: role.name, empId: meU.empId, courseId: course.id, item: s.itemIdx,
@@ -144,9 +144,9 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   else ScormRT.clear();
   // Completion without a button: minimum viewing time for documents, images, links and lessons.
   const itSelf = icIsItem && !!icA.features.selfComplete;
-  const VIEW_KINDS = ['pdf', 'doc', 'image', 'link', 'lesson'], viewNeed = mins => Math.min(60, Math.max(15, Math.round((mins || 5) * 6)));
+  const VIEW_KINDS = ['pdf', 'doc', 'image', 'link', 'lesson', 'html', 'xapi', 'embed', 'youtube'], viewNeed = mins => Math.min(60, Math.max(15, Math.round((mins || 5) * 6)));
   let viewTarget = null;
-  if (s.screen === 'item' && curIt && !curSt.done && !curSt.locked && !itSelf && VIEW_KINDS.includes(curIt.kind) && (curIt.kind === 'lesson' || (curIt.file && curIt.file.src)))
+  if (s.screen === 'item' && curIt && !curSt.done && !curSt.locked && !itSelf && VIEW_KINDS.includes(curIt.kind) && (curIt.kind === 'lesson' || (curIt.file && (curIt.file.src || curIt.file.path))))
     viewTarget = { key: course.id + ':' + s.itemIdx, need: viewNeed(curIt.mins), done: () => markItem(course.id, s.itemIdx, 'Viewed') };
   if (s.screen === 'lesson' && !lDone && !isQuizL && L.type !== 'Video' && !legacySelf)
     viewTarget = { key: 'L:' + s.courseId + ':' + L.key, need: viewNeed(L.min), done: () => this.complete() };
@@ -160,9 +160,45 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   const viewVals = { vwOn: !!viewTarget, vwPct: viewTarget ? Math.round(vSec / viewTarget.need * 100) + '%' : '0%',
     vwLabel: viewTarget ? (vLeft > 0 ? 'Take your time. This step is marked complete in ' + vLeft + 's, and then you can continue.' : 'Marked complete. You can continue.') : '',   // v36: friendlier wording, same rule
     lessonAutoNote: !lDone && !isQuizL && !legacySelf ? (L.type === 'Video' ? 'Completes when the video finishes' : 'Marked complete after ' + viewNeed(L.min) + 's of reading') : '', lessonHasAuto: !lDone && !isQuizL && !legacySelf };
+  // v41.11: competency level, embeds (YouTube / Vimeo / H5P / external content), checklist and assignment steps
+  const compLine = pct => { const lv = (curIt.levels || []).filter(l => pct >= l.min).slice(-1)[0]; return lv ? curIt.comp + ': ' + lv.n + ' (' + pct + '%).' : ''; };
+  const extraKinds = () => {
+    const k = curIt.kind, src = curIt.file ? curIt.file.src : '', embedSrc = k === 'youtube' ? (curIt.embedUrl || Embed.video(src) || '') : (k === 'embed' || k === 'link') ? src : '';
+    const ckKey = course.id + ':' + s.itemIdx, ckSaved = (((s.surveyResp[role.name] || {})[ckKey] || {}).ticks) || [], ckDraft = (s.ckDraft || {})[ckKey] || ckSaved;
+    const meU = s.users.find(u => u.name === role.name) || {}, mine = x => (x.learnerEmp && meU.empId ? x.learnerEmp === meU.empId : x.learner === role.name) && x.courseId === course.id && x.step === s.itemIdx;
+    const sub = (s.asgSub || []).find(mine) || null, ad = (s.asgDraft || {})[ckKey] || {}, canSubmit = k === 'assignment' && !curSt.done && (!sub || sub.status === 'Returned');
+    return {
+      itIsEmbed: (k === 'embed' || k === 'youtube' || k === 'link') && !!embedSrc && Embed.ok(embedSrc), itEmbedSrc: embedSrc,
+      itIsLinkOut: (k === 'link' || k === 'embed') && !!src && !Embed.ok(embedSrc), itLinkOutNote: k === 'embed' ? 'This H5P activity opens on its own site.' : 'This page opens in a new tab.',
+      itIsChecklist: k === 'checklist',
+      ckRows: k === 'checklist' ? (curIt.list || []).map((r, i) => { const on = !!ckDraft[i] || !!curSt.done; return { n: i + 1, t: r.t, on, mark: on ? '✓' : '', locked: !!curSt.done,
+        toggle: () => { if (curSt.done) return; this.setState(st => { const d = ((st.ckDraft || {})[ckKey] || ckSaved).slice(); d[i] = !d[i]; return { ckDraft: { ...(st.ckDraft || {}), [ckKey]: d } }; }); } }; }) : [],
+      ckLine: k === 'checklist' ? (curIt.list || []).filter((_, i) => ckDraft[i] || curSt.done).length + ' of ' + (curIt.list || []).length + ' ticked' : '',
+      ckCanSubmit: k === 'checklist' && !curSt.done,
+      ckSubmit: () => { const n = (curIt.list || []).length, t = Array.from({ length: n }, (_, i) => !!ckDraft[i]); if (t.some(x => !x)) return this.toastMsg('Tick every item first');
+        if (Backend.on) return Backend.call('submitChecklist', { courseId: course.id, step: s.itemIdx, ticks: t }).then(() => this.toastMsg('Checklist complete')).catch(e => this.toastMsg(e.message));
+        this.setState(st => { const me = { ...(st.surveyResp[role.name] || {}) }; me[ckKey] = { ticks: t, at: nowStamp() }; return { surveyResp: { ...st.surveyResp, [role.name]: me } }; });
+        markItem(course.id, s.itemIdx, 'Checklist complete'); },
+      itIsAsg: k === 'assignment', asgBrief: curIt.brief || '', asgAllowLink: curIt.allowLink !== false,
+      asgHasSub: !!sub, asgStatus: !sub ? '' : sub.status === 'Submitted' ? 'Submitted ' + Fmt.dt(sub.at) + '. Waiting for a trainer to review it.' : sub.status === 'Accepted' ? 'Accepted by the trainer. This step is complete.' : 'Returned for changes. Update your work and submit again.',
+      asgStBg: !sub ? '' : sub.status === 'Accepted' ? '#DCFCE7' : sub.status === 'Returned' ? '#FEF3C7' : '#EAF1F6', asgStFg: !sub ? '' : sub.status === 'Accepted' ? '#166534' : sub.status === 'Returned' ? '#92400E' : '#16324F',
+      asgComment: sub && sub.comment ? sub.comment : '', asgHasComment: !!(sub && sub.comment), asgMyText: sub ? sub.text : '', asgMyLink: sub ? sub.link : '', asgShowMine: !!sub && !canSubmit,
+      asgCan: canSubmit, asgText: ad.text != null ? ad.text : (sub && sub.status === 'Returned' ? sub.text : ''), asgLink: ad.link != null ? ad.link : (sub && sub.status === 'Returned' ? sub.link : ''),
+      setAsgText: e => { const v = e.target.value; this.setState(st => ({ asgDraft: { ...(st.asgDraft || {}), [ckKey]: { ...((st.asgDraft || {})[ckKey] || {}), text: v } } })); },
+      setAsgLink: e => { const v = e.target.value; this.setState(st => ({ asgDraft: { ...(st.asgDraft || {}), [ckKey]: { ...((st.asgDraft || {})[ckKey] || {}), link: v } } })); },
+      asgSubmit: () => { const text = (ad.text != null ? ad.text : (sub ? sub.text : '') || '').trim(), link = (ad.link != null ? ad.link : (sub ? sub.link : '') || '').trim();
+        if (!text && !link) return this.toastMsg('Write your answer or add a link to your work');
+        if (link && !/^https:\/\/\S+\.\S+/.test(link)) return this.toastMsg('The link must start with https://');
+        const clear = () => this.setState(st => ({ asgDraft: { ...(st.asgDraft || {}), [ckKey]: undefined } }));
+        if (Backend.on) return Backend.call('submitAssignment', { courseId: course.id, step: s.itemIdx, text, link }).then(() => { clear(); this.toastMsg('Assignment submitted for review'); }).catch(e => this.toastMsg(e.message));
+        const id = (meU.empId || role.name) + '|' + course.id + '|' + s.itemIdx, now = new Date().toISOString();
+        this.setState(st => ({ asgSub: [{ id, learner: role.name, learnerEmp: meU.empId || '', courseId: course.id, step: s.itemIdx, title: curIt.title || 'Assignment', text, link, status:'Submitted', at: now,
+          history: sub ? (sub.history || []).concat([{ text: sub.text, link: sub.link, at: sub.at, status: sub.status, comment: sub.comment || '' }]) : [] }].concat((st.asgSub || []).filter(x => x.id !== id)) }));
+        clear(); this.toastMsg('Assignment submitted for review'); },
+    }; };
   const nextIdx = icIsItem ? icSt.findIndex((x, k) => k > s.itemIdx && !x.done) : -1;
   const itemPlayer = !curIt ? {} : {
-    it: { n: s.itemIdx + 1, of: icA.items.length, title: curQz ? curQz.name : curIt.title, kind: (IK[curIt.kind] || IK.lesson)[3], src: curIt.kind === 'scorm' && Backend.on ? (s.scormUrl || 'about:blank') : curIt.file ? curIt.file.src : '', fileName: curIt.file ? curIt.file.name : '', done: !!curSt.done, notDone: !curSt.done, locked: !!curSt.locked },
+    it: { n: s.itemIdx + 1, of: icA.items.length, title: curQz ? curQz.name : curIt.title, kind: curIt.comp ? 'Competency test' : (IK[curIt.kind] || IK.lesson)[3], src: curIt.kind === 'scorm' && Backend.on ? (s.scormUrl || 'about:blank') : curIt.file ? curIt.file.src : '', fileName: curIt.file ? curIt.file.name : '', done: !!curSt.done, notDone: !curSt.done, locked: !!curSt.locked },
     // Survey step: answer every rating question, then submit. Responses are kept per person, course and step.
     itIsSurvey: curIt.kind === 'survey',
     svQs: curIt.kind === 'survey' ? (curIt.qs || []).map((q, i) => { const k = course.id + ':' + s.itemIdx, ans = (((s.surveyResp[role.name] || {})[k] || {}).draft || {})[i], done = !!curSt.done, saved = (((s.surveyResp[role.name] || {})[k] || {}).answers || [])[i];
@@ -174,10 +210,13 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
       this.setState(st => { const me = { ...(st.surveyResp[role.name] || {}) }; me[k] = { answers: qs.map((q, i) => d[i] || ''), at: nowStamp() }; return { surveyResp: { ...st.surveyResp, [role.name]: me } }; });
       if (Backend.on) { Backend.call('submitSurvey', { courseId: course.id, step: s.itemIdx, answers: qs.map((q, i) => d[i] || '') }).then(() => this.toastMsg('Survey submitted')).catch(e => this.toastMsg(e.message)); return; }
       markItem(course.id, s.itemIdx, 'Survey submitted'); },
-    itIsPdf: curIt.kind === 'pdf', itIsVideo: curIt.kind === 'video', itIsScorm: curIt.kind === 'scorm', itIsQuiz: curIt.kind === 'quiz', itIsText: curIt.kind === 'lesson', itIsAck: curIt.kind === 'ack', itIsAudio: curIt.kind === 'audio', itIsImage: curIt.kind === 'image', itIsDoc: curIt.kind === 'doc', itIsLink: curIt.kind === 'link', itAckText: curIt.text || curIt.title,
+    itIsPdf: curIt.kind === 'pdf', itIsVideo: curIt.kind === 'video', itIsScorm: curIt.kind === 'scorm', itIsQuiz: curIt.kind === 'quiz', itIsText: curIt.kind === 'lesson', itIsAck: curIt.kind === 'ack', itIsAudio: curIt.kind === 'audio', itIsImage: curIt.kind === 'image', itIsDoc: curIt.kind === 'doc', itIsLink: false, itLinkLegacy: false, itAckText: curIt.text || curIt.title,
     itMarkListened: () => markItem(course.id, s.itemIdx, 'Audio complete'), itMarkViewed: () => markItem(course.id, s.itemIdx, 'Image viewed'), itMarkDoc: () => markItem(course.id, s.itemIdx, 'Document read'), itMarkLink: () => markItem(course.id, s.itemIdx, 'Link visited'),
-    itNoFile: ['pdf', 'video', 'scorm', 'audio', 'image', 'doc', 'link'].includes(curIt.kind) && !(curIt.file && curIt.file.src),
-    itScormLaunch: curIt.kind === 'scorm' && !!(curIt.file && curIt.file.launch), itScormSim: curIt.kind === 'scorm' && !!(curIt.file && curIt.file.src && !curIt.file.launch),
+    // v41.11: connected packages have a storage path and no direct link, so "no file" checks both
+    itNoFile: ['pdf', 'video', 'scorm', 'html', 'xapi', 'audio', 'image', 'doc', 'link', 'embed', 'youtube'].includes(curIt.kind) && !(curIt.file && (curIt.file.src || curIt.file.path)),
+    itScormLaunch: ['scorm', 'html', 'xapi'].includes(curIt.kind) && !!(curIt.file && curIt.file.launch), itScormSim: ['scorm', 'html', 'xapi'].includes(curIt.kind) && !!(curIt.file && curIt.file.src && !curIt.file.launch),
+    itPkgNote: curIt.kind === 'scorm' ? 'Interactive package. It reports your completion automatically.' : curIt.kind === 'xapi' ? 'xAPI / cmi5 package. It is marked complete after the minimum time in the package.' : 'Interactive HTML5 package. It is marked complete after the minimum time in the package.',
+    ...extraKinds(),
     scormOn: s.scormOn, scormOff: !s.scormOn,
     // SCORM bookmark: where the package resumes. An admin can clear it (Settings › Clear SCORM bookmarking).
     itBookmark: ((s.bookmarks[role.name] || {})[course.id] || {}).location || '', itHasBookmark: !!(s.bookmarks[role.name] || {})[course.id],
@@ -190,7 +229,7 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
     itShowMark: !curSt.done && itSelf, itAckOpen: !curSt.done,
     itMarkDone: () => markItem(course.id, s.itemIdx), itSimFinish: () => { if (this._scormDone) this._scormDone(); },
     itQuizLine: curQz ? (curQz.dynamic ? Assessment.shownCount(curQz, s.qs) : Assessment.pool(curQz, s.qs).length) + ' questions · pass mark ' + curQz.pass + '% · ' + attLabel : '',
-    itQuizStatus: curQz ? (curSt.done ? 'Passed' + (curSt.best ? ' with ' + curSt.best.pct + '%' : '') + '. This course is complete.' : curSt.pendingQ ? 'Your last attempt is waiting for a trainer to rate written answers.' : curSt.best ? 'Best score so far: ' + curSt.best.pct + '%. You need ' + curQz.pass + '% to complete the course.' : 'Pass this assessment to complete the course.') : '',
+    itQuizStatus: (curIt.comp && curSt.best ? compLine(curSt.best.pct) + ' ' : '') + (curQz ? (curSt.done ? 'Passed' + (curSt.best ? ' with ' + curSt.best.pct + '%' : '') + '. This course is complete.' : curSt.pendingQ ? 'Your last attempt is waiting for a trainer to rate written answers.' : curSt.best ? 'Best score so far: ' + curSt.best.pct + '%. You need ' + curQz.pass + '% to complete the course.' : 'Pass this assessment to complete the course.') : ''),
     itQuizCan: !!curQz && !curSt.done && myAtt.canStart, itQuizBtn: curSt.done ? 'Passed' : myAtt.canStart ? 'Start assessment' : 'No attempts left',
     itStartQuiz: () => { const st = newAttempt(); if (st) this.go('quiz', st); },
     itPrev: () => { if (s.itemIdx > 0) itemRows[s.itemIdx - 1].open(); }, itHasPrev: s.itemIdx > 0,

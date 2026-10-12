@@ -26,7 +26,7 @@ class SkillforgeApp extends Skillforge.Store {
       lcms:LCMS0.concat(FORM_MODULES0), surveyResp:{}, lcmsQuery:'', lcmsType:'All', mod:null, modPreview:null, modDelete:null, qFromLcms:false, cTab:'basics', ccQuery:'', ccFilter:'All', cModQuery:'', cModType:'All',
       itemDone:itemDone0, itemQuiz:{}, itemIdx:0, scormOn:false, groups:GROUPS0, audQuery:'',
       attemptsUsed:ATTEMPTS_USED0, extraAttempts:EXTRA_ATTEMPTS0, attModal:null, enroll: ESS0.enroll, assignedOn: ESS0.assignedOn, enrModal:null, cats:CATS0, catSel:{ c:'c1', s:'c1a' }, catEdit:null, catNew:{ c:'', s:'', ss:'' }, anns:ANNS0, annModal:false, an:null, annHidden:{}, userDelete:null,
-      reviews:REVIEWS0, rvTab:'pending', rvDraft:{}, rvEdit:null,
+      reviews:REVIEWS0, rvTab:'pending', rvDraft:{}, rvEdit:null, asgSub:[], asgDraft:{}, ckDraft:{}, asgRv:{},
       lb:'team', catQuery:'', searchOpen:false, gq:'', tf:'all', uSel:{}, catRel:'all', catLvl:'All', catSt:'All', repMgr:'All', repCourse:'All', repStatus:'All', repUser:'', catCat:'All', calY:TODAY.getFullYear(), calM:TODAY.getMonth(), calSel: Object.keys(EVENTS).sort().find(k => k >= TODAY_KEY) || TODAY_KEY,
       threads:THREADS, threadId:1, voted:{}, reply:'',
       bTitle:'Coaching Conversations', published:false, bSel:'0-0',
