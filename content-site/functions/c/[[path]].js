@@ -48,10 +48,11 @@ export function safeSegments(rawPath) {
   const raw = String(rawPath || '').split('/');
   if (raw.length < 2) return null;
   const out = [];
-  for (const r of raw) {
-    let p; try { p = decodeURIComponent(r); } catch (e) { return null; }
-    // after ONE decode a segment must be a plain name: anything that could become a separator or decode again is refused
-    if (!p || p === '.' || p === '..' || /[\/\\%]/.test(p) || /[\u0000-\u001f\u007f]/.test(p) || p.length > 255) return null;
+  for (let i = 0; i < raw.length; i++) {
+    let p; try { p = decodeURIComponent(raw[i]); } catch (e) { return null; }
+    // v41.17: the first part is the launch token (can be 300+ chars); file and folder names stay capped at 255
+    const max = i === 0 ? 2048 : 255;
+    if (!p || p === '.' || p === '..' || /[\/\\%]/.test(p) || /[\u0000-\u001f\u007f]/.test(p) || p.length > max) return null;
     out.push(p);
   }
   return out;
