@@ -14,13 +14,14 @@ SkillforgeApp.prototype.vmCourses = function (c) {
   // Courses created in the admin console join the learner catalog once published (drafts stay admin-only).
   const tintOf = hex => { const n = parseInt((hex || '#0066A1').slice(1), 16), mix = v => Math.round(v + (255 - v) * 0.85); return 'rgb(' + mix(n >> 16 & 255) + ',' + mix(n >> 8 & 255) + ',' + mix(n & 255) + ')'; };
   const fromAdmin = a => { const mins = a.items.reduce((t, it) => t + (it.mins || 15), 0) || 15; return { id:a.id, title:a.title, cat:a.cat, instructor:a.author || 'L&D team', hours: (mins >= 60 ? Math.floor(mins / 60) + 'h ' : '') + (mins % 60 ? (mins % 60) + 'm' : '').trim(), progress:0, color:a.color, tint:tintOf(a.color), rating:'New', learners:a.enrolled || 0, xp: Math.max(1, a.items.length) * 100, level:'Foundational', desc:a.desc || '', adminOnly:true }; };
-  const legacyIds = new Set(COURSES.map(c => c.id)), baseCourses = COURSES.concat(s.adminCourses.filter(a => !legacyIds.has(a.id)).map(fromAdmin));
+  // v41.20: connected, the catalog is ONLY the courses in the database (the built-in demo courses were always added on top)
+  const DEMO = Backend.on ? [] : COURSES, legacyIds = new Set(DEMO.map(c => c.id)), baseCourses = DEMO.concat(s.adminCourses.filter(a => !legacyIds.has(a.id)).map(fromAdmin));
   const all = baseCourses.map(c => { const a = acOf(c.id) || {}; const d = decorate(c); const banner = a.banner && a.banner.src; const p = a.catId ? catPath(s.cats, a) : null;
     return { ...d, cat: p && p.cat ? p.cat : d.cat, required: !!myEnroll[c.id], iconSrc: a.icon && a.icon.src ? a.icon.src : '', hasIcon: !!(a.icon && a.icon.src), noIcon: !(a.icon && a.icon.src),
       artBg: banner ? 'url("' + banner + '") center/cover no-repeat, ' + c.tint : c.tint,
       heroBg: banner ? 'linear-gradient(90deg, rgba(255,255,255,.96) 0%, rgba(255,255,255,.86) 50%, rgba(255,255,255,.35) 100%), url("' + banner + '") center/cover no-repeat' : c.tint }; });
   const liveAll = all.filter(isLive);
-  const course = all.find(c => c.id === s.courseId) || all[0];
+  const course = all.find(c => c.id === s.courseId) || all[0] || { ...decorate(fromAdmin({ id:'', title:'No courses yet', cat:'', items:[], color:'#0066A1' })), required:false, iconSrc:'', hasIcon:false, noIcon:true, artBg:'#EDF5FA', heroBg:'#EDF5FA', none:true };
   const icA = course.adminOnly ? acOf(course.id) : null, icIsItem = !!icA;
   const icSt = icIsItem ? itemStates(icA, role.name) : [];
   const markItem = (cid, i, msg) => {

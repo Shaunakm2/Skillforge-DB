@@ -21,7 +21,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
     let why = '';
     Promise.all(list.map(u => Backend.adminUsers(deact ? 'ban' : 'unban', { email: u.email, empId: u.empId }).then(() => u.id, e => { if (/no login yet/i.test(e.message || '')) return u.id; why = why || e.message; return null; }))).then(r => { const ok = r.filter(Boolean);
       if (!ok.length) { this.setState({ uAsk:null }); return this.toastMsg('Nothing changed: ' + (why || 'the server refused the change.')); } apply(ok); done(ok); }); };
-  const userRows = UPG.rows.map(u => ({ ...u, roleName: (Access.roleFor(s, u) || {}).name || u.role })).map(u => { const prot = u.role === 'Super admin' && !isSuper; const active = u.status !== 'Deactivated'; return { ...u, initials: ini(u.name), av: AV[u.id % 5], roleBg: ROLE_C[u.role][0], roleFg: ROLE_C[u.role][1], stBg: ST[u.status][0], stFg: ST[u.status][1], op: active ? 1 : 0.55, canEdit: !prot, locked: prot, toggleLabel: active ? 'Deactivate' : 'Reactivate', toggleFg: active ? '#B91C1C' : '#166534', edit: () => this.setState({ userModal:true, ud:{ ...u }, uMng:null }), toggle: () => this.setState({ uAsk: { ids: [u.id], deact: active }, uMng:null }) }; });
+  const userRows = UPG.rows.map(u => ({ ...u, roleName: (Access.roleFor(s, u) || {}).name || u.role })).map(u => { const prot = u.role === 'Super admin' && !isSuper; const active = u.status !== 'Deactivated'; return { ...u, initials: ini(u.name), av: AV[u.id % 5], roleBg: ROLE_C[u.role][0], roleFg: ROLE_C[u.role][1], stBg: ST[u.status][0], stFg: ST[u.status][1], op: active ? 1 : 0.55, canEdit: !prot, locked: prot, toggleLabel: active ? 'Deactivate' : 'Reactivate', toggleFg: active ? '#B91C1C' : '#166534', edit: () => this.setState({ userModal:true, ud:{ ...u, name: Identity.plain(u.name) }, uMng:null }), toggle: () => this.setState({ uAsk: { ids: [u.id], deact: active }, uMng:null }) }; });
   const uProt = u => false;
   const userRows2 = userRows.map(u => { const on = !!s.uSel[u.id]; return { ...u, phoneLabel: u.phone || '—', termsLabel: u.terms ? 'Yes' : 'No', termsBg: u.terms ? '#DCFCE7' : '#FDECEC', termsFg: u.terms ? '#166534' : '#A63232', attempts: () => this.setState({ attModal: u.name, uMng:null }), resetPw: () => this.setState({ pwReset: u.id, uMng:null }), sel: !!on, tick: on ? '✓' : '', bg: on ? '#16324F' : '#FFFFFF', bd: on ? '#16324F' : '#BFCFDB', rowBg: on ? '#F4F8FC' : 'transparent', pick: () => this.setState(st => ({ uSel: { ...st.uSel, [u.id]: !st.uSel[u.id] } })), viewL: () => this.go('reports', { adminView:true, repType:'learning', repUser: u.name, repCourse:'All', repStatus:'All', repDept:'All', uMng:null }),   // v36: was a message only
       manage: () => this.setState({ uMng: u.id }), assignL: () => this.setState({ enrModal: { user: u.name }, uMng:null }) }; });
@@ -101,7 +101,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
     udGenders: segs(ud.gender, GENDERS, v => this.setState(st => ({ ud: { ...(st.ud || ud), gender:v } }))),
     udTerms: segs(ud.terms ? 'Yes' : 'No', ['Yes', 'No'], v => this.setState(st => ({ ud: { ...(st.ud || ud), terms: v === 'Yes' } }))),
     saveUser: () => {
-      const n = ud.name.trim(), em = ud.email.trim().toLowerCase(), emp = (ud.empId || '').trim(), ph = (ud.phone || '').trim();
+      const n = Identity.plain(ud.name).trim(), em = ud.email.trim().toLowerCase(), emp = (ud.empId || '').trim(), ph = (ud.phone || '').trim();
       if (!n) return this.toastMsg('Add a full name');
       if (n.length < 2 || n.length > 80 || !/^[\p{L}][\p{L} .'’-]*$/u.test(n)) return this.toastMsg('Full name can use letters, spaces, apostrophes, dots and hyphens (2–80 characters)');
       if (ud.joined && !/^\d{4}-\d{2}-\d{2}$/.test(ud.joined)) return this.toastMsg('Date of joining is not a valid date');
@@ -127,7 +127,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
           const users0 = renamed.users || st.users, enroll0 = renamed.enroll || st.enroll;
           const rc = prevU && prevU.roleId !== rec.roleId ? Access.applyCourses(enroll0, rRole, rec.name, Progress.plus(TODAY_KEY, 30)) : { enroll: enroll0, added:0 };
           this.setState({ ...renamed, users: users0.map(u => u.id === ud.id ? rec : u), userModal:false, uBusy:false, enroll: rc.enroll });
-          this.logAudit('Edited account', nu); this.toastMsg('Account updated' + (nu !== n ? ' · saved as “' + nu + '” because the name is already used' : '') + (rc.added ? ' · ' + rc.added + ' role courses assigned' : '')); };
+          this.logAudit('Edited account', nu); this.toastMsg('Account updated' + (Identity.plain(nu) !== n ? ' · saved as “' + nu + '” because the name is already used' : '') + (rc.added ? ' · ' + rc.added + ' role courses assigned' : '')); };
         if (!Backend.on) return apply();
         // Connected: change the login first; only if that works is the record updated (no half-done changes).
         this.setState({ uBusy:true });

@@ -14,7 +14,7 @@ const nextUserId = users => (users || []).reduce((m, u) => { const n = typeof u.
 /* Download rows as a UTF-8 CSV file (Excel-friendly).
  * Formula injection guard (OWASP “CSV injection”): a text cell that starts with = + - @ tab or CR would run as a
  * formula when the file is opened in Excel, so it gets a leading apostrophe. Plain numbers (−12, +3.5, 40%) are kept. */
-const csvSafe = v => { if (typeof v === 'number') return String(v); const t = String(v == null ? '' : v);
+const csvSafe = v => { if (typeof v === 'number') return String(v); const t = String(v == null ? '' : v).replace(/\u2063+/g, '');   // v41.20: invisible name marker never goes into files
   return /^[=+\-@\t\r]/.test(t) && !/^[-+]?\d[\d,]*(\.\d+)?%?$/.test(t) ? "'" + t : t; };
 const csvDownload = (name, rows) => {
   const cell = v => { const t = csvSafe(v); return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };

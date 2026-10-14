@@ -140,6 +140,8 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   this._scormDone = curIt && curIt.kind === 'scorm' && !curSt.done ? () => markItem(course.id, s.itemIdx, 'SCORM package complete') : null;
   // SCORM 1.2 / 2004 runtime for the package in the player: completion, score and resume point.
   // Connected: a launch session belongs to one step; moving elsewhere ends it (its link stops working).
+  // v41.20: full screen ends when the package is no longer on screen (other step, other page)
+  if (s.scormFull && !(curIt && ['scorm', 'html', 'xapi'].includes(curIt.kind) && s.screen === 'item' && s.scormOn)) Promise.resolve().then(() => this.state.scormFull && this.scormFullSet(false));
   if (Backend.on && !(curIt && ['scorm', 'html', 'xapi'].includes(curIt.kind) && s.screen === 'item' && Backend.scormActive(course.id, s.itemIdx))) Backend.scormLeave();
   this._scormServerDone = () => this.toastMsg('SCORM package complete');
   if (curIt && curIt.kind === 'scorm' && s.screen === 'item') { const meU = s.users.find(u => u.name === role.name) || {};
@@ -223,6 +225,10 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
     itPkgNote: curIt.kind === 'scorm' ? 'Interactive package. It reports your completion automatically.' : curIt.kind === 'xapi' ? 'xAPI / cmi5 package. It is marked complete after the minimum time in the package.' : 'Interactive HTML5 package. It is marked complete after the minimum time in the package.',
     ...extraKinds(),
     scormOn: s.scormOn, scormOff: !s.scormOn,
+    // v41.20: full-screen view for SCORM / HTML5 / xAPI packages. Real full screen where the browser allows it; otherwise the
+    // package fills the browser window. The frame is not reloaded, so the learner keeps their place.
+    scormFullOn: !!s.scormFull, scormFullCls: s.scormFull ? 'is-full' : '', scormFullLabel: s.scormFull ? '✕ Exit full screen' : '⤢ Full screen',
+    scormFullToggle: () => this.scormFullSet(!this.state.scormFull),
     // SCORM bookmark: where the package resumes. An admin can clear it (Settings › Clear SCORM bookmarking).
     itBookmark: ((s.bookmarks[role.name] || {})[course.id] || {}).location || '', itHasBookmark: !!(s.bookmarks[role.name] || {})[course.id],
     // Connected: the package runs on the separate content site; launch with a short-lived token and the resume point.

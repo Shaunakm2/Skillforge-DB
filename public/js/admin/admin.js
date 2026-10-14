@@ -31,7 +31,7 @@ SkillforgeApp.prototype.adminVals = function (s, all) {
     gearBg: s.adminView ? INK : W,
     gearFg: s.adminView ? '#F8FBFD' : INK,
     gearBorder: s.adminView ? INK : '#D7E3EC',
-    goHomeRole: () => s.adminView ? this.go('admin') : this.go(role.home),
+    goHomeRole: () => this.goHomePage(),   // v41.20: the logo always opens the LMS home page
     showAdminBack: s.adminView && s.screen !== 'admin' && s.screen !== 'batch',
     goAdminHome: () => this.go('admin'),
     backToLearning: () => this.go('home', { adminView:false }),
@@ -68,6 +68,7 @@ SkillforgeApp.prototype.adminVals = function (s, all) {
       umWhen: u ? 'Checked ' + new Date(u.at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) + ' · ' + u.files.toLocaleString('en-US') + ' files' : '',
       umRefresh: () => UM.load(true).then(r => this.toastMsg(r ? 'Usage updated' : 'Could not read the usage. Run migration 007 in Supabase.')) });
   } else vals.umShow = false;
+  vals.demoOnly = !Backend.on;   // v41.20: panels that only have sample numbers are hidden when connected
   // Each module computes only on the screens that use it, so a page never pays for the others (matters at 3,500 users).
   const on = ADMIN_SCREENS, scr = this._scrV;
   ADMIN_PIPELINE.forEach(fn => { const list = on[fn]; if (!list || list.includes(scr)) Object.assign(vals, this[fn](c)); });

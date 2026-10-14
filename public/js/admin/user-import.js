@@ -63,10 +63,10 @@ SkillforgeApp.prototype.amUserImport = function (c) {
       if (rec.dept) rec.division = rec.dept;
       if (rec.manager) { const mi2 = byEmp.get(String(rec.manager).toLowerCase()); if (mi2 !== undefined) rec.manager = users[mi2].name; }
       // Checked BEFORE anything changes (a rejected row used to be applied anyway).
-      if (ui !== undefined && name !== users[ui].name) return rej('UserName differs from the existing account (' + users[ui].name + '). Rename people from their profile');
-      if (ui !== undefined) { const before = users[ui]; users[ui] = { ...before, ...rec, email: mail, name, phone, status: before.status === 'Deactivated' ? 'Active' : before.status };
-        updated.push(name); return; }
-      const uname = Identity.uniqueName(users, name, emp);   // two people with the same name get their employee ID added
+      if (ui !== undefined && name !== Identity.plain(users[ui].name)) return rej('UserName differs from the existing account (' + users[ui].name + '). Rename people from their profile');
+      if (ui !== undefined) { const before = users[ui]; users[ui] = { ...before, ...rec, email: mail, name: before.name, phone, status: before.status === 'Deactivated' ? 'Active' : before.status };
+        updated.push(name); return; }   // name unchanged: the existing (possibly marked) name is kept
+      const uname = Identity.uniqueName(users, name, emp);   // v41.20: same name allowed (invisible marker), only UserId and EmailId must be unique
       const nu = { id: nextId++, empId: emp, email: mail, name: uname, phone, role:'Learner', roleId:'r_learner', dept: rec.dept || 'Unassigned', designation: rec.designation || 'Associate', manager: rec.manager || 'None', status:'Active', lastLogin:'Never', gender: rec.gender || 'Prefer not to say', terms:false, joined: rec.joined || TODAY_KEY, source:'Bulk upload', ...rec };
       if (!nu.roleId) nu.roleId = ({ Learner:'r_learner', Trainer:'r_trainer', Admin:'r_admin' })[nu.role] || 'r_learner';
       users.push(nu); byEmp.set(emp.toLowerCase(), users.length - 1); byMail.set(mail, users.length - 1); pw[mail] = DEFAULT_PASSWORD; created.push(nu);

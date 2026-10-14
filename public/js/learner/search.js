@@ -7,7 +7,7 @@ SkillforgeApp.prototype.vmSearch = function (c) {
   const addG = (label, items) => { if (items.length) { gqRows.push({ isHead:true, label }); items.slice(0, 4).forEach(r => gqRows.push({ isItem:true, ...r })); } };
   if (gsq) {
     addG('Courses', liveAll.filter(c => hit(c.title, c.cat, c.instructor)).map(c => ({ t:c.title, sub:c.cat + ' · ' + c.hours, go:goS('course', { courseId:c.id, from:s.screen }) })));
-    addG('Lessons', FLAT.filter(l => hit(l.title, l.module)).map(l => ({ t:l.title, sub:'Leading Through Change · ' + l.type, go:goS('course', { courseId:'change', from:s.screen }) })));
+    addG('Lessons', (Backend.on ? [] : FLAT).filter(l => hit(l.title, l.module)).map(l => ({ t:l.title, sub:'Leading Through Change · ' + l.type, go:goS('course', { courseId:'change', from:s.screen }) })));
     addG('Learning paths', s.paths.filter(p => hit(p.name, p.audience)).map(p => ({ t:p.name, sub:p.audience, go:goS('progress') })));
     if (role.admin) {
       addG('Assessments', s.quizzes.filter(q => hit(q.name, q.course)).map(q => ({ t:q.name, sub:q.course || 'Not attached yet', go:goS('quizzes', { adminView:true }) })));
@@ -21,7 +21,7 @@ SkillforgeApp.prototype.vmSearch = function (c) {
   const goR = (scr, x) => () => { this.setState({ gq:'' }); this.go(scr, x); };
   const searchGroups = !sq ? [] : [
     ['Courses', liveAll.filter(c => sHit(c.title, c.cat, c.instructor)).map(c => ({ t:c.title, sub:c.cat + ' · ' + c.hours, go:goR('course', { courseId:c.id, from:'catalog', adminView:false }) }))],
-    ['Lessons', FLAT.filter(l => sHit(l.title, l.module)).map(l => ({ t:l.title, sub:'Leading Through Change · ' + l.type, go:goR('course', { courseId:'change', from:'catalog', adminView:false }) }))],
+    ['Lessons', (Backend.on ? [] : FLAT).filter(l => sHit(l.title, l.module)).map(l => ({ t:l.title, sub:'Leading Through Change · ' + l.type, go:goR('course', { courseId:'change', from:'catalog', adminView:false }) }))],
     ['Learning paths', s.paths.filter(p => sHit(p.name, p.audience)).map(p => ({ t:p.name, sub:p.audience, go:goR(role.admin ? 'paths' : 'progress', role.admin ? { adminView:true } : {}) }))],
   ].concat(role.admin ? [
     ['Assessments', s.quizzes.filter(q => sHit(q.name, q.course)).map(q => ({ t:q.name, sub:(q.course || 'Not attached') + ' · ' + q.ids.length + ' questions', go:goR('quizzes', { adminView:true }) }))],

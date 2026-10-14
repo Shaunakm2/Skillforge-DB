@@ -22,7 +22,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     if (!L0.pw) return setL({ err:'Enter your password.' });
     // With Supabase: Supabase Auth checks the password (email, or employee ID resolved on the server). Role and
     // person come from the server (sf_member), never from the editable user record.
-    if (Backend.on) { setL({ busy:true });
+    if (Backend.on) { setL({ busy:true }); Backend.keepSignIn(!!L0.remember);   // v41.20: Remember me = stay signed in 45 min after the last activity
       Backend.signIn(L0.email.trim(), L0.pw).then(() => Backend.afterSignIn()).then(r => this.onBackendSignedIn(r))
         .catch(e => setL({ busy:false, err: /invalid/i.test(e.message || '') ? 'That username and password don’t match. Check them and try again.' : (e.message || String(e)) }));
       return; }
@@ -39,7 +39,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
   const loginVals = {
     brandInitial: (s.brandName || 'S').trim().charAt(0).toUpperCase(), lg: L0, lgErr: !!L0.err, lgPwType: L0.show ? 'text' : 'password', lgShowLabel: L0.show ? 'Hide' : 'Show',
     setLgEmail: e => setL({ email: e.target.value }), setLgPw: e => setL({ pw: e.target.value }), toggleLgShow: () => setL({ show: !L0.show }),
-    lgRemOn: !!L0.remember, lgRemember: () => setL({ remember: !L0.remember }), lgDemoOpen: !!s.lgDemo, toggleLgDemo: () => this.setState({ lgDemo: !s.lgDemo }), lgKey: e => { if (e.key === 'Enter') doLogin(); }, doLogin,
+    lgRemOn: !!L0.remember, lgRemHint: Backend.on ? 'Stay signed in for ' + Backend.KEEP_MIN + ' minutes, even if you close the browser. Don’t tick on a shared PC.' : 'Remembers your username on this device.', lgRemember: () => setL({ remember: !L0.remember }), lgDemoOpen: !!s.lgDemo, toggleLgDemo: () => this.setState({ lgDemo: !s.lgDemo }), lgKey: e => { if (e.key === 'Enter') doLogin(); }, doLogin,
     lgSignin: s.loginView === 'signin', lgForgot: s.loginView === 'forgot', lgSent: s.loginView === 'sent', lgNewPw: s.loginView === 'newpw',
     // First sign-in (or after an admin reset): the temporary password must be replaced.
     setLgNew: e => setL({ npw: e.target.value }), setLgNew2: e => setL({ npw2: e.target.value }),
@@ -61,7 +61,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
       if (Backend.on && !/@/.test(L0.email)) return setL({ err:'Enter your work email address to get a reset link. Don’t know it? Ask your L&D administrator to reset your password.' });
       if (Backend.on) { const u = s.users.find(x => (x.empId || '').toLowerCase() === L0.email.trim().toLowerCase()); Backend.resetLink(u ? u.email : L0.email.trim()).catch(() => {}); } this.setState({ loginView:'sent' }); },
     // Microsoft sign-in: real OAuth through Supabase (Azure provider) when connected; a demo shortcut offline.
-    ssoLogin: () => { if (Backend.on) return Backend.client().auth.signInWithOAuth({ provider:'azure', options:{ scopes:'email', redirectTo: location.origin + location.pathname } });
+    ssoLogin: () => { if (Backend.on) Backend.keepSignIn(!!L0.remember); if (Backend.on) return Backend.client().auth.signInWithOAuth({ provider:'azure', options:{ scopes:'email', redirectTo: location.origin + location.pathname } });
       const u = s.users.find(x => x.email.toLowerCase() === L0.email.trim().toLowerCase()); if (u && u.status !== 'Deactivated') signInAs(u); else setL({ err:'Enter your work email first, then continue with Microsoft.' }); },
     // Demo accounts as role chips inside the card: one tap fills the username and password.
     demoAccounts: [['Learner', 'Maya Okafor', '#007A4D'], ['Trainer', 'Daniel Reyes', '#5B7DB8'], ['Admin', 'Lena Fischer', '#8C5A9E']].map(([r, n, col]) => { const u = s.users.find(x => x.name === n); if (!u) return null; const on = L0.email === u.email;

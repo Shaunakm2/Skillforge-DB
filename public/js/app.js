@@ -69,11 +69,13 @@ class SkillforgeApp extends Skillforge.Store {
   roleOf(s) { const r = ROLES.find(x => x.id === s.role); return s.meName && s.meRole === s.role ? { ...r, name: s.meName, who: s.meName + ' · ' + (s.meTitle || r.label) } : r; }
   componentDidMount() {
     window.addEventListener('popstate', e => this.onBrowserBack(e));
+    ['fullscreenchange', 'webkitfullscreenchange'].forEach(t => document.addEventListener(t, () => { if (!(document.fullscreenElement || document.webkitFullscreenElement) && this.state.scormFull) this.scormFullSet(false); }));
     // closing or reloading the tab with an editor open asks first (the browser shows its own message)
     window.addEventListener('beforeunload', e => { if (this.state.authed && this.openEditor()) { e.preventDefault(); e.returnValue = ''; } });
     window.addEventListener('sf-toast', e => this.toastMsg(String(e.detail || '').slice(0, 200)));
     // v39: Escape closes the small toolbar menus (Users: Export, Create account)
     window.addEventListener('keydown', e => { if (e.key !== 'Escape') return;
+      if (this.state.scormFull) return this.scormFullSet(false);
       if (this.state.docView) return this.setState({ docView: null }); if (this.state.uMenu) return this.setState({ uMenu: null });
       if (this.openEditor()) return;   // v41.18: an editor (account, course, module, document, KPI, role) is never closed by one key press
       // v41.18: Escape closes the top-most pop-up exactly like clicking outside it (it only worked for two pop-ups)
@@ -82,13 +84,14 @@ class SkillforgeApp extends Skillforge.Store {
     try { const im = sessionStorage.getItem('sf-idle'); if (im) { sessionStorage.removeItem('sf-idle'); this.setState(s2 => ({ login: { ...s2.login, err: 'You were signed out after ' + (+im || 30) + ' minutes without activity.' } })); } } catch (e) {}
     // Idle sign-out (App settings › Sign out after inactivity, default 30 minutes): shared PCs are common in training rooms.
     // Activity in any tab counts (localStorage), so a second open tab doesn't sign someone out while they work in the first.
-    this._lastAct = Date.now(); const mark = () => { this._lastAct = Date.now(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} };
+    this._lastAct = Date.now(); const mark = () => { this._lastAct = Date.now(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} if (Backend.on && this.state.authed) Backend.rememberTouch(); };
     ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(t => window.addEventListener(t, mark, { passive: true, capture: true }));
     this._idleCheck = () => { const st = this.state; if (!st.authed) return;
       // Watching a video, listening to audio or working in a SCORM package is activity even without clicks or keys.
       const media = [...document.querySelectorAll('video, audio')].some(m => !m.paused && !m.ended);
-      if (!document.hidden && (media || st.playing || (st.screen === 'item' && st.scormOn))) { this._lastAct = Date.now(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} return; }
-      const mins = +(((st.platform || PLATFORM0).defaults || {}).idleMins ?? 30); if (!mins) return;
+      if (!document.hidden && (media || st.playing || (st.screen === 'item' && st.scormOn))) { this._lastAct = Date.now(); if (Backend.on) Backend.rememberTouch(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} return; }
+      let mins = +(((st.platform || PLATFORM0).defaults || {}).idleMins ?? 30); if (!mins) return;
+      if (Backend.on && Backend.remembered()) mins = Math.max(mins, Backend.KEEP_MIN);   // v41.20: Remember me keeps you signed in at least 45 minutes
       let other = 0; try { other = +localStorage.getItem('sf-act') || 0; } catch (e) {}
       if (Date.now() - Math.max(this._lastAct, other) < mins * 60000) return;
       // Connected: sign out and reload, so nothing the previous person could read stays in this tab's memory (shared PCs).
@@ -130,7 +133,8 @@ class SkillforgeApp extends Skillforge.Store {
     this.setState(st => ({ audit: [{ at: Fmt.dt(new Date().toISOString()), who, action, target: String(target || '') }].concat(st.audit || []).slice(0, 2000) })); }
   // v36: remember the top-level page a course was opened from, so the menu highlights Home / My learning / Catalog correctly.
   // The old Training feedback screen now lives in Reports (Kirkpatrick L1–L4 analysis).
-  go(screen, extra) { if (screen === 'feedback') { screen = 'reports'; extra = { ...(extra || {}), repType:'kirkpatrick' }; }
+  go(screen, extra) { if (this.state.scormFull) { document.body.style.overflow = ''; try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} extra = { ...(extra || {}), scormFull:false }; }
+    if (screen === 'feedback') { screen = 'reports'; extra = { ...(extra || {}), repType:'kirkpatrick' }; }
     // v41.6: the learner pages (top menu) always leave Settings, so "← Settings" and the dark gear no longer stay on Home.
     if (LEARNER_SCREENS.includes(screen)) extra = { ...(extra || {}), adminView:false };
     clearInterval(this.timer); window.scrollTo(0, 0); const cur = this.state.screen, LEARN = ['item', 'course', 'lesson', 'quiz'];
@@ -142,6 +146,18 @@ class SkillforgeApp extends Skillforge.Store {
       try { if (!before || !history.state || !history.state.sf) history.replaceState({ sf: nav }, ''); else if (t !== before) history.pushState({ sf: nav }, ''); } catch (e) {} } }
   /* v41.8: open editors that may hold unsaved work, and pop-ups that Back closes first. */
   openEditor(s) { s = s || this.state; return s.mod ? 'module' : s.cDraft && s.screen === 'courseAdmin' ? 'course' : s.ud ? 'account' : s.docEd ? 'document' : s.kpiEd ? 'KPI' : s.roleDraft ? 'role' : ''; }
+  /* v41.20: SCORM full-screen view (see player.js). */
+  scormFullSet(on) {
+    const el = document.getElementById('sf-scorm-wrap'), fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (on) { this.setState({ scormFull:true }); try { const r = el && (el.requestFullscreen || el.webkitRequestFullscreen); if (r) { const p = r.call(el); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+      document.body.style.overflow = 'hidden'; return; }
+    this.setState({ scormFull:false }); document.body.style.overflow = '';
+    try { if (fsEl) (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} }
+  /* v41.20: Skillforge logo -> the LMS home page (also from Settings). Unsaved editor changes are confirmed first. */
+  goHomePage() { const ed = this.openEditor();
+    if (ed && !window.confirm('You have unsaved changes in this ' + ed + '. Leave without saving?')) return;
+    if (this.state.screen === 'item' && Backend.on) try { Backend.scormLeave(); } catch (e) {}
+    this.go('home', { ...this.closeOverlays(), adminView:false, roleMenu:false, notifOpen:false, searchOpen:false, scormOn:false, scormFull:false }); window.scrollTo(0, 0); }
   closeOverlays() { return { mod:null, cDraft:null, ud:null, docEd:null, kpiEd:null, roleDraft:null, docView:null, modPreview:null, modDelete:null, uMenu:null, roleMenu:false, notifOpen:false }; }
   onBrowserBack(e) {
     const s = this.state;
@@ -219,7 +235,7 @@ class SkillforgeApp extends Skillforge.Store {
       deniedBack: () => this.go(role.home, { adminView:false }),
       retryInteg: () => this.toastMsg('Sync retries run in the server sync job, which isn’t connected in this build. Nothing was retried.'),
       toggleRoleMenu: () => this.setState({ roleMenu: !s.roleMenu }),
-      goHomeRole: () => this.go(role.home),
+      goHomeRole: () => this.goHomePage(),   // v41.20: the logo always opens the LMS home page
       isHome: scrV === 'home',
       isCatalog: scrV === 'catalog',
       isCourse: scrV === 'course',

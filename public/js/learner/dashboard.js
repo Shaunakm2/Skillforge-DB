@@ -58,7 +58,7 @@ SkillforgeApp.prototype.vmDashboard = function (c) {
   let cont = null;
   if (CW) { const a = CW.a, st = Progress.itemStates(s, a, role.name), ni = Math.max(0, st.findIndex(x => !x.done)), it = a.items[ni] || {};
     const z = it.kind === 'quiz' ? s.quizzes.find(q => q.id === it.quizId) : null, m = it.moduleId ? s.lcms.find(x => x.id === it.moduleId) : null;
-    const legacy = COURSES.some(x => x.id === a.id), L = legacy ? FLAT[ni] : null;
+    const legacy = !Backend.on && COURSES.some(x => x.id === a.id), L = legacy ? FLAT[ni] : null;
     const leftMins = a.items.slice(ni).reduce((t, x, k) => t + (legacy ? (FLAT[ni + k] || {}).min || 5 : x.mins || 10), 0);
     const lastAt = st.map(x => x.at).filter(Boolean).sort().pop();
     cont = { id: a.id, legacy, idx: ni, title: a.title, pctStr: CW.d.pct + '%', next: z ? z.name : m ? m.title : L ? L.title : it.title || 'Next step', nextMin: legacy && L ? L.min : it.mins || 10,

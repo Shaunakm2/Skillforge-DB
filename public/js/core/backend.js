@@ -19,6 +19,8 @@ const SF_LIST = ['users', 'adminCourses', 'lcms', 'qs', 'quizzes', 'batches', 't
 const SF_PERSON = ['enroll', 'itemDone', 'itemQuiz', 'attemptsUsed', 'extraAttempts', 'bookmarks', 'surveyResp', 'prefs', 'docAck', 'loginLog'];
 const SF_SETTINGS = ['masters', 'tiles', 'repCols', 'dash', 'certTpl', 'zh', 'autos', 'integ', 'kp', 'platform', 'brand', 'docCfg'];
 const SF_BRAND = ['brandName', 'brandAccent', 'brandMsg'];
+/* v41.20: databases seeded by older versions hold the demo sign-in message; show Skillforge's instead (saved on the next Branding save). */
+const brandFix = d => d && /Northwind/i.test(String(d.brandMsg || '')) ? { ...d, brandMsg: 'Welcome to Skillforge. Sign in with your work account.' } : d;
 const SF_ALL = SF_LIST.concat(SF_PERSON, SF_SETTINGS, ['assignedOn', 'fbLog']);
 /* Dashboards are stored as one row per board, per custom KPI and per schedule (v29), so the database can decide who reads
  * which: viewers get only the boards shared with their role; KPIs, schedules and templates are for dashboard editors.
@@ -34,15 +36,19 @@ const DASH_LOCAL = d => ({ slicers: (d && d.slicers) || { division:'All', sub:'A
 /* ---------- identity helpers (also used offline) ---------- */
 const Identity = {
   reserved: n => { const t = String(n == null ? '' : n).trim(); return !t || t in Object.prototype || t === '__proto__' || t === 'prototype'; },
-  /* Display names are the app's handle for a person, so they must be unique. A clash gets the employee ID added. */
+  /* v41.20: two people may have the same name (only e-mail and employee ID must be unique). The app still uses the name
+   * as each person's key, so a second "Gagan Sharma" gets an INVISIBLE marker (U+2063) at the end: it looks exactly the
+   * same everywhere, and Identity.plain() removes it for exports, certificates and editing. (It used to add "(employee ID)".) */
+  MARK: '\u2063',
+  plain: n => String(n == null ? '' : n).replace(/\u2063+$/, ''),
   uniqueName(users, name, empId, exceptId) {
+    name = Identity.plain(name);
     // Names are keys in the app's records: a name equal to a built-in object property (__proto__, constructor, toString…)
-    // would corrupt them, so it gets the employee ID added, like a duplicate.
+    // would corrupt them, so it gets the employee ID added.
     if (Identity.reserved(name)) name = name + ' (' + (empId || 'new') + ')';
-    const taken = new Set(users.filter(u => u.id !== exceptId).map(u => u.name.toLowerCase()));
-    if (!taken.has(name.toLowerCase())) return name;
-    const alt = name + ' (' + (empId || 'new') + ')'; if (!taken.has(alt.toLowerCase())) return alt;
-    let i = 2; while (taken.has((alt + ' ' + i).toLowerCase())) i++; return alt + ' ' + i;
+    const taken = new Set(users.filter(u => u.id !== exceptId).map(u => String(u.name).toLowerCase()));
+    let out = name; while (taken.has(out.toLowerCase())) out += Identity.MARK;
+    return out;
   },
   /* Rename a person everywhere the app refers to them by name. Returns a state patch. */
   rename(s, from, to) {
@@ -78,8 +84,36 @@ const Backend = (() => {
   // x-sf-org tells the database which organisation this session works in (policies compute the caller's context once).
   // v34: the sign-in (access + refresh token) is kept in sessionStorage, so it ends with the tab/browser and is not left behind on a shared PC;
   // SESSION_STORAGE: 'local' in js/config.js restores the old behaviour. If the chosen storage is unusable, an in-memory store is used (never localStorage by accident).
-  const authStore = (() => { const mem = {}, memory = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
-    try { const st = cfg.SESSION_STORAGE === 'local' ? window.localStorage : window.sessionStorage; st.setItem('sf-probe', '1'); st.removeItem('sf-probe'); return st; } catch (e) { return memory; } })();
+  /* v41.20: "Remember me". Ticked: the sign-in is kept in localStorage and survives closing the tab or browser for
+   * KEEP_MIN minutes (default 45) after the last activity; every activity moves that time forward. Not ticked: sessionStorage
+   * (ends with the tab). SESSION_STORAGE: 'local' in js/config.js still means "always remembered". */
+  const KEEP_MIN = Math.max(1, +cfg.REMEMBER_MINUTES || 45), KEEP_KEY = 'sf-keep-until';
+  const mem = {}, memory = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
+  const usable = st => { try { st.setItem('sf-probe', '1'); st.removeItem('sf-probe'); return true; } catch (e) { return false; } };
+  const LS = typeof window !== 'undefined' && usable(window.localStorage) ? window.localStorage : null;
+  const SS = typeof window !== 'undefined' && usable(window.sessionStorage) ? window.sessionStorage : null;
+  const isAuthKey = k => /^sb-.*-auth-token/.test(k);
+  const keepOn = () => { if (!LS) return false; if (cfg.SESSION_STORAGE === 'local') return true;
+    const t = +LS.getItem(KEEP_KEY) || 0; if (t && t > Date.now()) return true;
+    if (t) { LS.removeItem(KEEP_KEY); Object.keys(LS).filter(isAuthKey).forEach(k => LS.removeItem(k)); }   // expired: forget the stored sign-in
+    return false; };
+  const authStore = {
+    getItem: k => { const st = keepOn() ? LS : (SS || memory); let v = st.getItem(k); if (v == null && st === LS && SS) v = SS.getItem(k); return v; },
+    setItem: (k, v) => { const st = keepOn() ? LS : (SS || memory); st.setItem(k, v); const other = st === LS ? SS : LS; if (other && isAuthKey(k)) other.removeItem(k); },
+    removeItem: k => { [LS, SS, memory].forEach(st => { try { st && st.removeItem(k); } catch (e) {} }); },
+  };
+  /* Called before signing in (the box on the sign-in page) and on activity (to move the 45 minutes forward). */
+  function keepSignIn(on) {
+    if (!LS) return;
+    if (on) { LS.setItem(KEEP_KEY, String(Date.now() + KEEP_MIN * 60000));
+      if (SS) Object.keys(SS).filter(isAuthKey).forEach(k => { LS.setItem(k, SS.getItem(k)); SS.removeItem(k); }); }
+    else { LS.removeItem(KEEP_KEY);
+      Object.keys(LS).filter(isAuthKey).forEach(k => { if (SS) SS.setItem(k, LS.getItem(k)); LS.removeItem(k); }); }
+  }
+  let touchAt = 0;
+  function rememberTouch() { if (!LS || cfg.SESSION_STORAGE === 'local' || Date.now() - touchAt < 30000) return; touchAt = Date.now();
+    if (+LS.getItem(KEEP_KEY) > Date.now()) LS.setItem(KEEP_KEY, String(Date.now() + KEEP_MIN * 60000)); }
+  const remembered = () => keepOn();
   // v41.19: opened from a "reset password" e-mail? (read before the Supabase client removes it from the address)
   let recovery = typeof location !== 'undefined' && /(^|[#&?])type=recovery\b/.test(String(location.hash || '') + '&' + String(location.search || ''));
   if (on) sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, storage: authStore }, global: { headers: { 'x-sf-org': org } } });
@@ -156,7 +190,7 @@ const Backend = (() => {
     SF_PERSON.forEach(c => { st[c] = Object.fromEntries((by[c] || []).map(r => [nameOf(s, r.key), r.data])); });
     st.assignedOn = {}; (by.assignedOn || []).forEach(r => { const n = nameOf(s, r.key); for (const cid in r.data) st.assignedOn[n + '|' + cid] = r.data[cid]; });
     st.fbLog = Object.fromEntries((by.fbLog || []).map(r => [fbKeyFromDb(s, r.key), r.data]));
-    SF_SETTINGS.forEach(c => { if (c === 'dash') return; const r = (by[c] || [])[0]; if (!r) return; if (c === 'brand') Object.assign(st, r.data); else st[c] = r.data; });
+    SF_SETTINGS.forEach(c => { if (c === 'dash') return; const r = (by[c] || [])[0]; if (!r) return; if (c === 'brand') Object.assign(st, brandFix(r.data)); else st[c] = r.data; });
     const dv = ((by.dash || [])[0] || {}).data, local = DASH_LOCAL(baseState.dash);
     if (dv && dv.boards) st.dash = { ...dv, ...local };                                   // v28 single-row format
     else if (dv || by.dashBoard || by.dashKpi || by.dashSched) st.dash = { ...local, templates: (dv && dv.templates) || [],   // a viewer has no 'dash' row
@@ -292,7 +326,7 @@ const Backend = (() => {
           else { const o = { ...r.data }; if (i >= 0) l[i] = o; else l.push(o); if (f === 'boards') l.sort((a, b) => (a.ord ?? 1e9) - (b.ord ?? 1e9)); if (!r.provisional) remember(c, r.key, r.version, r.data, o); }
           d[f] = l; }
         P.dash = d; return; }
-      if (SF_SETTINGS.includes(c) && !r.deleted) { if (c === 'brand') Object.assign(P, r.data); else P[c] = r.data; if (!r.provisional) remember(c, r.key, r.version, r.data, c === 'brand' ? null : r.data); }
+      if (SF_SETTINGS.includes(c) && !r.deleted) { if (c === 'brand') Object.assign(P, brandFix(r.data)); else P[c] = r.data; if (!r.provisional) remember(c, r.key, r.version, r.data, c === 'brand' ? null : r.data); }
     });
     app.setState(P);
     // the patched collections are now the reference point (no echo back to the server)
@@ -464,7 +498,7 @@ const Backend = (() => {
     const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error;   // from the user's own IP
     freshLogin = /@/.test(String(username || '')) ? 'email' : 'emp';   // recorded after sign-in (not on page reloads)
   }
-  async function signOut() { if (on) { scormLeave(); if (channel) sb.removeChannel(channel); await sb.auth.signOut(); } }
+  async function signOut() { if (on) { scormLeave(); if (channel) sb.removeChannel(channel); await sb.auth.signOut(); } if (LS) { LS.removeItem(KEEP_KEY); Object.keys(LS).filter(isAuthKey).forEach(k => LS.removeItem(k)); } }
   async function setNewPassword(pw) {
     const { data: u0 } = await sb.auth.getUser(); const email = u0 && u0.user && u0.user.email; recovery = false;
     const { data, error } = await sb.functions.invoke('learning', { body: { action: 'changePassword', password: pw } });
@@ -668,7 +702,7 @@ const Backend = (() => {
     if (error) throw error; const ids = [...new Set(data.map(d => d.actor).filter(Boolean))], names = {};
     if (ids.length) { const r = await sb.from('sf_member').select('user_id,app_name').eq('org_id', org).in('user_id', ids); if (!r.error) r.data.forEach(m => { names[m.user_id] = m.app_name; }); }
     return data.map(d => deproto({ ...d, who: names[d.actor] || (d.actor ? 'User ' + String(d.actor).slice(0, 8) : 'System') })); }
-  return { Usage, auditList, deproto, scormLaunch, scormPreview, scormReport, scormLeave, scormFlush, scormActive, fbKey, empOfName, on, configured, org, BUCKET, start, observe, signIn, signOut, setNewPassword, resetLink, adminUsers, call, pull, reloadColl, cleanPatch, sampleIndex, sampleRows, purge, afterSignIn, seed, createLogins, membersWithLogin,
+  return { Usage, auditList, deproto, scormLaunch, scormPreview, scormReport, scormLeave, scormFlush, scormActive, fbKey, empOfName, on, configured, org, BUCKET, start, observe, signIn, signOut, setNewPassword, resetLink, adminUsers, call, pull, reloadColl, keepSignIn, rememberTouch, remembered, KEEP_MIN, cleanPatch, sampleIndex, sampleRows, purge, afterSignIn, seed, createLogins, membersWithLogin,
     Files, status: () => status, me: () => me, rowsOf, stateOf, merge, canWrite, client: () => sb, _sniff: sniff };
 })();
 const Files = Backend.Files;

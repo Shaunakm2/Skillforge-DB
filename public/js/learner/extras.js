@@ -40,7 +40,7 @@ SkillforgeApp.prototype.amLearnerExtras = function (c) {
       // two people with the same name apart.
       const meU = s.users.find(u => u.name === role.name) || {}, cid = 'SF-' + Progress.hash((meU.empId || role.name) + '|' + c.id + '|' + on).toString(36).slice(2, 8).toUpperCase() + '-' + on.replace(/-/g, '').slice(2);
       const cmp = LearnStats.build(s).comp.find(x => x.user === role.name && x.cid === c.id), expd = cmp && cmp.st === 'Expired', soon = cmp && cmp.st === 'Expiring soon';
-      const printName = meU.empId ? role.name.replace(new RegExp(' \\(' + meU.empId.replace(/[^A-Za-z0-9-]/g, '') + '\\)( \\d+)?$'), '') : role.name;
+      const printName = Identity.plain(meU.empId ? role.name.replace(new RegExp(' \\(' + meU.empId.replace(/[^A-Za-z0-9-]/g, '') + '\\)( \\d+)?$'), '') : role.name);
       return { title: c.title, date: new Date(on + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }), id: cid, tint: c.tint, color: c.color,
         exp: expd ? 'Expired ' + Fmt.medium(cmp.exp) + ' · re-certify' : soon ? 'Expires ' + Fmt.medium(cmp.exp) : a && a.recert !== 'Never' ? 'Valid ' + a.recert : 'No expiry',
         expBg: expd ? '#FEE2E2' : soon ? '#FEF3C7' : '#DCFCE7', expFg: expd ? '#991B1B' : soon ? '#92400E' : '#166534',
