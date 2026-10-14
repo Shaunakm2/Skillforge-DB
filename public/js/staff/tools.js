@@ -118,7 +118,7 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
   const attn = !needStats ? [] : [[[...LS.people.values()].reduce((t, p) => t + p.overdue, 0), 'Overdue assignments', '#A63232', 'reports', { repType:'progress', repStatus:'Overdue' }],
     [LS.comp.filter(x => x.st === 'Expiring soon').length, 'Certifications expiring in 30 days', '#7A4A06', 'reports', { repType:'compliance' }],
     [(s.syncLog || []).filter(x => /fail|error/i.test(String(x.status || ''))).length, 'Integration errors', '#A63232', 'migReport', {}],
-    [s.accessReqs.filter(r => r.status === 'Pending').length + s.users.filter(u => u.status === 'Invited').length, 'Pending user actions (requests, invites)', '#334E68', 'assignments', { reqFilter:'Pending' }]]
+    [s.accessReqs.filter(r => r.status === 'Pending').length, 'Pending access requests', '#334E68', 'assignments', { reqFilter:'Pending' }]]
     .map(([n, l, fg, scr, ex]) => ({ n: n.toLocaleString('en-US'), l, fg, go: () => this.go(scr, { adminView:true, ...ex }) }));
   // analytics: buckets for the chosen range (daily 30 days, weekly 90 days, monthly 12 months), from the learning records
   const RG = s.range === '30d' ? { n:30, step:1, cap:'Daily, last 30 days' } : s.range === '12m' ? { n:12, month:true, cap:'Monthly, last 12 months' } : { n:13, step:7, cap:'Weekly, last 90 days' };
