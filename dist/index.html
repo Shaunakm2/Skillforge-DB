@@ -57,22 +57,24 @@
           <div class="sf-demo2-row"><sf-for list="{{ demoAccounts }}" as="d"><button class="sf-demo2-b" on-click="{{ d.pick }}" title="{{ d.name }}" style="border-color:{{ d.bd }};background:{{ d.bg }}"><b class="sf-demo2-r" style="color:{{ d.fg }}">{{ d.role }}</b><i class="sf-demo2-n">{{ d.first }}</i></button></sf-for></div></div></sf-if>
       </sf-if>
       <sf-if value="{{ lgNewPw }}">
-        <h1 class="sf-l2-h">Set your password</h1>
-        <p class="sf-login-msg">You signed in with a temporary password. Choose your own to continue: at least 10 characters with upper- and lower-case letters and a number.</p>
+        <button class="sf-link sf-back" on-click="{{ cancelNewPw }}">← Back to sign in</button>
+        <h1 class="sf-l2-h">{{ lgNewPwTitle }}</h1>
+        <p class="sf-login-msg">{{ lgNewPwMsg }}</p>
         <div class="ui-61"><label class="sf-l2-label" for="sf-np1">New password</label><input id="sf-np1" class="sf-in" type="password" maxlength="72" autocomplete="new-password" value="{{ lg.npw }}" on-input="{{ setLgNew }}"></div>
         <div class="ui-61"><label class="sf-l2-label" for="sf-np2">Repeat it</label><input id="sf-np2" class="sf-in" type="password" maxlength="72" autocomplete="new-password" value="{{ lg.npw2 }}" on-input="{{ setLgNew2 }}"></div>
         <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert">{{ lg.err }}</div></sf-if>
         <button class="sf-login-btn" on-click="{{ saveNewPw }}" disabled="{{ lgBusy }}" style="background:{{ brandAccent }}">Save and continue</button>
       </sf-if>
       <sf-if value="{{ lgForgot }}">
+        <button class="sf-link sf-back" on-click="{{ goSignin }}">← Back to sign in</button>
         <h1 class="sf-l2-h">Reset password</h1>
         <p class="sf-login-msg">Enter your work email and we’ll email you a reset link.</p>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-user2">Work email</label><input maxlength="254" id="sf-user2" class="sf-in" value="{{ lg.email }}" on-input="{{ setLgEmail }}" placeholder="Work email or employee ID"></div>
+        <div class="ui-61"><label class="sf-l2-label" for="sf-user2">Work email</label><input maxlength="254" id="sf-user2" class="sf-in" value="{{ lg.email }}" on-input="{{ setLgEmail }}" placeholder="name@company.com" type="email"></div>
         <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert">{{ lg.err }}</div></sf-if>
         <button class="sf-login-btn" on-click="{{ sendReset }}" style="background:{{ brandAccent }}">Send reset link</button>
-        <button class="sf-link sf-center" on-click="{{ goSignin }}">← Back to sign in</button>
       </sf-if>
       <sf-if value="{{ lgSent }}">
+        <button class="sf-link sf-back" on-click="{{ goSignin }}">← Back to sign in</button>
         <h1 class="sf-l2-h">Check your email</h1>
         <p class="sf-login-msg">If an account exists for {{ lg.email }}, a reset link is on its way. It expires in 30 minutes.</p>
         <button class="sf-login-btn" on-click="{{ goSignin }}" style="background:{{ brandAccent }}">Back to sign in</button>
@@ -939,7 +941,7 @@
 <sf-if value="{{ isDiscussions }}">
 <div class="ui-57" data-screen-label="Discussions">
   <div class="ui-35">
-    <h1 class="discussions-1">Discussions</h1>
+    <div class="sf-label-row"><h1 class="discussions-1">Discussions</h1><button class="ui-91 sf-dnew" on-click="{{ dNewStart }}">+ New discussion</button></div>
     <sf-for list="{{ threadList }}" as="t">
       <button class="ui-58 hover-9" on-click="{{ t.pick }}" style="border:2px solid {{ t.border }}">
         <span class="discussions-2">{{ t.course }}</span>
@@ -947,8 +949,19 @@
         <span class="discussions-4"><span>{{ t.author }}</span><span>{{ t.time }}</span><span>{{ t.replyCount }} replies</span><span>▲ {{ t.votes }}</span></span>
       </button>
     </sf-for>
+    <sf-if value="{{ noThreads }}"><div class="ui-6">No discussions yet. Start the first one.</div></sf-if>
   </div>
   <div class="discussions-5">
+    <sf-if value="{{ dNewOpen }}">
+    <div class="ui-61 sf-dform" style="display:flex;flex-direction:column;gap:12px;padding:20px">
+      <h2 class="discussions-10">New discussion</h2>
+      <label class="ui-61"><span class="ui-5">Title</span><input class="ovl-21" maxlength="140" value="{{ dNew.title }}" on-input="{{ setDnTitle }}" placeholder="What do you want to discuss?"></label>
+      <label class="ui-61"><span class="ui-5">Topic (optional)</span><input class="ovl-21" maxlength="40" value="{{ dNew.tag }}" on-input="{{ setDnTag }}" placeholder="e.g. POSH Awareness, General"></label>
+      <label class="ui-61"><span class="ui-5">Details</span><textarea class="discussions-22" maxlength="4000" rows="5" value="{{ dNew.body }}" on-input="{{ setDnBody }}" placeholder="Add your question or idea"></textarea></label>
+      <div class="ui-87"><button class="ui-91" on-click="{{ dNewPost }}" disabled="{{ dBusy }}">{{ dNewLabel }}</button><button class="ui-82" on-click="{{ dNewCancel }}">Cancel</button></div>
+    </div>
+    </sf-if>
+    <sf-if value="{{ showThread }}">
     <div class="discussions-6">
       <button class="discussions-7" on-click="{{ upvote }}" style="border:2px solid {{ voteBorder }};background:{{ voteBg }}">▲<span class="discussions-8">{{ thread.votes }}</span></button>
       <div class="ui-3">
@@ -973,10 +986,12 @@
     <div class="ui-59">
       <span class="discussions-20">{{ persona.initials }}</span>
       <div class="discussions-21">
-        <textarea maxlength="2000" class="discussions-22" value="{{ reply }}" on-input="{{ setReply }}" placeholder="Add a reply · +20 XP" rows="2"></textarea>
-        <button class="discussions-23" on-click="{{ postReply }}" style="background:{{ replyBtnBg }};color:{{ replyBtnFg }}">Post</button>
+        <textarea maxlength="2000" class="discussions-22" value="{{ reply }}" on-input="{{ setReply }}" placeholder="Add a reply" rows="2"></textarea>
+        <button class="discussions-23" on-click="{{ postReply }}" disabled="{{ dBusy }}" style="background:{{ replyBtnBg }};color:{{ replyBtnFg }}">{{ replyLabel }}</button>
       </div>
     </div>
+    </sf-if>
+    <sf-if value="{{ dEmptyRight }}"><div class="ui-100" style="padding:32px">No discussions yet. Select <b>+ New discussion</b> to ask a question or share an idea with everyone.</div></sf-if>
   </div>
 </div>
 </sf-if>
@@ -1233,12 +1248,6 @@
       <h1 class="ui-28">{{ consoleTitle }}</h1>
     </div>
   </div>
-<sf-if value="{{ umShow }}"><div class="um" role="region" aria-label="Supabase free plan usage">
-  <div class="um-head"><span class="ui-95">Supabase free plan usage</span><span class="um-tag">testing</span><sf-if value="{{ umHas }}"><span class="doc-st" style="background:{{ umStBg }};color:{{ umStFg }}">{{ umState }}</span></sf-if><span class="sf-grow"></span><span class="ui-6">{{ umWhen }}</span><button class="al-more" on-click="{{ umRefresh }}">Refresh</button></div>
-  <sf-if value="{{ umLoading }}"><div class="ui-6">Checking usage…</div></sf-if>
-  <div class="um-rows"><sf-for list="{{ umRows }}" as="r"><div class="um-row"><span class="um-l">{{ r.label }}</span><span class="um-bar"><span style="width:{{ r.w }};background:{{ r.col }}"></span></span><span class="um-t">{{ r.text }}</span></div></sf-for></div>
-  <div class="ui-6">The Free plan doesn’t charge you. Going over the limit gets the project restricted, so uploads that would cross it are stopped here. Data transfer (5 GB a month) is only shown in the Supabase dashboard › Organization › Usage.</div>
-</div></sf-if>
   <div class="set-tabs" role="tablist"><sf-for list="{{ setTabs }}" as="t"><button class="set-tabbtn" role="tab" aria-selected="{{ t.on }}" on-click="{{ t.pick }}" style="background:{{ t.bg }};color:{{ t.fg }};border-color:{{ t.border }}">{{ t.label }}<span class="set-tabn" style="background:{{ t.nBg }}">{{ t.n }}</span></button></sf-for></div>
   <section class="set-sec">
     <div class="set-head"><h2 class="set-h">{{ setCur.title }}</h2><span class="ui-6">{{ setCur.desc }}</span></div>
@@ -2140,13 +2149,22 @@
 <sf-if value="{{ isDatabase }}">
 <div class="ui-42" data-screen-label="Database and storage">
   <div class="ui-65"><div><h1 class="ui-66">Database & storage</h1><div class="ui-29">Where Skillforge keeps its data and files.</div></div><button class="ui-82 sf-export" on-click="{{ dbBackup }}">Download backup (JSON)</button></div>
+<sf-if value="{{ umShow }}"><div class="um" role="region" aria-label="Supabase free plan usage">
+  <div class="um-head"><span class="ui-95">Supabase free plan usage</span><span class="um-tag">testing</span><sf-if value="{{ umHas }}"><span class="doc-st" style="background:{{ umStBg }};color:{{ umStFg }}">{{ umState }}</span></sf-if><span class="sf-grow"></span><span class="ui-6">{{ umWhen }}</span><button class="al-more" on-click="{{ umRefresh }}">Refresh</button></div>
+  <sf-if value="{{ umLoading }}"><div class="ui-6">Checking usage…</div></sf-if>
+  <div class="um-rows"><sf-for list="{{ umRows }}" as="r"><div class="um-row"><span class="um-l">{{ r.label }}</span><span class="um-bar"><span style="width:{{ r.w }};background:{{ r.col }}"></span></span><span class="um-t">{{ r.text }}</span></div></sf-for></div>
+  <div class="ui-6">The Free plan doesn’t charge you. Going over the limit gets the project restricted, so uploads that would cross it are stopped here. Data transfer (5 GB a month) is only shown in the Supabase dashboard › Organization › Usage.</div>
+</div></sf-if>
   <div class="ui-70 bt-pad bt-col">
     <div class="sf-label-row"><div class="db-conn"><span class="db-led" data-ok="{{ dbOk }}"></span><span class="ui-95">{{ dbStatus }}</span></div><span class="ui-6">{{ dbAt }}</span></div>
     <sf-if value="{{ dbOff }}"><div class="tr-late">Not connected. Everything you change lives in this browser tab and is lost on refresh. To keep data and files, create a free Supabase project, run the SQL in supabase/migrations, and fill in js/config.js (see SETUP-SUPABASE.md in the download).</div></sf-if>
     <sf-if value="{{ dbOn }}"><div class="kp-grid"><div class="kp" style="border-top-color:#3ECF8E"><span class="kp-l">Organisation</span><span class="kp-v" style="font-size:20px">{{ dbOrg }}</span><span class="kp-s">ORG_ID in js/config.js</span></div>
       <div class="kp" style="border-top-color:#3ECF8E"><span class="kp-l">Records</span><span class="kp-v">{{ dbRows }}</span><span class="kp-s">rows in table sf_doc</span></div>
       <div class="kp" style="border-top-color:#3ECF8E"><span class="kp-l">Files in storage</span><span class="kp-v">{{ dbFiles }}</span><span class="kp-s">bucket {{ dbBucket }}</span></div></div></sf-if>
-    <sf-if value="{{ dbEmpty }}"><div class="ca-bad" style="background:#FFFBEB;color:#78350F"><span class="ui-95">The database is empty.</span><span>Save the data shown in the app (the sample organisation, or whatever you have set up) as the starting point. You can delete or edit everything afterwards.</span><span class="ui-87"><button class="ui-82" on-click="{{ dbSeedFull }}" disabled="{{ dbBusy }}">Use the full sample organisation (3,500 people)</button><button class="ui-91" on-click="{{ dbSeed }}" disabled="{{ dbBusy }}">{{ dbSeedLabel }}</button></span></div></sf-if>
+    <sf-if value="{{ dbEmpty }}"><div class="ca-bad" style="background:#FFFBEB;color:#78350F"><span class="ui-95">The database is empty.</span><span>Save your account and the default settings (roles, categories, badges) as the starting point. No sample courses or people are added.</span><span class="ui-87"><button class="ui-91" on-click="{{ dbSeed }}" disabled="{{ dbBusy }}">{{ dbSeedLabel }}</button></span></div></sf-if>
+    <sf-if value="{{ dbIsAdmin }}"><div class="ui-70 bt-pad bt-col" style="box-shadow:none;border:1px solid #D7E3EC"><div class="ui-8">Sample data</div><div class="ui-6">Remove the sample organisation (demo courses, people, modules, questions, batches, discussions and their records) from the database. You, everyone with a login and anything you created are kept.</div>
+      <span class="ui-87"><button class="ui-82" on-click="{{ dbSampleFind }}" disabled="{{ dbSampleBusy }}">Find sample data</button><sf-if value="{{ dbSampleHas }}"><button class="ui-91 sf-del" on-click="{{ dbSampleDelete }}" disabled="{{ dbSampleBusy }}">Delete sample data</button></sf-if></span>
+      <sf-if value="{{ dbSampleOpen }}"><div class="ui-6">{{ dbSample.line }}</div><div class="db-counts"><sf-for list="{{ dbSample.list }}" as="k"><div class="db-cnt"><span class="ui-6">{{ k.l }}</span><span class="ui-95">{{ k.v }}</span></div></sf-for></div></sf-if></div></sf-if>
     <sf-if value="{{ dbIsAdmin }}"><div class="ui-70 bt-pad bt-col" style="box-shadow:none;border:1px solid #D7E3EC"><div class="ui-8">Logins</div><div class="ui-6">Everyone in Users &amp; accounts needs a login to sign in. Create logins for people who don’t have one yet (random temporary passwords, changed at first sign-in).</div>
       <button class="ui-82 bt-left" on-click="{{ dbCreateLogins }}" disabled="{{ dbLoginsBusy }}">Create missing logins</button>
       <sf-if value="{{ dbLoginsDone }}"><div class="ca-ok"><span>{{ dbLoginsLine }}</span> <button class="ui-82" on-click="{{ dbLoginsCsv }}">Download temporary passwords</button></div></sf-if><sf-if value="{{ dbLoginsErr }}"><div class="sf-login-err">{{ dbLoginsErr }}</div></sf-if></div></sf-if>
@@ -3086,7 +3104,7 @@
   <div class="ovl-1" on-click="{{ stop }}">
     <div class="ovl-28" on-click="{{ stop }}">
       <div class="ui-41"><h2 class="ovl-3">{{ tempPwTitle }}</h2><button class="ovl-4" on-click="{{ closeTempPw }}">✕</button></div>
-      <div class="ui-29">Give {{ tempPw.name }} ({{ tempPw.email }}) this temporary password. It works once: they must choose their own password when they sign in. It won’t be shown again.</div>
+      <div class="ui-29">Give {{ tempPw.name }} ({{ tempPw.email }}) this first password. When they sign in with it, they are asked to choose their own password straight away.</div>
       <div class="tp-box"><code class="tp-pw">{{ tempPw.pw }}</code><button class="ui-82" on-click="{{ copyTempPw }}">Copy</button></div>
       <div class="ovl-26"><button class="ui-91" on-click="{{ closeTempPw }}">Done</button></div>
     </div>
@@ -3806,6 +3824,6 @@
 
 <script src="js/config.js"></script>
 <script src="js/boot.js"></script>
-<script src="js/app.ba476eedf170.js"></script>
+<script src="js/app.6396ed82c4be.js"></script>
 </body>
 </html>

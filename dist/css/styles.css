@@ -1114,6 +1114,7 @@ sf-if,sf-for{display:contents}
 .sf-login-btn:hover{filter:brightness(.95)}
 .sf-login-btn:active{transform:translateY(1px)}
 .sf-center{align-self:center}
+.sf-back{align-self:flex-start;margin:0 0 6px;font-size:14px}
 .sf-demo{border-top:1px solid #D7E3EC;padding-top:14px;display:flex;flex-direction:column;gap:8px}
 .sf-demo-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .sf-demo-btn{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid #D7E3EC;background:#FFFFFF;border-radius:12px;padding:7px 9px;cursor:pointer;color:#16324F;min-width:0}
@@ -1825,7 +1826,7 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
   .sf-demo2{padding-top:6px;gap:4px}.sf-demo2-b{padding:5px 4px;min-height:28px;flex-shrink:0}.sf-demo2-n{display:none}
   .sf-check{margin:0;padding:0}
 }
-@media(max-height:520px){.sf-l2-brand{display:none!important}.sf-link.sf-center{display:none}}
+@media(max-height:520px){.sf-l2-brand{display:none!important}}
 
 /* ---------- Mobile: two-row header, stacking layouts, scrollable wide tables ---------- */
 @media(max-width:760px){

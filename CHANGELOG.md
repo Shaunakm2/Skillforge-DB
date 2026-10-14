@@ -2,6 +2,19 @@
 
 Newest first. Entries before v38 are the original per-version files, kept verbatim; originals are in `docs/archive/`.
 
+## v41.19 (discussions, accounts, sample data)
+- **Discussions: Post did nothing.** Replies went to a sample thread that doesn't exist in the database ("Thread not found"). They now go to the thread on screen and are saved through the `learning` function (`post`), so they are in the database. **+ New discussion** added (there was no way to start one). The page re-reads discussions from the database when opened.
+- **Supabase free plan usage** moved from the Settings home to **Settings › Database & storage** (also still on LCMS and Documents library, where uploads happen). The Database & storage tile shows the % used.
+- **No sample data.** A new database starts empty (only you, plus roles, categories, badges, dashboards and settings). The "full sample organisation" button is gone. **Database & storage › Sample data › Find / Delete sample data** removes demo courses, people, modules, questions, batches, discussions and their records from an existing database; you, everyone with a login and anything you created are kept. Sample calendar sessions are no longer shown when connected.
+- **Default first password Pass@123.** New accounts and password resets get `Pass@123` (Edge Function secret `DEFAULT_PASSWORD`; set it to `random` for random passwords). First sign-in always asks for a new password, and Pass@123 can't be kept. Auth minimum length set to 8 in `supabase/config.toml` so Pass@123 is accepted.
+- **"Not linked to an active Skillforge account" after changing the password.** After the change the app now signs in again with the new password instead of relying on the old session. The error message also says what really went wrong.
+- **Manage did nothing for a new person.** On a new database the admin's id is "me-<employee ID>", so the next id was NaN; the person was saved under the key "NaN". Ids are now always numbers (and NaN ids are repaired on load).
+- **No "Invited" status.** Accounts are Active from creation until deactivated (by an admin or the HRMS). Old "Invited" records load as Active; reports, dashboards and counts no longer show Invited.
+- **Account actions find the login by employee ID too** (and any letter case of the e-mail), with a clear message if the person has no login yet.
+- **Back buttons** on Reset password, Check your email and Set your password; the browser Back button also returns to Sign in.
+- Course builder module-type filter uses the same names as LCMS and no longer lists Feedback form (sent after a course, not a step).
+- Tests: `tests/e2e/v41_19_e2e.py` (34 checks), 1 new Edge Function test; backend and SCORM tests load the sample data themselves.
+
 ## v41.18 (bug review and decluttering)
 Second full check
 - **SCORM 2004 completion could be lost.** completion_status and success_status overwrote each other, so a package that sent "completed" then success "unknown" never counted. Kept apart now (LMS and content-site bridge); passed wins, failed stays failed, a 2004 "completed" counts at Commit/Terminate.

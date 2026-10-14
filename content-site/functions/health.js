@@ -3,7 +3,7 @@
  *   /health?t=<token>&f=a/b.html  runs ONE real file request exactly like the player does and says which step failed
  *                                 (the token is a short-lived launch token from Skillforge's own check; no content is returned)
  * The Skillforge app (APP_ORIGIN) may read the answer (CORS), so Settings › Migration › SCORM setup check can show it. */
-const VERSION = 'v41.18';
+const VERSION = 'v41.19';
 export async function onRequest({ request, env }) {
   const cors = { 'access-control-allow-origin': String(env.APP_ORIGIN || '').replace(/\/$/, '') || 'null', 'vary': 'Origin' };
   const out = { site: 'Skillforge content site', version: VERSION, ok: true, checks: [] };

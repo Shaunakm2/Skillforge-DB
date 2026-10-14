@@ -35,7 +35,7 @@
      ```
 4. **Apply the Auth security settings (required).** They are in `supabase/config.toml`; push them with `supabase link --project-ref <ref>` then `supabase config push`. Or set them by hand in the dashboard (Authentication › Sign In / Providers › Email, and Authentication › Sessions):
    - sign-ups **off** (`enable_signup = false`);
-   - **minimum password length 10**, requirement **lowercase + uppercase + digits** (`minimum_password_length = 10`, `password_requirements = "lower_upper_letters_digits"`). This is the same rule the app enforces. It matters because a signed-in person can call the Auth API directly and bypass the app's own check; only these settings stop that;
+   - **minimum password length 8** (v41.19: so the default first password `Pass@123` is accepted; people still choose 10+ characters in the app), requirement **lowercase + uppercase + digits** (`minimum_password_length = 8`, `password_requirements = "lower_upper_letters_digits"`). This is the same rule the app enforces. It matters because a signed-in person can call the Auth API directly and bypass the app's own check; only these settings stop that;
    - **JWT expiry 1800 s** or less.
 
    Deactivating or resetting a login now also deletes that person's sessions (`sf_revoke_sessions`), so the refresh token stops working and the database refuses the old access token at once. JWT expiry no longer decides how long a removed person keeps access.
