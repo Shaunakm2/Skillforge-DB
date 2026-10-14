@@ -45,11 +45,13 @@
     <div class="sf-l2-card">
       <sf-if value="{{ lgSignin }}">
         <h1 class="sf-l2-h">Sign in</h1>
+        <sf-if value="{{ brandMsg }}"><p class="sf-l2-msg">{{ brandMsg }}</p></sf-if>
         <sf-if value="{{ lgSetupErr }}"><div class="sf-login-err" role="alert">{{ lgSetupErr }}</div></sf-if>
         <div class="ui-61"><label class="sf-l2-label" for="sf-user">Username</label><input maxlength="254" id="sf-user" class="sf-in" autocomplete="username" value="{{ lg.email }}" on-input="{{ setLgEmail }}" on-keydown="{{ lgKey }}" placeholder="name@company.com" type="email" autocomplete="email"></div>
         <div class="ui-61"><label class="sf-l2-label" for="sf-pw">Password</label>
           <span class="sf-pw"><input id="sf-pw" class="sf-in" type="{{ lgPwType }}" autocomplete="current-password" value="{{ lg.pw }}" on-input="{{ setLgPw }}" on-keydown="{{ lgKey }}" placeholder="Password"><button class="sf-pw-eye" on-click="{{ toggleLgShow }}" aria-label="{{ lgShowLabel }} password">{{ lgShowLabel }}</button></span></div>
         <button class="sf-check" role="checkbox" aria-checked="{{ lgRemOn }}" on-click="{{ lgRemember }}"><span class="sf-check-box"><sf-if value="{{ lgRemOn }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="4"><path d="M5 12l5 5 9-10"></path></svg></sf-if></span>Remember me</button>
+        <div class="ui-6 sf-rem-hint">{{ lgRemHint }}</div>
         <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert">{{ lg.err }}</div></sf-if>
         <button class="sf-login-btn" on-click="{{ doLogin }}" disabled="{{ lgBusy }}" style="background:{{ brandAccent }}">{{ lgBtnLabel }}</button>
         <button class="sf-link sf-center" on-click="{{ goForgot }}">Forgot password?</button>
@@ -498,7 +500,7 @@
       </sf-if></sf-if>
       <sf-if value="{{ itScormLaunch }}">
         <sf-if value="{{ scormOff }}"><div class="sf-scorm-launch"><div class="ui-8">{{ it.fileName }}</div><div class="ui-6">{{ itPkgNote }}</div><sf-if value="{{ itHasBookmark }}"><div class="ui-6">Resumes from: {{ itBookmark }}</div></sf-if><button class="ui-91" on-click="{{ launchScorm }}">Launch package</button></div></sf-if>
-        <sf-if value="{{ scormOn }}"><iframe class="sf-scorm" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" referrerpolicy="no-referrer" allow="fullscreen" src="{{ it.src }}" title="{{ it.title }}"></iframe></sf-if>
+        <sf-if value="{{ scormOn }}"><div class="sf-scorm-wrap {{ scormFullCls }}" id="sf-scorm-wrap"><div class="sf-scorm-bar"><span class="ui-8 sf-scorm-t">{{ it.title }}</span><button class="ui-82 sf-scorm-fs" on-click="{{ scormFullToggle }}" aria-pressed="{{ scormFullOn }}">{{ scormFullLabel }}</button></div><iframe class="sf-scorm" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" referrerpolicy="no-referrer" allow="fullscreen" allowfullscreen="true" src="{{ it.src }}" title="{{ it.title }}"></iframe></div></sf-if>
       </sf-if>
       <sf-if value="{{ itScormSim }}">
         <div class="sf-scorm-launch"><div class="ui-8">{{ it.fileName }}</div><div class="ui-6">Uploaded package. This prototype can't unpack .zip files yet, so the player is simulated.</div>
@@ -1237,7 +1239,7 @@
       </div>
     </sf-for>
   </div>
-<div class="admin-analytics-20"><div><h2 class="ui-81">Where learners drop off</h2><div class="admin-analytics-6">Where do people stop? Leading Through Change, share of enrolled learners reaching each module</div></div><div class="admin-analytics-21"><span>Module 1</span><span class="ui-48"><span class="admin-analytics-22"></span></span><span class="ui-2">100%</span></div><div class="admin-analytics-21"><span>Module 2</span><span class="ui-48"><span class="admin-analytics-23"></span></span><span class="ui-2">82%</span></div><div class="admin-analytics-21"><span>Module 3</span><span class="ui-48"><span class="admin-analytics-24"></span></span><span class="ui-2">64%</span></div><div class="admin-analytics-21"><span>Module 4</span><span class="ui-48"><span class="admin-analytics-25"></span></span><span class="ui-2">51%</span></div><div class="admin-analytics-26">Biggest drop: Module 2 to Module 3 (18 points). Review the content there first.</div></div>
+<sf-if value="{{ demoOnly }}"><div class="admin-analytics-20"><div><h2 class="ui-81">Where learners drop off</h2><div class="admin-analytics-6">Where do people stop? Leading Through Change, share of enrolled learners reaching each module</div></div><div class="admin-analytics-21"><span>Module 1</span><span class="ui-48"><span class="admin-analytics-22"></span></span><span class="ui-2">100%</span></div><div class="admin-analytics-21"><span>Module 2</span><span class="ui-48"><span class="admin-analytics-23"></span></span><span class="ui-2">82%</span></div><div class="admin-analytics-21"><span>Module 3</span><span class="ui-48"><span class="admin-analytics-24"></span></span><span class="ui-2">64%</span></div><div class="admin-analytics-21"><span>Module 4</span><span class="ui-48"><span class="admin-analytics-25"></span></span><span class="ui-2">51%</span></div><div class="admin-analytics-26">Biggest drop: Module 2 to Module 3 (18 points). Review the content there first.</div></div></sf-if>
 </div>
 </sf-if>
 
@@ -3824,6 +3826,6 @@
 
 <script src="js/config.js"></script>
 <script src="js/boot.js"></script>
-<script src="js/app.6396ed82c4be.js"></script>
+<script src="js/app.1c21bef71f78.js"></script>
 </body>
 </html>

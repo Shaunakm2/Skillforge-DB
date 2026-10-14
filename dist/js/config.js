@@ -9,5 +9,6 @@ window.SKILLFORGE_CONFIG = {
   ORG_ID: 'ims',                // REQUIRED with Supabase: your organisation id (no default; the app refuses to start without it)
   STORAGE_BUCKET: 'lms-files',
   CONTENT_ORIGIN: 'https://skillforge-db.pages.dev',        // the SCORM content site, e.g. 'https://content.example.com' (separate origin; also the same value in the "learning" function's CONTENT_ORIGIN secret)
+  REMEMBER_MINUTES: 45,        // v41.20: "Remember me" on the sign-in page keeps you signed in this long after your last activity, even if the browser is closed
   SESSION_STORAGE: 'session',// 'session' (default): the sign-in lasts until the tab/browser is closed. 'local': survives closing the browser (less safe on shared PCs)
 };
