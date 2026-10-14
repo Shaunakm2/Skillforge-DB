@@ -31,7 +31,7 @@ SkillforgeApp.prototype.amZingHR = function (c) {
     if (Z.rules.update) { const u = pick('d'); if (u) { const to = DEPTS.find(d => d !== u.dept); users[users.indexOf(u)] = { ...u, dept: to }; add('Department change', u, 'Department', u.dept, to, 'Applied'); }
       const v = pick('p'); if (v) { const ph = '+91 98' + String(Math.floor(Progress.hash(now + 'ph') * 1e8)).padStart(8, '0'); users[users.indexOf(v)] = { ...v, phone: ph }; add('Phone change', v, 'Phone', v.phone, ph, 'Applied'); } }
     let created = 0, enroll = s.enroll, assignedOn = s.assignedOn;
-    if (Z.rules.create) { const id = Math.max(...users.map(u => u.id)) + 1, nm = 'Tanya Bhatt ' + (id % 1000);
+    if (Z.rules.create) { const id = nextUserId(users), nm = 'Tanya Bhatt ' + (id % 1000);
       const nu = { id, name: Identity.uniqueName(users, nm, 'ZH' + (300000 + id)), email: nm.toLowerCase().replace(/ /g, '.') + '@northwind.com', role:'Learner', roleId:'r_learner', dept:'Customer Success', status:'Active', lastLogin:'Never', manager:'Priya Raman', empId:'ZH' + (300000 + id), phone:'', gender:'Female', terms:false, designation:'Associate', joined: TODAY_KEY, source:'ZingHR' };
       users.push(nu); created = 1; add('New hire', nu, 'Employee record', '', 'Created · Customer Success · Associate', 'Applied');
       if (Z.rules.essentials) { const e = Essentials.apply(enroll, s.adminCourses, [nu], s.holidays, assignedOn); enroll = e.enroll; assignedOn = e.assignedOn; } }

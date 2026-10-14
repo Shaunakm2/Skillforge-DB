@@ -14,7 +14,7 @@
 const DB_SRC = { learn:'Learning (courses)', train:'Training (batches / MIS)', hr:'People (HRMS employee master)' };
 const DB_MEASURES = {
   learn: { assignments:['Assignments', 'n'], completed:['Completed', 'n'], certs:['Certificates issued', 'n'], certCourses:['Assignments on courses with a certificate', 'n'], inProgress:['In progress', 'n'], overdue:['Overdue', 'n'], notStarted:['Not started', 'n'], completionRate:['Completion rate', 'pct'], overdueRate:['Overdue rate', 'pct'], learners:['Learners', 'n'], avgScore:['Average assessment score', 'pct'], modules:['Modules completed', 'n'] },
-  hr: { employees:['People (active + invited)', 'n'], active:['Active', 'n'], invited:['Invited', 'n'], deactivated:['Deactivated (left)', 'n'], accounts:['All accounts (incl. deactivated)', 'n'], joiners:['Joiners (From–To, else last 30 days)', 'n'] },
+  hr: { employees:['People (active)', 'n'], active:['Active', 'n'], deactivated:['Deactivated (left)', 'n'], accounts:['All accounts (incl. deactivated)', 'n'], joiners:['Joiners (From–To, else last 30 days)', 'n'] },
   train: { joined:['Joined', 'n'], classDone:['Completed classroom', 'n'], volShare:['Voluntary share of attrition', 'pct'], earlyLeft:['Left before OJT', 'n'], daysToLeave:['Average days before leaving', 'dec'], participants:['Participants', 'n'], unique:['Unique trainees', 'n'], handover:['Handed over', 'n'], earlyAbsorb:['Early absorbed', 'n'], inTraining:['In training', 'n'], attrited:['Attrited (incl. did not join)', 'n'], attrJoined:['Left after joining', 'n'], noshow:['Did not join', 'n'], throughput:['Throughput', 'pct'], attritionRate:['Attrition rate', 'pct'], avgTat:['Avg handover TAT (weeks)', 'dec'], batches:['Batches', 'n'] },
 };
 const DB_DIMS = {
@@ -190,7 +190,7 @@ const Dash = (() => {
   const hrOk = (u, sl) => (sl.division === 'All' || u.division === sl.division) && (sl.sub === 'All' || u.subDivision === sl.sub) && (sl.location === 'All' || u.site === sl.location);
   // People = current headcount (active + invited), like the learning data that leaves deactivated people out.
   // Joiners: date of joining inside From–To; with no dates set, the last 30 days (never "everyone").
-  const hBump = (r, u, sl) => { r.accounts++; if (u.status !== 'Deactivated') r.employees++; if (u.status === 'Active') r.active++; else if (u.status === 'Invited') r.invited++; else if (u.status === 'Deactivated') r.deactivated++;
+  const hBump = (r, u, sl) => { r.accounts++; if (u.status !== 'Deactivated') r.employees++; if (u.status !== 'Deactivated') r.active++; else if (u.status === 'Deactivated') r.deactivated++;
     const from = sl.from || (sl.to ? '' : Progress.plus(TODAY_KEY, -30)), to = sl.to || (sl.from ? '' : TODAY_KEY);
     if (u.joined && (!from || u.joined >= from) && (!to || u.joined <= to)) r.joiners++; };
   function hr(s, sl) {
@@ -237,7 +237,7 @@ const Dash = (() => {
     learn: { assignments:['Assignments', r => r.assignments], completed:['Completed', r => r.completed], in_progress:['In progress', r => r.inProgress], certificates:['Certificates issued (courses with a certificate only)', r => r.certs], cert_assignments:['Assignments on courses with a certificate', r => r.certCourses], not_started:['Not started', r => r.notStarted], overdue:['Overdue', r => r.overdue],
       learners:['Learners', r => r.learners.size], modules_done:['Modules completed', r => r.modules], scored_attempts:['Scored assessments', r => r.scoreN], avg_score:['Average assessment score %', r => measure('learn', r, 'avgScore')],
       completion_rate:['Completion rate %', r => measure('learn', r, 'completionRate')], overdue_rate:['Overdue rate %', r => measure('learn', r, 'overdueRate')] },
-    hr: { employees:['People (active + invited)', r => r.employees], accounts:['All accounts including deactivated', r => r.accounts], active:['Active', r => r.active], invited:['Invited (not signed in yet)', r => r.invited], deactivated:['Deactivated', r => r.deactivated],
+    hr: { employees:['People (active)', r => r.employees], accounts:['All accounts including deactivated', r => r.accounts], active:['Active', r => r.active], deactivated:['Deactivated', r => r.deactivated],
       joiners:['Joiners (date of joining inside From–To; last 30 days when no dates are set)', r => r.joiners] },
   };
   const FIELD_LABELS = Object.fromEntries(Object.keys(F).map(k => [k, Object.fromEntries(Object.entries(F[k]).map(([f, v]) => [f, v[0]]))]));
@@ -447,12 +447,12 @@ SkillforgeApp.prototype.amDashboard = function (c) {
     if (v.type === 'donut') { const total = R.reduce((t, x) => t + (x.v || 0), 0) || 1, Cc = 2 * Math.PI * 54; let acc = 0;
       return { ...base, isDonut:true, dTotal: fmtV(v.src, m, MS[m][1] === 'n' ? total : Dash.measure(v.src, C.tot, m)), slices: R.slice(0, 8).map((x, i) => { const f = (x.v || 0) / total, seg = { c: dim === 'status' && v.src !== 'hr' ? statusColor(x.k) : DB_COLORS[i % DB_COLORS.length], dash: (f * Cc).toFixed(2) + ' ' + Cc.toFixed(2), off: (-acc * Cc).toFixed(2), l: lab(dim, x.k), v: fmtV(v.src, m, x.v), p: (f * 100).toFixed(1) + '%', drill: drillTo(v, [[dim, x.k]], lab(dim, x.k)) }; acc += f; return seg; }) }; }
     if (v.type === 'stack') { const R2 = rowsOf({ ...v, type:'bar' }, C, dim, v.src === 'train' ? 'participants' : v.src === 'hr' ? 'employees' : 'assignments');
-      const parts = v.src === 'train' ? [['In training', 'inTraining', '#5B7DB8'], ['Handed over', 'handover', '#007A4D'], ['Attrited', 'attrited', '#D64545']] : v.src === 'hr' ? [['Active', 'active', '#007A4D'], ['Invited', 'invited', '#0066A1'], ['Deactivated', 'deactivated', '#9CB3C4']] : [['Completed', 'completed', '#007A4D'], ['In progress', 'inProgress', '#5B7DB8'], ['Not started', 'notStarted', '#9CB3C4'], ['Overdue', 'overdue', '#D64545']];
+      const parts = v.src === 'train' ? [['In training', 'inTraining', '#5B7DB8'], ['Handed over', 'handover', '#007A4D'], ['Attrited', 'attrited', '#D64545']] : v.src === 'hr' ? [['Active', 'active', '#007A4D'], ['Deactivated', 'deactivated', '#9CB3C4']] : [['Completed', 'completed', '#007A4D'], ['In progress', 'inProgress', '#5B7DB8'], ['Not started', 'notStarted', '#9CB3C4'], ['Overdue', 'overdue', '#D64545']];
       return { ...base, isStack:true, stacks: R2.map(x => { const r = x.row, t = (v.src === 'train' ? r.participants : v.src === 'hr' ? r.employees : r.assignments) || 1; return { l: lab(dim, x.k), n: t.toLocaleString('en-US'), drill: drillTo(v, [[dim, x.k]], lab(dim, x.k)), parts: parts.map(([k, f, c2]) => ({ w: (r[f] / t * 100).toFixed(2) + '%', c: c2, t: k + ': ' + r[f].toLocaleString('en-US') })) }; }), legend: parts.map(([k, , c2]) => ({ k, c: c2 })) }; }
     if (v.type === 'table') { const R2 = rowsOf(v, C, dim, m), cols = (v.cols || []).filter(k => MS[k]);
       let head, cell, totRow;
       if (cols.length) { head = [DS[dim]].concat(cols.map(k => MS[k][0])); cell = x => [lab(dim, x.k)].concat(cols.map(k => fmtV(v.src, k, Dash.measure(v.src, x.row, k)))); totRow = ['Total'].concat(cols.map(k => fmtV(v.src, k, Dash.measure(v.src, C.tot, k)))); }
-      else if (v.src === 'hr') { head = [DS[dim], 'People', 'Active', 'Invited', 'Deactivated']; cell = x => [lab(dim, x.k), x.row.employees, x.row.active, x.row.invited, x.row.deactivated]; const t = C.tot; totRow = ['Total', t.employees, t.active, t.invited, t.deactivated]; }
+      else if (v.src === 'hr') { head = [DS[dim], 'People', 'Active', 'Deactivated']; cell = x => [lab(dim, x.k), x.row.employees, x.row.active, x.row.deactivated]; const t = C.tot; totRow = ['Total', t.employees, t.active, t.deactivated]; }
       else { head = v.src === 'train' ? (dim === 'month' ? ['Month', 'Total participants', 'Unique trainees'] : [DS[dim], 'Total participants', 'Handed over', 'Throughput']) : [DS[dim], 'Assignments', 'Completed', 'Completion', 'Overdue', 'Learners'];
         cell = x => v.src === 'train' ? (dim === 'month' ? [lab(dim, x.k), x.row.participants, x.row.unique.size] : [x.k, x.row.participants, x.row.handover, fmtV('train', 'throughput', Dash.measure('train', x.row, 'throughput'))])
           : [lab(dim, x.k), x.row.assignments, x.row.completed, fmtV('learn', 'completionRate', Dash.measure('learn', x.row, 'completionRate')), x.row.overdue, x.row.learners.size];

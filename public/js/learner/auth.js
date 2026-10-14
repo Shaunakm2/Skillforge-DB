@@ -46,9 +46,15 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     saveNewPw: () => { const a = L0.npw || '', b = L0.npw2 || '';
       if (a.length < 10 || !/[a-z]/.test(a) || !/[A-Z]/.test(a) || !/\d/.test(a)) return setL({ err:'Use at least 10 characters with upper- and lower-case letters and a number.' });
       if (a !== b) return setL({ err:'The two passwords don’t match.' });
+      if (a === DEFAULT_PASSWORD || a === 'Pass@123') return setL({ err:'Choose a password different from the default first password.' });
       setL({ busy:true }); Backend.setNewPassword(a).then(() => Backend.afterSignIn()).then(r => { this.setState(st => ({ login: { ...st.login, npw:'', npw2:'' } })); this.onBackendSignedIn(r); })
         .catch(e => setL({ busy:false, err: e.message || String(e) })); },
-    goForgot: () => this.setState({ loginView:'forgot', login: { ...L0, err:'' } }), goSignin: () => this.setState({ loginView:'signin', login: { ...L0, err:'' } }),
+    // v41.19: Back from "Set your password" signs out the temporary session and returns to Sign in.
+    lgNewPwTitle: L0.recovery ? 'Choose a new password' : 'Set your password',
+    lgNewPwMsg: L0.recovery ? 'You opened a password reset link. Choose a new password: at least 10 characters with upper- and lower-case letters and a number.' : 'You signed in with your first (default) password. Choose your own to continue: at least 10 characters with upper- and lower-case letters and a number.',
+    cancelNewPw: () => { const back = () => this.setState(st => ({ loginView:'signin', login: { ...st.login, busy:false, npw:'', npw2:'', pw:'', err:'', recovery:false } }));
+      if (Backend.on) { Backend.signOut().catch(() => {}).finally(back); return; } back(); },
+    goForgot: () => { try { history.pushState({ sfLogin:'forgot' }, ''); } catch (e) {} this.setState({ loginView:'forgot', login: { ...L0, err:'' } }); }, goSignin: () => this.setState({ loginView:'signin', login: { ...L0, err:'' } }),
     sendReset: () => { if (!L0.email.trim()) return setL({ err:'Enter your username.' });
       // v41.18: before sign-in the app has no user list, so an employee ID can't be turned into an e-mail here (it used to
       // be sent to Supabase as if it were an e-mail, fail silently, and still say the link was sent).

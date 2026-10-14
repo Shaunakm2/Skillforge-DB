@@ -69,7 +69,7 @@ SkillforgeApp.prototype.amCourses = function (c) {
     ctBasics: s.cTab === 'basics', ctModules: s.cTab === 'modules', ctAssign: s.cTab === 'assign', ctSettings: s.cTab === 'settings',
     ctHasPrev: ctIdx > 0, ctHasNext: ctIdx < CTABS.length - 1, ctPrev: () => this.setState({ cTab: CTABS[Math.max(0, ctIdx - 1)][0] }), ctNext: () => this.setState({ cTab: CTABS[Math.min(CTABS.length - 1, ctIdx + 1)][0] }),
     cModRows, cModEmpty: cModRows.length === 0, cModQuery: s.cModQuery, setCModQuery: e => this.setState({ cModQuery: e.target.value }),
-    cModTypes: [{ v:'All', l:'All types' }].concat(Object.keys(MOD_TYPES).map(t => ({ v:t, l:t }))), cModType: s.cModType, setCModType: e => this.setState({ cModType: e.target.value }),
+    cModTypes: [{ v:'All', l:'All types' }].concat(Object.keys(MOD_TYPES).filter(t => t !== 'Feedback form').map(t => ({ v:t, l:modLabel(t) }))),   // v41.19: same names as LCMS; feedback forms are sent after a course, not added as a step cModType: s.cModType, setCModType: e => this.setState({ cModType: e.target.value }),
     goLcms: () => { this.go('lcms', { adminView:true }); this.toastMsg('Your course draft is kept. Return to Course catalog to continue.'); },
     cdEssential: tg(cd.essential, () => setCd({ essential: !cd.essential, essentialDays: cd.essentialDays || 30, essentialFrom: cd.essential ? cd.essentialFrom : (cd.essentialFrom || TODAY_KEY) })),
     cdEssOn: !!cd.essential, setCdEssDays: e => setCd({ essentialDays: e.target.value === '' ? '' : parseInt(e.target.value, 10) }), setCdEssFrom: e => setCd({ essentialFrom: e.target.value }),

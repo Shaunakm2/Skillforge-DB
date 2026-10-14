@@ -42,7 +42,7 @@ SkillforgeApp.prototype.amQuestions = function (c) {
     topicChips: chipsOf(s.bankTopic, topics, v => this.setState({ bankTopic:v })),
     allBox: { on: allOn, bg: allOn ? '#7C5CFF' : W, border: allOn ? '#7C5CFF' : '#BFCFDB' },
     toggleAllBank: () => { const sel = { ...s.bankSel }; bankList.forEach(q => { sel[q.id] = !allOn; }); this.setState({ bankSel: sel }); },
-    uploadSample: () => { const base = Math.max(...s.qs.map(q => q.id)); this.setState({ qs: s.qs.concat(IMPORT_Q.map((q, i) => ({ ...q, id: base + i + 1, used:0, author: role.name, created: TODAY_KEY }))) }); this.toastMsg(IMPORT_Q.length + ' questions imported from coaching_questions_oct.csv'); },
+    uploadSample: () => { const base = nextUserId(s.qs) - 1; this.setState({ qs: s.qs.concat(IMPORT_Q.map((q, i) => ({ ...q, id: base + i + 1, used:0, author: role.name, created: TODAY_KEY }))) }); this.toastMsg(IMPORT_Q.length + ' questions imported from coaching_questions_oct.csv'); },
     downloadTemplate: () => this.toastMsg('question_template.csv downloaded'),
     showBundle: s.screen === 'qbank' && selIds.length > 0,
     bundleCount: selIds.length + (selIds.length === 1 ? ' question selected' : ' questions selected'),
@@ -104,7 +104,7 @@ SkillforgeApp.prototype.amQuestions = function (c) {
       if (qm.media && !qm.media.src) return need('Upload a file or paste a link for the ' + MEDIA_LABEL[qm.media.kind].toLowerCase());
       const old = qm.editId != null ? s.qs.find(q => q.id === qm.editId) : null;
       if (qm.editId != null && !old) return need('This question no longer exists. Close the editor and refresh.');
-      const id = old ? old.id : Math.max(...s.qs.map(q => q.id)) + 1;
+      const id = old ? old.id : nextUserId(s.qs);
       const base = { id, ref: 'QB-' + String(id).padStart(4, '0'), skill: (qm.skill || '').trim() || Q_SKILL[qm.topic] || qm.topic, bloom: qm.bloom || 'Understand', tags: tagsOf(qm.tagsText), lang:'English', text: qm.text.trim(), topic: qm.topic, type: t, diff: qm.diff, used:0, author: role.name, created: TODAY_KEY, media: qm.media ? { kind: qm.media.kind, src: qm.media.src, name: qm.media.name } : null, why: qm.why.trim() };
       let extra;
       if (t === 'Multiple choice' || t === 'True / False' || t === 'Multiple select') {

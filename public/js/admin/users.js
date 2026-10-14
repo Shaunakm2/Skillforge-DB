@@ -17,14 +17,16 @@ SkillforgeApp.prototype.amUsers = function (c) {
     const done = ok => this.toastMsg(list.length === 1 && ok.length === 1 ? list[0].name + (deact ? ' deactivated · sign-in disabled' : ' reactivated')
       : ok.length + (deact ? ' deactivated' : ' reactivated') + (ok.length < list.length ? ' · ' + (list.length - ok.length) + ' could not be changed (nothing changed for them)' : ''));
     if (!Backend.on) { const ids = list.map(u => u.id); apply(ids); return done(ids); }
-    Promise.all(list.map(u => Backend.adminUsers(deact ? 'ban' : 'unban', { email: u.email }).then(() => u.id, () => null))).then(r => { const ok = r.filter(Boolean);
-      if (!ok.length) { this.setState({ uAsk:null }); return this.toastMsg('Nothing changed: the server refused the change.'); } apply(ok); done(ok); }); };
+    // v41.19: the person is found by e-mail or employee ID; someone without a login yet is changed here only (they can't sign in anyway).
+    let why = '';
+    Promise.all(list.map(u => Backend.adminUsers(deact ? 'ban' : 'unban', { email: u.email, empId: u.empId }).then(() => u.id, e => { if (/no login yet/i.test(e.message || '')) return u.id; why = why || e.message; return null; }))).then(r => { const ok = r.filter(Boolean);
+      if (!ok.length) { this.setState({ uAsk:null }); return this.toastMsg('Nothing changed: ' + (why || 'the server refused the change.')); } apply(ok); done(ok); }); };
   const userRows = UPG.rows.map(u => ({ ...u, roleName: (Access.roleFor(s, u) || {}).name || u.role })).map(u => { const prot = u.role === 'Super admin' && !isSuper; const active = u.status !== 'Deactivated'; return { ...u, initials: ini(u.name), av: AV[u.id % 5], roleBg: ROLE_C[u.role][0], roleFg: ROLE_C[u.role][1], stBg: ST[u.status][0], stFg: ST[u.status][1], op: active ? 1 : 0.55, canEdit: !prot, locked: prot, toggleLabel: active ? 'Deactivate' : 'Reactivate', toggleFg: active ? '#B91C1C' : '#166534', edit: () => this.setState({ userModal:true, ud:{ ...u }, uMng:null }), toggle: () => this.setState({ uAsk: { ids: [u.id], deact: active }, uMng:null }) }; });
   const uProt = u => false;
   const userRows2 = userRows.map(u => { const on = !!s.uSel[u.id]; return { ...u, phoneLabel: u.phone || '—', termsLabel: u.terms ? 'Yes' : 'No', termsBg: u.terms ? '#DCFCE7' : '#FDECEC', termsFg: u.terms ? '#166534' : '#A63232', attempts: () => this.setState({ attModal: u.name, uMng:null }), resetPw: () => this.setState({ pwReset: u.id, uMng:null }), sel: !!on, tick: on ? '✓' : '', bg: on ? '#16324F' : '#FFFFFF', bd: on ? '#16324F' : '#BFCFDB', rowBg: on ? '#F4F8FC' : 'transparent', pick: () => this.setState(st => ({ uSel: { ...st.uSel, [u.id]: !st.uSel[u.id] } })), viewL: () => this.go('reports', { adminView:true, repType:'learning', repUser: u.name, repCourse:'All', repStatus:'All', repDept:'All', uMng:null }),   // v36: was a message only
       manage: () => this.setState({ uMng: u.id }), assignL: () => this.setState({ enrModal: { user: u.name }, uMng:null }) }; });
   const uSelIds = userRows2.filter(u => s.uSel[u.id]).map(u => u.id), uAllOn = userRows2.length > 0 && uSelIds.length === userRows2.length;
-  const ud = s.ud || { id:null, roleId:'r_learner', name:'', email:'', role:'Learner', dept:deptList(s)[0] || '', manager:'None', status:'Invited', lastLogin:'Never', empId:'', phone:'', gender:'Prefer not to say', terms:false, designation:'', joined:TODAY_KEY };
+  const ud = s.ud || { id:null, roleId:'r_learner', name:'', email:'', role:'Learner', dept:deptList(s)[0] || '', manager:'None', status:'Active', lastLogin:'Never', empId:'', phone:'', gender:'Prefer not to say', terms:false, designation:'', joined:TODAY_KEY };
   const setUd = k => e => this.setState(st => ({ ud: { ...(st.ud || ud), [k]: e.target.value } }));
   const V = {
     attModal: !!s.attModal,
@@ -74,11 +76,11 @@ SkillforgeApp.prototype.amUsers = function (c) {
     userStatusChips: (() => { let a = 0, i = 0; s.users.forEach(u => { if (u.status === 'Deactivated') i++; else a++; });
       return [['Active', 'Active · ' + a.toLocaleString('en-US')], ['Inactive', 'Inactive · ' + i.toLocaleString('en-US')], ['All', 'All statuses · ' + s.users.length.toLocaleString('en-US')]].map(([v, l]) => UI.chip(s.userStatus, v, l, () => this.setState({ userStatus: v, pages:{ ...s.pages, users:1 } }))); })(),
     exportUsers: () => { csvDownload('teammates-' + s.userStatus.toLowerCase() + '-' + TODAY_KEY + '.csv', [['Employee ID', 'Name', 'Email', 'Phone', 'Department', 'Designation', 'Manager', 'Role', 'User type', 'Status', 'Date of joining', 'Last sign-in', 'Terms accepted', 'Source']]
-        .concat(userAll.map(u => [u.empId, u.name, u.email, u.phone, u.dept, u.designation, u.manager, (Access.roleFor(s, u) || {}).name || u.role, u.role, u.status === 'Deactivated' ? 'Inactive' : 'Active' + (u.status === 'Invited' ? ' (invited)' : ''), u.joined, u.lastLogin, u.terms ? 'Yes' : 'No', u.source || 'Skillforge'])));
+        .concat(userAll.map(u => [u.empId, u.name, u.email, u.phone, u.dept, u.designation, u.manager, (Access.roleFor(s, u) || {}).name || u.role, u.role, u.status === 'Deactivated' ? 'Inactive' : 'Active', u.joined, u.lastLogin, u.terms ? 'Yes' : 'No', u.source || 'Skillforge'])));
       this.toastMsg(userAll.length.toLocaleString('en-US') + ' teammates exported'); },
-    userStats: (() => { const n = { Active:0, Invited:0, Deactivated:0, Admin:0 }; s.users.forEach(u => { n[u.status] = (n[u.status] || 0) + 1; if (u.role === 'Admin') n.Admin++; }); return [['Active', n.Active, '#166534'], ['Invited', n.Invited, '#1E40AF'], ['Deactivated', n.Deactivated, '#526B7A'], ['Admins', n.Admin, '#5B21B6']].map(([l, v, fg]) => ({ l, v: v.toLocaleString('en-US'), fg })); })(),
+    userStats: (() => { const n = { Active:0, Deactivated:0, Admin:0 }; s.users.forEach(u => { if (u.status === 'Deactivated') n.Deactivated++; else n.Active++; if (u.role === 'Admin') n.Admin++; }); return [['Active', n.Active, '#166534'], ['Deactivated', n.Deactivated, '#526B7A'], ['Admins', n.Admin, '#5B21B6']].map(([l, v, fg]) => ({ l, v: v.toLocaleString('en-US'), fg })); })(),
     newUser: () => this.setState({ userModal:true, ud:null }),
-    importUsers: () => { const base = Math.max(...s.users.map(u => u.id)); const add = [['Owen Hart', 'Sales'], ['Priya Nair', 'Engineering'], ['Lucas Moreau', 'Customer Success']].map(([n, dp], i) => ({ id: base + i + 1, name:n, email: n.toLowerCase().split(' ').join('.') + '@northwind.com', role:'Learner', dept:dp, manager:'Priya Raman', status:'Invited', lastLogin:'Never' })); this.setState({ users: s.users.concat(add) }); this.toastMsg('3 accounts imported from new_hires_oct.csv · invites sent'); },
+    importUsers: () => { const base = nextUserId(s.users) - 1; const add = [['Owen Hart', 'Sales'], ['Priya Nair', 'Engineering'], ['Lucas Moreau', 'Customer Success']].map(([n, dp], i) => ({ id: base + i + 1, name:n, email: n.toLowerCase().split(' ').join('.') + '@northwind.com', role:'Learner', dept:dp, manager:'Priya Raman', status:'Invited', lastLogin:'Never' })); this.setState({ users: s.users.concat(add) }); this.toastMsg('3 accounts imported from new_hires_oct.csv · invites sent'); },
     userModal: s.userModal,
     closeUserModal: () => this.setState({ userModal:false }),
     ud,
@@ -129,12 +131,12 @@ SkillforgeApp.prototype.amUsers = function (c) {
         if (!Backend.on) return apply();
         // Connected: change the login first; only if that works is the record updated (no half-done changes).
         this.setState({ uBusy:true });
-        const jobs = []; if (prevU.role !== rec.role || prevU.roleId !== rec.roleId) jobs.push(() => Backend.adminUsers('setRole', { email: rec.email, role: rec.role, roleId: rec.roleId }));
-        if (prevU.name !== rec.name) jobs.push(() => Backend.adminUsers('rename', { email: rec.email, name: rec.name }));
+        const jobs = []; if (prevU.role !== rec.role || prevU.roleId !== rec.roleId) jobs.push(() => Backend.adminUsers('setRole', { email: prevU.email, empId: prevU.empId, role: rec.role, roleId: rec.roleId }));
+        if (prevU.name !== rec.name) jobs.push(() => Backend.adminUsers('rename', { email: prevU.email, empId: prevU.empId, name: rec.name }));
         jobs.reduce((p, j) => p.then(j), Promise.resolve()).then(apply).catch(e => { this.setState({ uBusy:false }); this.toastMsg('Not saved: ' + e.message); });
         return; }
       else {
-        const id = Math.max(...s.users.map(u => u.id)) + 1;
+        const id = nextUserId(s.users);
         // Courses set to auto-assign new joiners (everyone, or the person's department) are assigned straight away.
         const auto = s.adminCourses.filter(c => c.autoNew && c.status === 'Published' && (c.aud === 'Everyone' || (c.aud === 'Departments' && (c.depts || {})[rec.dept])));
         const enroll = auto.length ? { ...s.enroll, [n]: Object.fromEntries(auto.map(c => [c.id, c.due])) } : s.enroll;
@@ -145,7 +147,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
           this.setState({ uBusy:true });
           Backend.adminUsers('create', { email: rec.email, empId: rec.empId, name: rec.name, role: rec.role, roleId: rec.roleId, userKey: String(id) }).then(r => {
             this.setState(st => ({ users: st.users.concat([{ ...rec, id }]), userModal:false, uBusy:false, enroll: ess.enroll, assignedOn: ess.assignedOn, tempPw: { name: rec.name, email: rec.email, pw: r.tempPassword, why:'new' } }));
-            this.logAudit('Created account', rec.name); this.toastMsg('Account created' + extras); }).catch(e => { this.setState({ uBusy:false }); this.toastMsg('Not created: ' + e.message); });
+            this.logAudit('Created account', rec.name); this.toastMsg('Account created · first password ' + r.tempPassword + extras); }).catch(e => { this.setState({ uBusy:false }); this.toastMsg('Not created: ' + e.message); });
           return; }
         this.setState({ users: s.users.concat([{ ...rec, id }]), userModal:false, enroll: ess.enroll, assignedOn: ess.assignedOn, passwords: { ...s.passwords, [rec.email]: DEFAULT_PASSWORD } });
         this.logAudit('Created account', rec.name); this.toastMsg('Account created for ' + em + ' · first password ' + DEFAULT_PASSWORD + (rcs.added ? ' · ' + rcs.added + ' role ' + (rcs.added === 1 ? 'course' : 'courses') : '') + (ess.added ? ' · ' + ess.added + ' essential ' + (ess.added === 1 ? 'training' : 'trainings') + ' assigned' : '') + (auto.length ? ' · auto-assigned ' + auto.length + (auto.length === 1 ? ' course' : ' courses') : ''));
@@ -156,10 +158,10 @@ SkillforgeApp.prototype.amUsers = function (c) {
     closeTempPw: () => this.setState({ tempPw:null }), copyTempPw: () => { try { navigator.clipboard.writeText(s.tempPw.pw); this.toastMsg('Copied'); } catch (e) { this.toastMsg(s.tempPw.pw); } },
     uSaving: !!s.uBusy,
     pwResetOpen: !!s.pwReset, pwResetName: (s.users.find(u => u.id === s.pwReset) || {}).name || '', defaultPw: DEFAULT_PASSWORD,
-    pwResetText: Backend.on ? 'Their password is replaced by a one-time temporary password, shown to you once after you confirm. They must choose a new one at first sign-in, and every device they are signed in on is signed out.' : 'Their password becomes the default ' + DEFAULT_PASSWORD + '. Share it with them; they can change it from Password & security after signing in.',
+    pwResetText: Backend.on ? 'Their password goes back to the default first password (' + DEFAULT_PASSWORD + '). They must choose a new one when they sign in, and every device they are signed in on is signed out.' : 'Their password becomes the default ' + DEFAULT_PASSWORD + '. Share it with them; they can change it from Password & security after signing in.',
     closePwReset: () => this.setState({ pwReset:null }),
     confirmPwReset: () => { const u = s.users.find(x => x.id === s.pwReset); if (!u) return;
-      if (Backend.on) { Backend.adminUsers('resetPassword', { email: u.email }).then(r => { this.logAudit('Reset password', u.name); this.setState({ pwReset:null, tempPw: { name: u.name, email: u.email, pw: r.tempPassword, why:'reset' } }); }).catch(e => this.toastMsg('Password not reset: ' + e.message)); return; }
+      if (Backend.on) { Backend.adminUsers('resetPassword', { email: u.email, empId: u.empId }).then(r => { this.logAudit('Reset password', u.name); this.setState({ pwReset:null, tempPw: { name: u.name, email: u.email, pw: r.tempPassword, why:'reset' } }); }).catch(e => this.toastMsg('Password not reset: ' + e.message)); return; }
       this.setState(st => ({ passwords: { ...st.passwords, [u.email]: DEFAULT_PASSWORD }, pwReset:null }));
       this.logAudit('Reset password', u.name); this.toastMsg(u.name + '’s password was reset to ' + DEFAULT_PASSWORD); },
   };

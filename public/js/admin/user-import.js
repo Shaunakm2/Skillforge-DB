@@ -37,7 +37,7 @@ SkillforgeApp.prototype.amUserImport = function (c) {
     if (missingCols.length) return setM({ msg:'The header row is missing ' + missingCols.join(', ') + '. Download the template to see the format.' });
     const users = s.users.slice(), byEmp = new Map(users.map((u, i) => [String(u.empId || '').toLowerCase(), i])), byMail = new Map(users.map((u, i) => [u.email.toLowerCase(), i]));
     const roleBy = new Map(s.roles.map(r => [r.name.toLowerCase(), r])), seen = new Map(), bad = [], created = [], updated = [];
-    const pw = { ...s.passwords }; let enroll = s.enroll, assignedOn = s.assignedOn; let nextId = Math.max(...users.map(u => u.id)) + 1;
+    const pw = { ...s.passwords }; let enroll = s.enroll, assignedOn = s.assignedOn; let nextId = nextUserId(users);
     rows.slice(1).forEach((r, i) => { const n = i + 2, g = h => idx[h] < 0 ? '' : String(r[idx[h]] || '').trim(), rej = why => bad.push({ n, raw: UM_COLS.map(([h]) => g(h)), why });
       const emp = g('UserId'), mail = g('EmailId').toLowerCase(), name = g('UserName').replace(/\s+/g, ' '), phone = g('MobileNumber');
       if (!emp) return rej('UserId is required'); if (!mail) return rej('EmailId is required'); if (!name) return rej('UserName is required'); if (!phone) return rej('MobileNumber is required');
@@ -67,7 +67,7 @@ SkillforgeApp.prototype.amUserImport = function (c) {
       if (ui !== undefined) { const before = users[ui]; users[ui] = { ...before, ...rec, email: mail, name, phone, status: before.status === 'Deactivated' ? 'Active' : before.status };
         updated.push(name); return; }
       const uname = Identity.uniqueName(users, name, emp);   // two people with the same name get their employee ID added
-      const nu = { id: nextId++, empId: emp, email: mail, name: uname, phone, role:'Learner', roleId:'r_learner', dept: rec.dept || 'Unassigned', designation: rec.designation || 'Associate', manager: rec.manager || 'None', status:'Invited', lastLogin:'Never', gender: rec.gender || 'Prefer not to say', terms:false, joined: rec.joined || TODAY_KEY, source:'Bulk upload', ...rec };
+      const nu = { id: nextId++, empId: emp, email: mail, name: uname, phone, role:'Learner', roleId:'r_learner', dept: rec.dept || 'Unassigned', designation: rec.designation || 'Associate', manager: rec.manager || 'None', status:'Active', lastLogin:'Never', gender: rec.gender || 'Prefer not to say', terms:false, joined: rec.joined || TODAY_KEY, source:'Bulk upload', ...rec };
       if (!nu.roleId) nu.roleId = ({ Learner:'r_learner', Trainer:'r_trainer', Admin:'r_admin' })[nu.role] || 'r_learner';
       users.push(nu); byEmp.set(emp.toLowerCase(), users.length - 1); byMail.set(mail, users.length - 1); pw[mail] = DEFAULT_PASSWORD; created.push(nu);
     });

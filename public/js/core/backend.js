@@ -80,6 +80,8 @@ const Backend = (() => {
   // SESSION_STORAGE: 'local' in js/config.js restores the old behaviour. If the chosen storage is unusable, an in-memory store is used (never localStorage by accident).
   const authStore = (() => { const mem = {}, memory = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
     try { const st = cfg.SESSION_STORAGE === 'local' ? window.localStorage : window.sessionStorage; st.setItem('sf-probe', '1'); st.removeItem('sf-probe'); return st; } catch (e) { return memory; } })();
+  // v41.19: opened from a "reset password" e-mail? (read before the Supabase client removes it from the address)
+  let recovery = typeof location !== 'undefined' && /(^|[#&?])type=recovery\b/.test(String(location.hash || '') + '&' + String(location.search || ''));
   if (on) sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, storage: authStore }, global: { headers: { 'x-sf-org': org } } });
   const setStatus = (text, ok) => { status = { text, ok, at: new Date().toLocaleTimeString() }; if (app) app.setState({ beStatus: status }); };
   const notify = msg => { if (app && app.toastMsg) app.toastMsg(msg); };
@@ -143,7 +145,10 @@ const Backend = (() => {
   function stateOf(rows, baseState) {
     const by = {}; rows.forEach(r => { (by[r.coll] = by[r.coll] || []).push(r); });
     const st = {};
-    st.users = (by.users || []).map(r => r.data);
+    // v41.19: there is no "Invited" status any more: an account is Active from creation until it is deactivated (by an admin or the HRMS)
+    st.users = (by.users || []).map(r => { let d = r.data; if (d && d.status === 'Invited') d = { ...d, status: 'Active' };
+      if (d && (d.id == null || d.id !== d.id)) d = { ...d, id: /^\d+$/.test(r.key) ? +r.key : r.key };   // v41.19: repair people saved with id NaN (key "NaN")
+      return d; });
     const s = { ...baseState, users: st.users };
     SF_LIST.forEach(c => { if (c !== 'users') st[c] = (by[c] || []).map(r => listFromDb(s, c, r.data)); });
     // v41.4: the three built-in roles (Learner, Trainer, Admin) always exist, even before any role has been saved to a new database.
@@ -304,6 +309,59 @@ const Backend = (() => {
     applyRows(rows);
   }
 
+  /* ---------- v41.19: no sample data in a connected organisation ----------
+   * SAMPLE_LISTS are the collections that hold people, content and learning records. The sample organisation's rows in
+   * them are removed; set-up lists (roles, categories, badges, training types, statuses, holidays) and settings stay. */
+  const SAMPLE_LISTS = ['users', 'adminCourses', 'lcms', 'qs', 'quizzes', 'batches', 'places', 'anns', 'accessReqs', 'paths', 'groups', 'extHistory', 'syncLog', 'attemptRecs', 'attemptLog', 'bmLog', 'reviews', 'threads', 'docs', 'asgSub'];
+  const SAMPLE_OTHER = SF_PERSON.concat(['assignedOn', 'fbLog']);
+  const labelOf = d => { if (!d || typeof d !== 'object') return ''; const v = d.title || d.name || d.text || d.email || d.code || d.t || ''; return typeof v === 'string' ? v : ''; };
+  /* An empty organisation: no sample people, content or records (used for a new database). */
+  function cleanPatch(s) {
+    const P = {}; SAMPLE_LISTS.forEach(c => { P[c] = []; }); SF_PERSON.forEach(c => { P[c] = {}; }); P.assignedOn = {}; P.fbLog = {};
+    P.passwords = {}; P.audit = [];   // dashboards, roles, categories and badges are set-up, not sample data: kept P.bookmarks = {}; P.surveyResp = {};
+    return P;
+  }
+  /* Fingerprints of the sample organisation (taken from the app's built-in starting state before anything loads). */
+  function sampleIndex(s) {
+    const idx = new Map(), emps = new Set((s.users || []).map(u => String(u.empId || '')).filter(Boolean));
+    rowsOf(s).forEach(r => { if (SAMPLE_LISTS.includes(r.coll) || SAMPLE_OTHER.includes(r.coll)) idx.set(rid(r.coll, r.key), labelOf(r.data)); });
+    return { idx, emps };
+  }
+  /* Rows in the database that came from the sample organisation. Kept: you, anyone with a login, and rows whose title /
+   * name no longer matches the sample (something you created that happens to reuse a sample key). */
+  async function sampleRows(sample) {
+    const have = await membersWithLogin(), meEmp = me && me.emp, out = [];
+    base.forEach((b, id) => { if (!sample.idx.has(id)) return; const [c, k] = id.split('\u0000'); let d = null; try { d = JSON.parse(b.json); } catch (e) {}
+      if (c === 'users') { const e = String((d && d.empId) || '').toUpperCase(); if (!e || e === String(meEmp || '').toUpperCase() || have.has(e)) return; }
+      else if (SF_PERSON.includes(c) || c === 'assignedOn') { const e = String(k).toUpperCase(); if (e === String(meEmp || '').toUpperCase() || have.has(e) || !sample.emps.has(k)) return; }
+      const want = sample.idx.get(id); if (want && labelOf(d) !== want) return;
+      out.push({ coll: c, key: k }); });
+    return out;
+  }
+  async function purge(items, onProgress) {
+    let done = 0, refused = 0; const gone = [];
+    for (let i = 0; i < items.length; i += 200) {
+      const part = items.slice(i, i + 200);
+      const { data, error } = await sb.rpc('sf_delete', { p_org: org, p_items: part });
+      if (error) throw error;
+      data.forEach(r => { if (r.status === 'ok') gone.push({ coll: r.coll, key: r.key, deleted: true }); else refused++; });
+      done += part.length; if (onProgress) onProgress(done, items.length);
+    }
+    // per-person rows first, while the person's name can still be looked up; people last
+    gone.sort((a, b) => (a.coll === 'users') - (b.coll === 'users')); applyRows(gone);
+    return { removed: gone.length, refused };
+  }
+
+  /* v41.19: re-read one whole collection (Discussions: learners have no live updates, so threads are re-read on opening). */
+  async function reloadColl(coll) {
+    if (!on || !ready) return;
+    const { data, error } = await sb.from('sf_doc').select('coll,key,data,version').eq('org_id', org).eq('coll', coll).limit(2000);
+    if (error) throw error; data.forEach(deproto);
+    const got = new Set(data.map(d => d.key)), rows = data.filter(d => { const b = base.get(rid(d.coll, d.key)); return !b || b.version < d.version; });
+    base.forEach((b, id) => { const [c, k] = id.split('\u0000'); if (c === coll && !got.has(k)) rows.push({ coll: c, key: k, deleted: true }); });
+    applyRows(rows);
+  }
+
   /* ---------- server actions (Edge Function "learning") ---------- */
   async function call(action, body) {
     const { data, error } = await sb.functions.invoke('learning', { body: { action, org, ...body } });
@@ -342,14 +400,18 @@ const Backend = (() => {
   }
 
   async function whoAmI() {
-    const { data: u } = await sb.auth.getUser(); if (!u || !u.user) return null;
+    const { data: u, error: ue } = await sb.auth.getUser(); if (!u || !u.user) return ue ? { none: true, why: 'Your session has ended' } : null;
     if ((u.user.app_metadata || {}).must_change) return { mustChange: true, email: u.user.email };
     let m; try { m = await call('me', {}); } catch (e) { return { none: true, email: u.user.email, why: e.message }; }
     return { emp: m.empId, role: m.role, roleId: m.roleId, perms: m.role === 'Admin' ? [] : (m.perms || []), name: m.name, email: u.user.email, mustChange: !!m.mustChange };
   }
   async function afterSignIn() {
     me = await whoAmI();
-    if (!me || me.none) { await sb.auth.signOut(); throw new Error('Your sign-in worked, but it is not linked to an active Skillforge account. Ask your L&D administrator.'); }
+    if (!me || me.none) { const why = (me && me.why) || ''; await sb.auth.signOut();
+      // v41.19: say what actually went wrong (it was always the same sentence)
+      if (/session has ended/i.test(why)) throw new Error('Your session ended. Sign in again with your current password.');
+      if (/expired/i.test(why)) throw new Error(why);
+      throw new Error('Your sign-in worked, but it is not linked to an active Skillforge account. Ask your L&D administrator.' + (why && !/not linked/i.test(why) ? ' (' + why + ')' : '')); }
     if (me.mustChange) return { mustChange: true, me };
     if (freshLogin) { const m = freshLogin; freshLogin = null; call('signedIn', { method: m }).catch(() => {}); }
     setStatus('Loading data…', true);
@@ -360,7 +422,7 @@ const Backend = (() => {
       const mine = new Set(rows.filter(r => r.coll === 'users').map(r => r.data.empId));
       (dir || []).filter(d => !mine.has(d.empId)).forEach(d => rows.push({ coll: 'users', key: d.id, data: { ...d, _dir: true, email: '', phone: '' }, version: 0, dir: true }));
     }
-    const st = empty ? {} : stateOf(rows, app.state);
+    const st = empty ? cleanPatch(app.state) : stateOf(rows, app.state);   // v41.19: a new database starts empty, not with the sample organisation
     if (!empty) await signFiles(st);
     base.clear(); rows.forEach(r => { if (!r.dir) remember(r.coll, r.key, r.version, r.data, null); });
     ready = false; app.setState({ ...st, beReady: true, beEmpty: empty, beMe: me });
@@ -404,9 +466,15 @@ const Backend = (() => {
   }
   async function signOut() { if (on) { scormLeave(); if (channel) sb.removeChannel(channel); await sb.auth.signOut(); } }
   async function setNewPassword(pw) {
+    const { data: u0 } = await sb.auth.getUser(); const email = u0 && u0.user && u0.user.email; recovery = false;
     const { data, error } = await sb.functions.invoke('learning', { body: { action: 'changePassword', password: pw } });
     let msg = data && data.error; if (error && !msg) { try { msg = (await error.context.json()).error; } catch (e) { msg = error.message; } } if (msg) throw new Error(msg);
-    await sb.auth.refreshSession();
+    // v41.19: sign in again with the new password. Only refreshing the old session could leave the browser holding the
+    // token from before the change (still marked "must change", or a session Supabase had already closed), and the next
+    // step then said "Your sign-in worked, but it is not linked to an active Skillforge account" until a fresh sign-in.
+    const r = await sb.auth.refreshSession();
+    const fresh = r && r.data && r.data.session && !((r.data.session.user || {}).app_metadata || {}).must_change;
+    if (!fresh && email) { const { error: e2 } = await sb.auth.signInWithPassword({ email, password: pw }); if (e2) throw new Error('Password changed. Sign in again with your new password.'); }
   }
   async function resetLink(email) { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }); if (error) throw error; }
 
@@ -464,7 +532,10 @@ const Backend = (() => {
     a.setState({ beOn: true, beStatus: status });
     // v41.2: while the saved sign-in is checked the app shows a short "Loading" screen (state.booting), not the
     // sign-in form, and a restored session returns to the page the person was on (NavMemory), not the landing page.
+    // v41.19: a reset-password link signs the person in; ask for the new password first instead of opening the app.
+    try { sb.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') { recovery = true; a.setState(st => ({ authed: false, booting: false, loginView: 'newpw', login: { ...st.login, busy: false, err: '', recovery: true } })); } }); } catch (e) {}
     try { const { data: sess } = await sb.auth.getSession();
+      if (sess && sess.session && recovery) { a.setState(st => ({ authed: false, loginView: 'newpw', login: { ...st.login, busy: false, err: '', recovery: true } })); try { history.replaceState(null, '', location.pathname); } catch (e) {} return; }
       if (sess && sess.session) { const r = await afterSignIn(); a.onBackendSignedIn && a.onBackendSignedIn(r, { restore: true }); } }
     finally { a.setState({ booting: false }); }
   }
@@ -597,7 +668,7 @@ const Backend = (() => {
     if (error) throw error; const ids = [...new Set(data.map(d => d.actor).filter(Boolean))], names = {};
     if (ids.length) { const r = await sb.from('sf_member').select('user_id,app_name').eq('org_id', org).in('user_id', ids); if (!r.error) r.data.forEach(m => { names[m.user_id] = m.app_name; }); }
     return data.map(d => deproto({ ...d, who: names[d.actor] || (d.actor ? 'User ' + String(d.actor).slice(0, 8) : 'System') })); }
-  return { Usage, auditList, deproto, scormLaunch, scormPreview, scormReport, scormLeave, scormFlush, scormActive, fbKey, empOfName, on, configured, org, BUCKET, start, observe, signIn, signOut, setNewPassword, resetLink, adminUsers, call, pull, afterSignIn, seed, createLogins, membersWithLogin,
+  return { Usage, auditList, deproto, scormLaunch, scormPreview, scormReport, scormLeave, scormFlush, scormActive, fbKey, empOfName, on, configured, org, BUCKET, start, observe, signIn, signOut, setNewPassword, resetLink, adminUsers, call, pull, reloadColl, cleanPatch, sampleIndex, sampleRows, purge, afterSignIn, seed, createLogins, membersWithLogin,
     Files, status: () => status, me: () => me, rowsOf, stateOf, merge, canWrite, client: () => sb, _sniff: sniff };
 })();
 const Files = Backend.Files;

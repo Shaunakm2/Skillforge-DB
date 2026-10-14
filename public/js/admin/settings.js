@@ -39,10 +39,10 @@ SkillforgeApp.prototype.amSettings = function (c) {
       ['Analytics dashboards', 'Power BI–style, from LMS courses, training batches and the HRMS employee master: add charts, heat maps and spider webs, pick measures (including your own KPIs), filter, drill into the records, schedule.', (s.dash.boards.length - 2) + ' dashboards', 'dashboard', '#9333EA', W, I.chart, { dbBoard:'b1' }],
       ['KPI builder', 'Your own KPIs as formulas, e.g. joined on day 0 as per HRMS minus absent on day 1, with targets and RAG colours. Plus every dataset and field.', (s.dash.kpis || []).length + ' custom KPIs', 'kpis', '#7C3AED', W, I.chart],
       ['Engagement trends', 'Active learners, completion and time spent over 30 days to 12 months.', 'Last 90 days', 'analytics', '#7C3AED', W, I.chart],
-      ['Audit log', 'Every admin action, timestamped and exportable.', AUDIT.length + ' recent events', 'audit', '#16324F', '#F8FBFD', I.log]]],
+      ['Audit log', 'Every admin action, timestamped and exportable.', (Backend.on ? 'Database audit trail' : AUDIT.length + ' recent events'), 'audit', '#16324F', '#F8FBFD', I.log]]],
     ['platform', 'Platform', 'Connected systems and how the portal looks.', [
       ['ZingHR employee master', 'Sync employees from ZingHR: field mapping, rules, schedule and run history.', s.users.length.toLocaleString('en-US') + ' people synced', 'zinghr', '#0F766E', W, I.sync],
-      ['Database & storage', Backend.on ? 'Supabase connection, what is stored, sample data and backups.' : 'Not connected: data lives in this browser only. Connect Supabase to keep it.', Backend.on ? 'Supabase · ' + Backend.org : 'Offline', 'database', '#3ECF8E', '#16324F', I.layers],
+      ['Database & storage', Backend.on ? 'Supabase connection, free plan usage, what is stored, sample data clean-up and backups.' : 'Not connected: data lives in this browser only. Connect Supabase to keep it.', Backend.on ? (s.beUsage && Backend.Usage.on() ? 'Supabase · ' + Math.round(s.beUsage.storage / Backend.Usage.LIM.storage * 100) + '% of free storage used' : 'Supabase · ' + Backend.org) : 'Offline', 'database', '#3ECF8E', '#16324F', I.layers],
       ['Integrations', 'SSO, HRIS sync, virtual classrooms, SCORM.', s.integ.filter(a => a.on).length + ' connected', 'integrations', '#0EA5E9', INK, I.plug],
       ['Branding', 'Portal name, colors and sign-in page.', s.brandName, 'branding', '#F43F5E', INK, I.brush]]],
     ['masters', 'Master data', 'Lists and settings the old MIS workbook kept on its Validation sheet, plus holidays and badges.', [

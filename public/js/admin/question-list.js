@@ -94,7 +94,7 @@ SkillforgeApp.prototype.qbankVals = function (s, role) {
       closeQPrev: () => this.setState({ qPrev:null }),
       qPrevEdit: () => this.setState({ qPrev:null, qModal:true, qm:null, qEditId: pq.id }),
       qPrevArch: () => { const q = pq; this.setState(st => ({ qs: st.qs.map(x => x.id === q.id ? { ...x, archived: !x.archived } : x) })); this.toastMsg(q.archived ? 'Question restored' : 'Question archived'); },
-      qPrevDup: () => { const id = Math.max(...s.qs.map(q => q.id)) + 1; this.setState(st => ({ qs: [{ ...pq, id, text: pq.text + ' (copy)', used:0, archived:false, author: me, created: TODAY_KEY }].concat(st.qs), qPrev: id })); this.toastMsg('Question duplicated. You’re now viewing the copy.'); } };
+      qPrevDup: () => { const id = nextUserId(s.qs); this.setState(st => ({ qs: [{ ...pq, id, text: pq.text + ' (copy)', used:0, archived:false, author: me, created: TODAY_KEY }].concat(st.qs), qPrev: id })); this.toastMsg('Question duplicated. You’re now viewing the copy.'); } };
   }
   const nAct = s.qs.filter(q => !q.archived).length;
   const QPG = Pager(this, s, 'qbank', rows, 50);

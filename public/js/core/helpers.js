@@ -7,6 +7,10 @@ const UI = {
   chip: (cur, v, label, pick) => { const on = cur === v; return { label, bg: on ? '#16324F' : '#FFFFFF', fg: on ? '#F8FBFD' : '#16324F', border: on ? '#16324F' : '#C9D7E2', pick }; },
 };
 
+/* v41.19: next numeric id for a new person. The signed-in admin of a new database has the id "me-<employee ID>", so
+ * Math.max over all ids gave NaN: the new person was saved under the key "NaN" and their Manage menu did nothing. */
+const nextUserId = users => (users || []).reduce((m, u) => { const n = typeof u.id === 'number' ? u.id : /^\d+$/.test(String(u.id)) ? +u.id : 0; return Number.isFinite(n) && n > m ? n : m; }, 0) + 1;
+
 /* Download rows as a UTF-8 CSV file (Excel-friendly).
  * Formula injection guard (OWASP “CSV injection”): a text cell that starts with = + - @ tab or CR would run as a
  * formula when the file is opened in Excel, so it gets a leading apostrophe. Plain numbers (−12, +3.5, 40%) are kept. */

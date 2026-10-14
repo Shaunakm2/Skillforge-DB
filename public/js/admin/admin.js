@@ -55,8 +55,8 @@ SkillforgeApp.prototype.adminVals = function (s, all) {
     isPerms: scrV === 'perms',
     isBranding: scrV === 'branding', isContentCheck: scrV === 'contentCheck',
   };
-  // v41.13: Supabase Free plan usage meter (Settings home, LCMS, Documents library). Testing only: USAGE_METER in js/config.js.
-  const UM = Backend.Usage, umHere = UM.on() && ['admin', 'lcms', 'docAdmin'].includes(scrV);
+  // v41.13: Supabase Free plan usage meter. v41.19: shown in Settings › Database & storage (moved off the Settings home), LCMS and Documents library. Testing only: USAGE_METER in js/config.js.
+  const UM = Backend.Usage, umHere = UM.on() && ['database', 'lcms', 'docAdmin'].includes(scrV);
   if (umHere && !s.beUsage && !this._umAsked) { this._umAsked = true; Promise.resolve().then(() => UM.load()); }
   if (umHere) { const u = s.beUsage, row = (label, used, lim) => { const p = Math.min(100, used / lim * 100);
       return { label, pct: Math.round(p) + '%', w: Math.max(1, p).toFixed(1) + '%', col: p >= 90 ? '#D64545' : p >= 75 ? '#D97706' : '#08AE6E',

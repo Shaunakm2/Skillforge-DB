@@ -28,7 +28,7 @@ class SkillforgeApp extends Skillforge.Store {
       attemptsUsed:ATTEMPTS_USED0, extraAttempts:EXTRA_ATTEMPTS0, attModal:null, enroll: ESS0.enroll, assignedOn: ESS0.assignedOn, enrModal:null, cats:CATS0, catSel:{ c:'c1', s:'c1a' }, catEdit:null, catNew:{ c:'', s:'', ss:'' }, anns:ANNS0, annModal:false, an:null, annHidden:{}, userDelete:null,
       reviews:REVIEWS0, rvTab:'pending', rvDraft:{}, rvEdit:null, asgSub:[], asgDraft:{}, ckDraft:{}, asgRv:{},
       lb:'team', catQuery:'', searchOpen:false, gq:'', tf:'all', uSel:{}, catRel:'all', catLvl:'All', catSt:'All', repMgr:'All', repCourse:'All', repStatus:'All', repUser:'', catCat:'All', calY:TODAY.getFullYear(), calM:TODAY.getMonth(), calSel: Object.keys(EVENTS).sort().find(k => k >= TODAY_KEY) || TODAY_KEY,
-      threads:THREADS, threadId:1, voted:{}, reply:'',
+      threads:THREADS, threadId:null, dNew:null, dBusy:false, voted:{}, reply:'',
       bTitle:'Coaching Conversations', published:false, bSel:'0-0',
       bMods:[
         { title:'Foundations of coaching', lessons:[{ title:'What coaching is (and isn\'t)', type:'Video', dur:8, xp:50, desc:'' },{ title:'The GROW model', type:'Reading', dur:6, xp:30, desc:'' },{ title:'Check your understanding', type:'Quiz', dur:5, xp:100, desc:'' }] },
@@ -41,13 +41,15 @@ class SkillforgeApp extends Skillforge.Store {
       adminCourses:ADMIN_COURSES0, cDraft:null, cQuizPick:1, paths:PATHS0, pathSel:1,
       repType:'learning', repUStatus:'All', repRange:'30d', repDept:'All', repScheduled:{},
       userStatus:'Active', uMenu:null, misF:{ month:'All', segment:'All', training:'All', status:'All', sub:'All', q:'' }, masters:MASTERS0, tiles:{}, platform:PLATFORM0, tileGroup:'home', trTab:'overview', repCols:{}, kpLib:KP_LIB0, kqEdit:null, badges:BADGES0, mdTab:'lists', mdList:'trainingNames', mdEdit:null, bdEdit:null, accessReqs:ACCESS_REQS0, dash:DB0, docs:DOCS0, docCfg:DOC_CFG0, docAck:{}, loginLog:{}, dbEdit:null, reqModal:null, reqFilter:'Pending', users:USERS0.map(u => ({ ...u, roleId: u.name === 'Priya Raman' ? 'r_qa' : ({ Learner:'r_learner', Trainer:'r_trainer', Admin:'r_admin' })[u.role] })), roles:ROLES0, roleSel:'r_trainer', roleDraft:null, userQuery:'', userRole:'All', userModal:false, ud:null,
-      autos:AUTOS0, integ:INTEG0, auditQuery:'', audit: AUDIT.map(a => ({ ...a })), perms:PERMS0, brandName:'Skillforge', brandAccent:'#0066A1', brandMsg:'Welcome to Northwind Learning. Sign in with your work account.',
+      autos:AUTOS0, integ:INTEG0, auditQuery:'', audit: AUDIT.map(a => ({ ...a })), perms:PERMS0, brandName:'Skillforge', brandAccent:'#0066A1', brandMsg:'Welcome to Skillforge. Sign in with your work account.',
       gbQuery:'', assignOpen:false, assignCourse:'negotiation', assignSel:{}, assignDue: Progress.plus(TODAY_KEY, 30), range:'90d', toast:null,
     };
     // The full organisation (3,500 people, 1,000 courses) is loaded by default; ?small=1 keeps only the demo people.
     // With Supabase configured, nothing is generated: the data comes from the database after sign-in.
     try { if (!Backend.configured && !/[?&]small=1\b/.test(location.search)) { const d = ScaleData.build(this.state); Object.assign(this.state, d, { zh: { ...this.state.zh, scale: d.stats } }); } } catch (e) { console.error(e); }
     if (!Backend.configured) this.state.docAck = docAckSeed(this.state.users);
+    // v41.19: remember what the sample organisation looks like, so Settings › Database & storage can remove it from the database
+    if (Backend.on) { try { this._sample = Backend.sampleIndex(this.state); } catch (e) { console.error(e); } }
   }
   /* After Supabase sign-in: person and role come from the server membership (sf_member), not from the user record. */
   onBackendSignedIn(r, opts) {
@@ -142,7 +144,9 @@ class SkillforgeApp extends Skillforge.Store {
   openEditor(s) { s = s || this.state; return s.mod ? 'module' : s.cDraft && s.screen === 'courseAdmin' ? 'course' : s.ud ? 'account' : s.docEd ? 'document' : s.kpiEd ? 'KPI' : s.roleDraft ? 'role' : ''; }
   closeOverlays() { return { mod:null, cDraft:null, ud:null, docEd:null, kpiEd:null, roleDraft:null, docView:null, modPreview:null, modDelete:null, uMenu:null, roleMenu:false, notifOpen:false }; }
   onBrowserBack(e) {
-    const s = this.state; if (!s.authed) return;
+    const s = this.state;
+    // v41.19: on the sign-in screens the browser Back button returns to Sign in (Reset password, Check your email, Set your password)
+    if (!s.authed) { if (s.loginView && s.loginView !== 'signin') { if (s.loginView === 'newpw' && Backend.on) Backend.signOut().catch(() => {}); this.setState(st => ({ loginView:'signin', login: { ...st.login, busy:false, err:'', npw:'', npw2:'', recovery:false } })); } return; }
     const target = e.state && e.state.sf, here = NavMemory.snap(s);
     const ed = this.openEditor(), popup = !!(s.docView || s.modPreview || s.modDelete);
     const stay = () => { try { history.pushState({ sf: here }, ''); } catch (x) {} };

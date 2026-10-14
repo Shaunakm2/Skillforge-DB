@@ -59,7 +59,7 @@ SkillforgeApp.prototype.amReports = function (c) {
     rows = people.map(u => { const l = LL[u.name], m = l && l.by ? Object.entries(l.by).sort((a, b) => b[1] - a[1])[0][0] : '';
       return [Tx(u.name, 600), Tx(u.dept), Tx(l && l.last ? Fmt.dt(l.last) : (u.lastLogin || '—')), Tx(l ? l.n : '—'), Tx(l && l.first ? Fmt.medium(l.first.slice(0, 10)) : '—'), Tx(m === 'emp' ? 'Employee ID' : m === 'email' ? 'Work email' : '—')]; });
     const tracked = people.filter(u => LL[u.name]);
-    kp = [['Total sign-ins (tracked)', fmt(tracked.reduce((t, u) => t + LL[u.name].n, 0))], ['People who signed in', fmt(tracked.length)], ['Never signed in (invited)', s.users.filter(u => u.status === 'Invited').length]]; }
+    kp = [['Total sign-ins (tracked)', fmt(tracked.reduce((t, u) => t + LL[u.name].n, 0))], ['People who signed in', fmt(tracked.length)], ['Never signed in', s.users.filter(u => u.status !== 'Deactivated' && !LL[u.name]).length]]; }
   if (rt === 'quiz') { // attempts submitted in the period, by the people in the filter
     const ok = new Set(people.map(u => u.name)), qtext = new Map(s.qs.map(q => [q.id, q.text])), by = new Map();
     (s.attemptRecs || []).forEach(r => { if (!ok.has(r.user) || !r.submittedAt || r.submittedAt.slice(0, 10) < from) return; let g = by.get(r.quizId); if (!g) by.set(r.quizId, g = { name: r.quizName, n:0, pass:0, sc:0, miss: new Map() });
@@ -134,7 +134,7 @@ SkillforgeApp.prototype.amReports = function (c) {
   const US_C = { Active:['#DCFCE7', '#166534'], Invited:['#DBEAFE', '#1E40AF'], Deactivated:['#EAF1F6', '#526B7A'] };
   const usPeople = s.users.filter(u => (s.repDept === 'All' || u.dept === s.repDept) && (s.repUStatus === 'All' || u.status === s.repUStatus));
   if (rt === 'users') { rows = usPeople.map(u => [Tx(u.name, 600), Tx(u.empId), Tx(u.dept), Tx((Access.roleFor(s, u) || {}).name || u.role), Cx(u.status, ...US_C[u.status]), Tx(fmtR(u.joined), 500, '#526B7A'), Tx(u.lastLogin, 500, '#526B7A')]);
-    kp = [['Users', usPeople.length], ['Active', usPeople.filter(u => u.status === 'Active').length], ['Deactivated', usPeople.filter(u => u.status === 'Deactivated').length], ['Invited', usPeople.filter(u => u.status === 'Invited').length]]; }
+    kp = [['Users', usPeople.length], ['Active', usPeople.filter(u => u.status === 'Active').length], ['Deactivated', usPeople.filter(u => u.status === 'Deactivated').length]]; }
   // ---- assessment reports: date-time window ----
   const AR = s.ar, inWin = t => (!AR.from || t >= AR.from) && (!AR.to || t <= AR.to + (AR.to.length === 16 ? ':59' : ''));
   const fmtDT = t => t ? Fmt.dt(t) : '—';
@@ -194,7 +194,7 @@ SkillforgeApp.prototype.amReports = function (c) {
     setRepDept: e => this.setState({ repDept: e.target.value }),
     // CSV: the all-course completion report is module level; the others export the rows on screen.
     repIsUsers: rt === 'users', repIsAsm: rt === 'asmSheet' || rt === 'userAsm', repIsSheet: rt === 'asmSheet', repIsUserAsm: rt === 'userAsm', repGeneric: !['users', 'asmSheet', 'userAsm'].includes(rt),
-    repUStatusChips: ['All', 'Active', 'Deactivated', 'Invited'].map(v => UI.chip(s.repUStatus, v, v === 'All' ? 'All users' : v, () => this.setState({ repUStatus: v }))),
+    repUStatusChips: ['All', 'Active', 'Deactivated'].map(v => UI.chip(s.repUStatus, v, v === 'All' ? 'All users' : v, () => this.setState({ repUStatus: v }))),
     ar: AR, arQuizOpts: s.quizzes.map(z => ({ v: String(z.id), l: z.name + (z.course ? ' · ' + z.course : '') })), arQuizVal: String(arQuiz.id),
     arUserOpts: s.users.map(u => ({ v: u.name, l: u.name + ' · ' + u.empId })), arUserVal: arUser.name,
     setArQuiz: e => this.setState({ ar: { ...AR, quiz: e.target.value } }), setArUser: e => this.setState({ ar: { ...AR, user: e.target.value } }),
