@@ -730,7 +730,7 @@ sf-if,sf-for{display:contents}
 .reports-12{cursor:pointer;background:#2563EB;border:0;border-radius:999px;padding:10px 18px;font-weight:700;font-size:13.5px;color:#FFFFFF}
 .reports-13{display:flex;gap:4px}
 .reports-14{white-space:nowrap;cursor:pointer;padding:8px 14px;border-radius:999px;font-weight:600;font-size:13.5px}
-.reports-15{border:1px solid #C9D7E2;border-radius:999px;padding:9px 14px;font-size:13.5px;font-weight:600;background:#FFFFFF;outline:0;width:140px}
+.reports-15{border:1px solid #C9D7E2;border-radius:999px;padding:9px 14px;font-size:13.5px;font-weight:600;background:#FFFFFF;outline:0;width:190px;max-width:100%}
 .reports-16{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .reports-17{font-family:var(--font-display);font-size:28px;font-weight:800}
 .reports-18{background:#FFFFFF;border:1px solid #D7E3EC;border-radius:22px;overflow-x:auto}
@@ -757,7 +757,7 @@ sf-if,sf-for{display:contents}
 .users-and-accounts-11{cursor:pointer;background:none;border:0;color:#C3D2DD;font-size:13px;margin-left:auto}
 .users-and-accounts-12{min-width:1200px}
 .users-and-accounts-13{display:grid;grid-template-columns:36px minmax(180px,1.6fr) 84px 112px minmax(104px,1fr) minmax(104px,1fr) 100px 96px 56px 92px 128px;gap:10px;padding:12px 20px;background:#F4F8FC;font-size:12px;font-weight:700;color:#526B7A;letter-spacing:.04em;align-items:center}
-.users-and-accounts-14{width:20px;height:20px;border-radius:6px;color:#FFFFFF;font-size:12px;font-weight:800;display:grid;place-items:center;cursor:pointer;padding:0}
+.users-and-accounts-14{flex-shrink:0;width:20px;height:20px;border-radius:6px;color:#FFFFFF;font-size:12px;font-weight:800;display:grid;place-items:center;cursor:pointer;padding:0}
 .users-and-accounts-15{display:grid;grid-template-columns:36px minmax(180px,1.6fr) 84px 112px minmax(104px,1fr) minmax(104px,1fr) 100px 96px 56px 92px 128px;gap:10px;padding:10px 20px;border-top:1px solid #E6EEF5;align-items:center;font-size:13.5px}
 .users-and-accounts-16{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
 .users-and-accounts-17{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2111,7 +2111,7 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
 .ua-bar .ua-search{width:auto;flex:1 1 280px;min-width:150px;max-width:320px}
 .ua-sel{height:42px;padding:0 14px;color:var(--ims-navy)}
 .ua-count{white-space:nowrap}
-.ua-dd{position:relative;z-index:41}
+.ua-dd{position:relative}
 .ua-ddb{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px}
 .ua-ddb:focus-visible,.ua-mi:focus-visible,.ua-sel:focus-visible{outline:3px solid var(--ims-blue);outline-offset:2px}
 .ua-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:260px;background:#FFFFFF;border:1px solid #D7E3EC;border-radius:14px;box-shadow:0 18px 40px rgba(22,50,79,.16);padding:6px;display:flex;flex-direction:column;z-index:42}
@@ -2137,3 +2137,135 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
 
 /* v41: learning-path rows show the course thumbnail */
 .lp-thumb{width:40px;height:40px;border-radius:10px;object-fit:cover;flex:0 0 40px;align-self:center;margin-right:2px;border:1px solid #D7E3EC}
+
+/* ---------- v41.2: short loading screen while a saved sign-in is checked (no flash of the sign-in form) ---------- */
+.sf-boot{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#F3F7FA}
+.sf-boot-logo{width:56px;height:56px;border-radius:16px;background:#0066A1;color:#FFFFFF;display:grid;place-items:center;font-weight:800;font-size:26px;animation:sfBoot 1.2s ease-in-out infinite}
+.sf-boot-txt{color:#16324F;font-weight:600;font-size:15px}
+@keyframes sfBoot{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sf-boot-logo{animation:none}}
+
+/* ---------- v41.6: Admin console tabs: underline style, same as Reports (one line, no scrollbar) ---------- */
+.set-tabs{flex-wrap:wrap;overflow-x:visible;gap:2px;row-gap:0;padding-bottom:0}
+.set-tabs .set-tabbtn{background:none!important;color:#526B7A!important;border:0!important;border-bottom:3px solid transparent!important;border-radius:0;padding:12px 12px 11px;font-size:14.5px;margin-bottom:-1px}
+.set-tabs .set-tabbtn:hover{color:#16324F!important}
+.set-tabs .set-tabbtn[aria-selected="true"]{color:#16324F!important;border-bottom-color:#0066A1!important}
+.set-tabs .set-tabn{background:#EAF1F6!important;color:#16324F}
+.set-tabs .set-tabbtn[aria-selected="true"] .set-tabn{background:#0066A1!important;color:#FFFFFF}
+.set-tabs .set-tabbtn:focus-visible{outline:3px solid #0066A1;outline-offset:-3px}
+/* ---------- v41.6: Reports picker: group tabs + pills ---------- */
+.rp-nav{margin:6px 0 18px;background:#FFFFFF;border:1px solid #D7E3EC;border-radius:18px;overflow:hidden}
+.rp-groups{display:flex;gap:4px;padding:0 10px;border-bottom:1px solid #D7E3EC;overflow-x:auto}
+.rp-g{display:inline-flex;align-items:center;gap:8px;border:0;background:none;font:inherit;font-weight:700;font-size:14.5px;color:#526B7A;padding:14px 14px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.rp-g:hover{color:#16324F}.rp-g[aria-selected="true"]{color:#16324F;border-bottom-color:#0066A1}
+.rp-gn{font-size:12px;font-weight:800;background:#EAF1F6;color:#16324F;border-radius:999px;padding:1px 8px}
+.rp-g[aria-selected="true"] .rp-gn{background:#0066A1;color:#FFFFFF}
+.rp-pills{display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px}
+.rp-p{display:inline-flex;align-items:center;gap:8px;border:1px solid #C9D7E2;background:#FFFFFF;color:#16324F;border-radius:999px;padding:8px 15px;font:inherit;font-weight:600;font-size:14px;cursor:pointer}
+.rp-p:hover{border-color:#0066A1}.rp-p[aria-pressed="true"]{background:#16324F;border-color:#16324F;color:#F8FBFD}
+.rp-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.rp-desc{padding:2px 18px 14px;color:#526B7A;font-size:13.5px}
+.rp-g:focus-visible,.rp-p:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
+
+/* ---------- v41.7: in-LMS document viewer ---------- */
+.dv-ovl{padding:16px}
+.dv-box{background:#FFFFFF;border-radius:20px;width:min(1100px,100%);height:min(92vh,980px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(22,50,79,.35)}
+.dv-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #D7E3EC}
+.dv-ttl{flex:1;min-width:0}.dv-t{font-weight:800;font-size:17px;color:#16324F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dv-tab{text-decoration:none;display:inline-flex;align-items:center}
+.dv-x{width:40px;height:40px;border-radius:50%;border:1px solid #D7E3EC;background:#FFFFFF;color:#16324F;font-size:16px;cursor:pointer;flex:none}.dv-x:hover{background:#EAF1F6}
+.dv-frame{flex:1;width:100%;border:0;background:#EEF2F5}
+.dv-none{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:24px;background:#F4F8FC}
+.dv-foot{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid #D7E3EC;min-height:20px}
+.dv-foot:empty{display:none}.dv-ack{background:#08AE6E;border-color:#08AE6E}
+.dv-done{background:#DCFCE7;color:#166534}
+.dv-x:focus-visible,.dv-tab:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
+@media(max-width:640px){.dv-head{flex-wrap:wrap}.dv-ttl{flex-basis:100%}.dv-box{height:94vh}}
+
+/* ---------- v41.8: LCMS — one "Add module" pop-up, compact stats, type dropdown ---------- */
+.lm-stats{display:flex;flex-wrap:wrap;gap:8px 22px;margin:4px 0 14px;color:#526B7A;font-size:14.5px}
+.lm-stat b{color:#16324F;font-size:17px;font-weight:800;margin-right:2px}
+.lm-typesel{height:42px;padding:0 14px;border:1px solid #C9D7E2;border-radius:12px;background:#FFFFFF;color:#16324F;font:inherit;font-weight:600;min-width:220px}
+.lm-pick{display:flex;flex-direction:column;gap:14px}
+.lm-drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:26px 20px;border:2px dashed #9CB3C4;border-radius:18px;background:#F4F8FC;cursor:pointer;transition:background .15s,border-color .15s}
+.lm-drop:hover,.lm-drop[data-over="true"]{border-color:#0066A1;background:#EAF3FA}
+.lm-drop:focus-within{outline:3px solid #0066A1;outline-offset:2px}
+.lm-drop .asm-file{position:absolute;inset:0;opacity:0;cursor:pointer}
+.lm-drop-ic{width:46px;height:46px;border-radius:50%;background:#0066A1;color:#FFFFFF;display:grid;place-items:center;font-size:20px;font-weight:800}
+.lm-drop-t{font-weight:800;font-size:17px;color:#16324F}
+.lm-or{display:flex;align-items:center;gap:12px;color:#526B7A;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.lm-or::before,.lm-or::after{content:"";flex:1;height:1px;background:#D7E3EC}
+.lm-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.lm-card{display:flex;align-items:flex-start;gap:12px;text-align:left;padding:13px 14px;border:1px solid #D7E3EC;border-radius:14px;background:#FFFFFF;font:inherit;cursor:pointer;color:#16324F}
+.lm-card:hover{border-color:#0066A1;box-shadow:0 6px 16px rgba(22,50,79,.08)}
+.lm-card:focus-visible,.lm-change:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
+.lm-g{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:800;flex:none}
+.lm-ct{display:flex;flex-direction:column;gap:2px}.lm-cn{font-weight:800;font-size:15px}
+.lm-type{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F4F8FC;border-radius:12px}
+.lm-change{margin-left:auto;border:0;background:none;color:#0066A1;font:inherit;font-weight:700;cursor:pointer;text-decoration:underline}
+
+/* ---------- v41.10: audit log in plain language ---------- */
+.al-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}
+.al-search{flex:1 1 280px;max-width:420px}.al-search input{width:100%;height:42px;box-sizing:border-box;border:1px solid #C9D7E2;border-radius:12px;padding:0 14px;font:inherit;color:#16324F;background:#FFFFFF}
+.al-sel{height:42px;border:1px solid #C9D7E2;border-radius:12px;padding:0 12px;font:inherit;font-weight:600;color:#16324F;background:#FFFFFF}
+.al-count{margin-left:auto}
+.al-list{background:#FFFFFF;border:1px solid #D7E3EC;border-radius:18px;overflow:hidden}
+.al-day{padding:10px 18px;background:#F4F8FC;border-bottom:1px solid #D7E3EC;font-weight:800;font-size:13px;color:#526B7A;text-transform:uppercase;letter-spacing:.04em}
+.al-row{display:grid;grid-template-columns:78px 34px minmax(0,1fr) auto auto;gap:12px;align-items:start;padding:12px 18px;border-bottom:1px solid #EEF2F5}
+.al-row:last-child{border-bottom:0}
+.al-time{color:#526B7A;font-size:13.5px;padding-top:7px;white-space:nowrap}
+.al-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#FFFFFF;font-weight:800;font-size:12.5px}
+.al-main{display:flex;flex-direction:column;gap:6px;padding-top:6px;min-width:0}
+.al-line{color:#16324F;line-height:1.45}.al-text{color:#334E68}
+.al-auto{margin-left:8px;font-size:11.5px;font-weight:700;color:#526B7A;background:#EAF1F6;border-radius:999px;padding:1px 8px;vertical-align:1px}
+.al-det{margin:0;padding:8px 12px 8px 26px;background:#F4F8FC;border-radius:10px;color:#334E68;font-size:13.5px;line-height:1.55}
+.al-area{font-size:12px;font-weight:700;color:#0066A1;background:#EAF3FA;border-radius:999px;padding:3px 10px;margin-top:6px;white-space:nowrap}
+.al-more{border:0;background:none;color:#0066A1;font:inherit;font-weight:700;font-size:13.5px;cursor:pointer;padding:6px 0;white-space:nowrap}
+.al-more:focus-visible,.al-sel:focus-visible,.al-search input:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
+@media(max-width:760px){.al-row{grid-template-columns:34px minmax(0,1fr)}.al-time{grid-column:2;order:3;padding:0}.al-area,.al-more{grid-column:2}.al-count{margin-left:0}}
+
+/* ---------- v41.11: LCMS — more module types ---------- */
+.lm-gh{font-size:12.5px;font-weight:800;color:#526B7A;text-transform:uppercase;letter-spacing:.04em;margin:4px 0 -4px}
+.lm-box{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid #D7E3EC;border-radius:14px;background:#FAFCFE}
+.lm-lv{display:flex;align-items:center;gap:8px;margin-top:6px}.lm-lv .ovl-21{flex:1}.lm-lv .lm-num{flex:0 0 84px}
+
+.lm-embed{aspect-ratio:16/9;height:auto;min-height:360px}
+.lm-ck{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border:1px solid #D7E3EC;border-radius:12px;background:#FFFFFF;font:inherit;color:#16324F;cursor:pointer;margin-top:8px}
+.lm-ck[aria-checked="true"]{border-color:#08AE6E;background:#F0FBF6}.lm-ck:disabled{cursor:default}
+.lm-ck:focus-visible{outline:3px solid #0066A1;outline-offset:2px}
+.lm-box2{width:24px;height:24px;border-radius:7px;border:2px solid #9CB3C4;display:grid;place-items:center;font-weight:800;color:#FFFFFF;flex:none}
+.lm-ck[aria-checked="true"] .lm-box2{background:#08AE6E;border-color:#08AE6E}
+.lm-brief{white-space:pre-wrap;line-height:1.55;color:#16324F;padding:12px 14px;background:#F4F8FC;border-radius:12px}
+.lm-cmt{padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;color:#78350F}
+.lm-mine{display:flex;flex-direction:column;gap:6px}.lm-pre{white-space:pre-wrap;color:#334E68;line-height:1.5}
+
+.lm-asg{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-top:1px solid #EEF2F5}
+.lm-rv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.lm-rv .ovl-21{flex:1 1 320px}
+
+/* ---------- v41.13: Supabase free plan usage meter ---------- */
+.um{display:flex;flex-direction:column;gap:10px;padding:14px 18px;margin:4px 0 16px;background:#FFFFFF;border:1px solid #D7E3EC;border-radius:16px}
+.um-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.um-tag{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#526B7A;background:#EAF1F6;border-radius:999px;padding:2px 8px}
+.um-rows{display:flex;flex-direction:column;gap:8px}
+.um-row{display:grid;grid-template-columns:110px minmax(120px,1fr) 300px;gap:12px;align-items:center}
+.um-l{font-weight:700;color:#16324F;font-size:14px}
+.um-bar{height:10px;background:#EAF1F6;border-radius:999px;overflow:hidden}.um-bar span{display:block;height:100%;border-radius:999px}
+.um-t{color:#334E68;font-size:13.5px;white-space:nowrap}
+@media(max-width:640px){.um-row{grid-template-columns:1fr}.um-t{white-space:normal}}
+
+/* ---------- v41.15: SCORM setup check ---------- */
+.cc-sum{padding:12px 16px;border-radius:14px;font-weight:700;margin:4px 0 14px}
+.cc-row{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:12px 18px;border-bottom:1px solid #EEF2F5}
+.cc-m{width:24px;height:24px;border-radius:50%;color:#FFFFFF;display:grid;place-items:center;font-weight:800;font-size:13px;margin-top:2px}
+.cc-fix{display:block;margin-top:4px;padding:8px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;color:#78350F;font-size:13.5px}
+
+/* v41.18 */
+.quiz-timer{margin-left:auto;margin-right:12px;padding:2px 10px;border-radius:999px;background:#EAF1F6;color:#16324F;font-variant-numeric:tabular-nums;font-weight:700}
+.quiz-timer-low{background:#FDECEC;color:#A63232}
+.qb-head-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:700px){.qb-head-actions{justify-content:flex-start}}
+.db-period{display:flex;align-items:center;gap:6px}.db-period .ovl-21{min-width:0;width:150px}
+.db-sl .ovl-31{min-width:160px}.db-sl-w .ovl-31{min-width:200px}
+@media (max-width:760px){.db-period{grid-column:1/-1}.db-period .ovl-21{width:100%}}
+/* v41.18: on phones, messages appear at the top (under the header) instead of covering buttons such as Resume */
+@media (max-width:760px){.ovl-33,.ovl-33-up{top:calc(108px + env(safe-area-inset-top));bottom:auto}}

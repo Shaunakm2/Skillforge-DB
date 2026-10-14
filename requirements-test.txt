@@ -1,0 +1,5 @@
+# Python packages for the browser, database and load tests:  python3 -m pip install -r requirements-test.txt
+# then once:  python3 -m playwright install chromium        (or: npm run test:install)
+playwright>=1.55.1,<2      # 1.55.1+ verifies the certificate when it downloads browsers (GHSA advisory on older versions)
+psycopg[binary]>=3.2,<4    # npm run test:db / test:load
+pgserver>=0.1            # a throw-away local PostgreSQL for test:db when PGURL is not set

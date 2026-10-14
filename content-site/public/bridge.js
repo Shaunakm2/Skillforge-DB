@@ -10,7 +10,7 @@
   if (!APP) return;
   var cmi = {}, last = '0', inited = false;
   try { var m = location.hash.match(/sfcmi=([^&]+)/); if (m) { var s = m[1].replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; cmi = JSON.parse(decodeURIComponent(escape(atob(s)))) || {}; } } catch (e) { cmi = {}; }
-  var ALIAS = { 'cmi.location': 'cmi.core.lesson_location', 'cmi.completion_status': 'cmi.core.lesson_status', 'cmi.success_status': 'cmi.core.lesson_status', 'cmi.score.raw': 'cmi.core.score.raw',
+  var ALIAS = { 'cmi.location': 'cmi.core.lesson_location', 'cmi.score.raw': 'cmi.core.score.raw',
     'cmi.learner_name': 'cmi.core.student_name', 'cmi.learner_id': 'cmi.core.student_id', 'cmi.entry': 'cmi.core.entry', 'cmi.exit': 'cmi.core.exit', 'cmi.session_time': 'cmi.core.session_time' };
   var send = function (op, k, v) { try { window.parent.postMessage({ sf: 'scorm', op: op, k: k, v: v }, APP); } catch (e) {} };
   var get = function (k) { last = '0';

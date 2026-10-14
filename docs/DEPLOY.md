@@ -1,4 +1,4 @@
-# Deploy Skillforge V41: Supabase first, then Cloudflare R2
+# Deploy Skillforge V41: Supabase first, then Cloudflare Pages
 
 You run these steps on your own machine. Keep every key and password out of chat, email and git.
 
@@ -30,7 +30,7 @@ export ORG_TIMEZONE=Asia/Kolkata
 bash scripts/deploy-supabase.sh
 ```
 The script:
-- runs migrations **001 → 002 → 003 → 004** in order, stopping at the first error;
+- runs every migration (**001 → 008**) in order, stopping at the first error;
 - sets the organisation time zone;
 - pushes the Auth rules: sign-ups off, 10-character passwords with lower, upper and digit, 30-minute tokens;
 - deploys `learning`, `admin-users` and `content` (`content` with `--no-verify-jwt`, on purpose);
@@ -70,16 +70,7 @@ Every line must say PASS. If it reports that the database receives **no client I
 
 Then sign in as admin, go to Settings › Platform › Database & storage, and choose **Save the data shown**. Only use the demo data on a test project; for production, load your real users.
 
-## 7. Cloudflare R2 (encrypted nightly backups)
-1. Create a backup key: `age-keygen -o skillforge-backup.key`. Keep this file **offline**.
-2. In Cloudflare, go to R2 › Create bucket `skillforge-backups`. Add a lifecycle rule that deletes objects after 35 days, and create an API token limited to this bucket (Object Read & Write).
-3. In GitHub, go to repo › Settings › Secrets › Actions and add:
-   - `SUPABASE_DB_URL`
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SUPABASE_ANON_KEY`
-   - `BACKUP_AGE_RECIPIENT` (the public key line from step 1)
-   - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
-4. In GitHub Actions, run **backup** by hand once and confirm a file appears in the bucket. Then test a restore with `scripts/restore-backup.md`.
-
-The **supabase-keepalive** workflow needs `SUPABASE_URL` and `SUPABASE_ANON_KEY`. It stops a free project from pausing after 7 days.
+## 7. Nightly backups (free, GitHub Actions)
+1. In GitHub › Settings › Secrets and variables › Actions add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `BACKUP_PASSPHRASE` (a long random phrase; keep a copy outside GitHub).
+2. Actions › **backup** › Run workflow. The run should end with an artifact `skillforge-backup-…`.
+3. Backups are encrypted and kept 30 days. Restore: `scripts/restore-backup.md`.

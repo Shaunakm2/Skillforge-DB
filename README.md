@@ -10,7 +10,7 @@ public/                 Front-end source (index.html, css/, js/, assets/, vendor
   js/learner|staff|admin/  Screens by audience
   js/data/              Sample data for the offline demo
   js/config.js          Connection settings (SUPABASE_URL, SUPABASE_ANON_KEY, ORG_ID, ...)
-dist/                   Build output (generated; not committed)
+dist/                   Build output: committed on purpose (served as is); CI fails if it is out of date
 scripts/                build.mjs, check-deploy.mjs, backups, vendoring the Supabase client
 supabase/migrations/    001_skillforge.sql, 002_v36_hardening.sql, 003_v37_audit_tz_limits.sql (run in order)
 supabase/functions/     learning, admin-users, content (+ _shared: learning-core.js, assessment.js)
@@ -21,7 +21,7 @@ docs/                   CI/CD, RLS review, bucketization; docs/archive/ holds su
 
 ## Run the offline demo
 
-Leave `SUPABASE_URL` empty in `public/js/config.js` and open `public/index.html`, or build and serve `dist/`. The demo uses sample data in the browser only.
+Leave `SUPABASE_URL` empty in `public/js/config.js` and open `public/index.html`, or build and serve `dist/`. The demo uses sample data in the browser only. (The automated browser tests always use sample data, whatever `config.js` says.)
 
 ## Build
 
@@ -49,5 +49,15 @@ npm run test:stack   # real Supabase stack and Edge runtime (needs the Supabase 
 
 - `CHANGELOG.md`: history by version
 - `SECURITY.md`: deployment security dependencies and the security review
-- `docs/DEPLOY.md`: first deployment (Supabase, Cloudflare Pages, R2 backups) with `scripts/deploy-supabase.sh`
+- `docs/DEPLOY.md`: first deployment (Supabase, Cloudflare Pages, nightly backups) with `scripts/deploy-supabase.sh`
 - `docs/CICD.md`, `docs/RLS-AND-ACCESS-REVIEW.md`, `docs/BUCKETIZATION.md`
+
+## Running the tests from a clean checkout
+```
+npm ci                                   # Node packages (TypeScript, for the Edge Function tests)
+python3 -m pip install -r requirements-test.txt
+python3 -m playwright install chromium   # once
+npm test                                 # unit, Edge Function, content site
+npm run test:db                          # database rules (starts a throw-away PostgreSQL, or set PGURL)
+npm run test:e2e                         # browser tests with sample data
+```

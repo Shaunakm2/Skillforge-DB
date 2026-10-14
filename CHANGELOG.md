@@ -2,6 +2,43 @@
 
 Newest first. Entries before v38 are the original per-version files, kept verbatim; originals are in `docs/archive/`.
 
+## v41.18 (bug review and decluttering)
+Second full check
+- **SCORM 2004 completion could be lost.** completion_status and success_status overwrote each other, so a package that sent "completed" then success "unknown" never counted. Kept apart now (LMS and content-site bridge); passed wins, failed stays failed, a 2004 "completed" counts at Commit/Terminate.
+- **Re-deploying undid an admin's Trainer settings.** Migration 004 now runs once per database (marker `m004_done`).
+- **Forgot password with an employee ID failed silently** when connected. The reset screen asks for the work e-mail.
+- **Course catalog CSV** now uses the shared export with the spreadsheet-formula guard.
+- **Escape** closes the top-most pop-up like an outside click; open editors are never closed by it.
+- Phones: messages appear at the top instead of covering Resume and similar buttons. Content site `/health` reports v41.18.
+
+Independent review
+- **Usage meter (migration 008):** `sf_usage()` answers only admins and people who can upload. With several organisations in one project it returns only the caller's organisation's files and no database size.
+- **Tests no longer depend on the live config.** The offline browser tests force sample-data mode (`tests/e2e/hook.js`), so a fresh checkout passes with the committed `config.js`. `scripts/build.mjs` can also write `dist/js/config.js` from `SF_SUPABASE_URL`, `SF_SUPABASE_ANON_KEY`, `SF_ORG_ID`, `SF_CONTENT_ORIGIN`.
+- **Removed the unused Node Playwright package** (high-severity advisory in 1.48.2; all browser tests use Python Playwright). `requirements-test.txt` pins Python Playwright ≥ 1.55.1, psycopg and pgserver, so `npm run test:db` runs from a clean checkout.
+- **Workflows that the docs described are now real:** `ci.yml` (clean install, tests, `npm audit`, dist/ freshness, database rules, browser tests), `backup.yml` (free nightly encrypted backup, 30-day artifact, no R2), `supabase-keepalive.yml`, `dependabot.yml`. `docs/CICD.md`, `SETUP-SUPABASE.md`, `DEPLOY.md`, `SECURITY.md` and `restore-backup.md` describe only what is delivered.
+- `.gitignore` added (dist/ stays committed on purpose; CI fails if it is stale). `content-site/functions/package.json` declares ES modules, ending the Node warning.
+- Tests: `tests/scorm-status.test.js`, 3 Escape checks, 2 database checks (004 re-run, usage meter).
+
+Bugs
+- **Quiz time limit was never applied.** Quizzes › Time limit was saved but the player ignored it (and the server read the wrong field). Now a countdown shows in the quiz header, the attempt is handed in automatically at zero, and the server refuses answers after the limit (30 s grace).
+- **People could grade themselves.** A trainer or admin could rate their own written answer or accept their own assignment. Blocked on the server and in the Gradebook.
+- **Rater feedback was lost when connected.** The note typed with a rating was never sent to the server; it is now saved.
+- **Account actions could reach other organisations.** Reset password / deactivate / change role / rename now act only on logins in the admin's own organisation; creating an account can't take over a login that belongs to another organisation. Admins can no longer deactivate or demote themselves.
+- **Reports: filters showed demo data and hid rows.** The Manager list was hard-coded ("Priya Raman") and the Course list came from demo courses. Both now list your real managers and courses. Filters a report doesn't use are hidden and ignored, so a status left over from another report no longer empties the table silently. "No manager" now matches people without a manager.
+- New accounts no longer default to the demo manager "Priya Raman".
+- Demo "Northwind" text removed from Help, Admin Console, Analytics, course author and e-mail placeholders.
+- Settings › Migration › SCORM setup check now warns if CONTENT_ORIGIN is the same address as the LMS (SCORM packages would run with access to the learner's session).
+- Tests: the build test no longer fails because of your own config.js; the document test matches the in-app viewer (v41.7).
+
+UI
+- Reports: removed "Save report" and "Schedule email" (they only showed a "not available" message); clearer "Hours (est.)" column that no longer overlaps "Avg score"; wider person search.
+- Question bank: the bulk-upload banner is replaced by Upload CSV / Template / Export next to "+ Add question"; 4 main filters, the other 7 under "More filters".
+- Gradebook: the empty "Assignments to review" box is hidden until there is something to review.
+- Training overview: From/To merged into one "Period" field, so the filters fit on fewer lines.
+- Course assignment: shorter description.
+- Roles & permissions: checkboxes next to long labels no longer shrink.
+- Tests: `tests/e2e/v41_18_e2e.py` (18 checks), 3 new server tests, 1 new Edge Function test.
+
 ## v41.1 (deployment)
 - `scripts/deploy-supabase.sh`: one command for migrations 001–004 (in order), org time zone, Auth settings, the three Edge Functions and their secrets, then checks.
 - `docs/DEPLOY.md`: step-by-step first deployment: Supabase, admin login, Cloudflare Pages (app + content site), post-deploy check, R2 backups.

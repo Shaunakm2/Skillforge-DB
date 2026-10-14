@@ -14,18 +14,18 @@
 | Database, sign-in, Realtime (staff only) | Supabase | 500 MB DB, 50,000 MAU, **200 Realtime connections** |
 | Files (`lms-files`), SCORM (`lms-scorm`) | Supabase Storage | 1 GB, 50 MB per file |
 | Edge Functions `learning`, `admin-users` | Supabase | 500,000 invocations/month |
-| Encrypted backups | Cloudflare R2 via GitHub Actions | 10 GB, no egress fees |
+| Encrypted backups | GitHub Actions artifacts (`backup.yml`) | kept 30 days, free |
 
 **Free plan limits:**
-- **Pausing:** the Supabase project pauses after 7 days of inactivity (`supabase-keepalive.yml` prevents it).
-- **Backups:** there are no automatic backups (`backup.yml` covers it).
+- **Pausing:** the Supabase project pauses after 7 days of inactivity (`.github/workflows/supabase-keepalive.yml` prevents it once its two secrets are set).
+- **Backups:** there are no automatic backups (`.github/workflows/backup.yml` makes a nightly encrypted backup, kept 30 days; see `scripts/restore-backup.md`).
 
 ---
 
 ## 1. Database
 
 1. Create a Supabase project (region Mumbai).
-2. Run **all** migrations in order: `001`, `002`, `003`, `004` (`scripts/deploy-supabase.sh` does this and steps 4 and 2 below; see `docs/DEPLOY.md`).
+2. Run **all** migrations in order: `001` to `008` (`scripts/deploy-supabase.sh` does this and steps 4 and 2 below; see `docs/DEPLOY.md`).
 3. Add your admin login:
    - **Authentication › Users › Add user** (Auto confirm).
    - Then run:
@@ -112,13 +112,9 @@ Paths are checked on the raw URL. A file name containing `%` (for example `100%.
 
 ## 6. Backups and keep-alive
 
-1. Create a key: `age-keygen -o skillforge-backup.key`. Keep the private key **offline**, and put only the public key in `BACKUP_AGE_RECIPIENT`.
-2. Create an R2 bucket and an API token limited to it. Add a lifecycle rule to delete files after 35 days.
-3. Add these GitHub secrets (listed at the top of `.github/workflows/backup.yml`):
-   - `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`
-   - `BACKUP_AGE_RECIPIENT`
-   - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
-4. To restore, follow `scripts/restore-backup.md`.
+1. Add three GitHub secrets (Settings › Secrets and variables › Actions): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `BACKUP_PASSPHRASE` (a long random phrase; keep a copy outside GitHub).
+2. Run **Actions › backup › Run workflow** once and check that the run has an artifact.
+3. Backups are kept 30 days. To restore, follow `scripts/restore-backup.md`. No R2 or other paid storage is needed.
 
 ---
 
@@ -162,7 +158,7 @@ Paths are checked on the raw URL. A file name containing `%` (for example `100%.
 | `SF_WEB=dist npm run test:e2e` | The same browser tests against the bundled build |
 | `npm run test:stack` | Smoke test on a **real** local Supabase stack: Edge Functions on the Deno edge runtime behind the real gateway, bcrypt sign-in, policies, SVG refusal (CI job `supabase-stack`) |
 
-CI (`.github/workflows/ci.yml`) runs all of the above. The `supabase-stack` job starts the full local stack **with** the edge runtime, type-checks both functions with `deno check`, runs the SQL tests there, and runs the smoke test.
+CI (`.github/workflows/ci.yml`) runs the unit, database and browser tests on every push. It does **not** start a full Supabase stack or deploy anything (see `docs/CICD.md`).
 
 
 ## v26 go-live security gates
