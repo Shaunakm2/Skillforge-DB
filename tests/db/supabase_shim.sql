@@ -14,7 +14,7 @@ create or replace function extensions.crypt(pw text, salt text) returns text lan
 create or replace function extensions.gen_salt(t text) returns text language sql volatile as $$ select 'h$' $$;
 create or replace function extensions.gen_salt(t text, rounds int) returns text language sql volatile as $$ select 'h$' $$;
 create table if not exists storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
-create table if not exists storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+create table if not exists storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, metadata jsonb);   -- metadata: as in Supabase (size etc.)
 alter table storage.objects enable row level security;
 grant usage on schema public, auth, storage, extensions to anon, authenticated, service_role;
 grant select, insert, update, delete on storage.objects to authenticated;

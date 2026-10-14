@@ -1,7 +1,7 @@
 /* v34: the build writes a Content-Security-Policy that names only this deployment's own origins. */
 import test from 'node:test'; import assert from 'node:assert'; import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'; import { spawnSync } from 'node:child_process'; import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-function build(env) { const out = fs.mkdtempSync(path.join(os.tmpdir(), 'sfbuild-')); const r = spawnSync('node', ['scripts/build.mjs'], { cwd: ROOT, env: { ...process.env, SF_ALLOW_NO_VENDOR: '1', SF_OUT: out, SF_SUPABASE_URL: '', SF_CONTENT_ORIGIN: '', SF_ORG_ID: 'acme', ...env }, encoding: 'utf8' });
+function build(env) { const out = fs.mkdtempSync(path.join(os.tmpdir(), 'sfbuild-')); const r = spawnSync('node', ['scripts/build.mjs'], { cwd: ROOT, env: { ...process.env, SF_ALLOW_NO_VENDOR: '1', SF_IGNORE_CONFIG: '1', SF_OUT: out, SF_SUPABASE_URL: '', SF_CONTENT_ORIGIN: '', SF_ORG_ID: 'acme', ...env }, encoding: 'utf8' });
   const headers = fs.existsSync(out + '/_headers') ? fs.readFileSync(out + '/_headers', 'utf8') : '', html = fs.existsSync(out + '/index.html') ? fs.readFileSync(out + '/index.html', 'utf8') : '';
   const csp = (headers.match(/Content-Security-Policy: (.*)/) || [])[1] || '', meta = (html.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/) || [])[1] || '';
   fs.rmSync(out, { recursive: true, force: true }); return { status: r.status, err: r.stderr, csp, meta }; }

@@ -22,7 +22,7 @@ async def main():
         await pg.evaluate("window.__app.setState({ lb:'company' })"); await W()
         stable = await pg.evaluate("""(() => { const r = window.__app.renderVals().lbRows; return r.every(x => x.av === r.find(y => y.name === x.name).av) && new Set(r.map(x=>x.av)).size >= 1; })()""")
         ok('avatar colour comes from the name', stable)
-        # documents: blocked pop-up does not count as opened
+        # v41.7+: documents open in the in-app viewer (no pop-up to block), so opening is always recorded
         await pg.evaluate("window.__app.go('docs')"); await W(400)
         await pg.evaluate("window.open = () => null")
         rows = await pg.evaluate("window.__app.renderVals().docsRows.filter(r => r.canOpen).map(r => r.title)")
@@ -31,8 +31,8 @@ async def main():
             before = await S(f"JSON.stringify((s.docAck[s.meName]||{{}}))")
             await pg.evaluate(f"window.__app.renderVals().docsRows.find(r => r.title === {t!r}).open()"); await W()
             after = await S(f"JSON.stringify((s.docAck[s.meName]||{{}}))")
-            ok('blocked pop-up is not recorded as opened', before == after, (before, after))
-            ok('blocked pop-up message shown', 'blocked' in (await S("s.toast || ''")))
+            ok('opening is recorded', before != after, (before, after))
+            ok('the in-app viewer is open', await S("!!s.docView"))
         else: ok('documents with files exist (offline sample)', False, 'none')
         # admin dashboards
         await pg.evaluate("window.__app.go('dashboard', { adminView:true, role:'admin', meName:'Lena Fischer', meRole:'admin' })"); await W(600)

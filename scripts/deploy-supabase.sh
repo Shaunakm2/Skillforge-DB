@@ -19,7 +19,7 @@ ORG_TIMEZONE="${ORG_TIMEZONE:-Asia/Kolkata}"
 [[ "$ORG_ID" =~ ^[a-z0-9-]{2,40}$ ]] || { echo "ORG_ID must be 2-40 lowercase letters, digits or dashes"; exit 1; }
 [ "$APP_ORIGIN" != "$CONTENT_ORIGIN" ] || { echo "CONTENT_ORIGIN must be a different site from APP_ORIGIN"; exit 1; }
 
-echo "== 1/5 Database: migrations 001-004, in order (each stops on the first error)"
+echo "== 1/5 Database: all migrations (001, 002 …), in order (each stops on the first error)"
 for f in supabase/migrations/0*.sql; do
   echo "   $f"; psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q -f "$f"
 done

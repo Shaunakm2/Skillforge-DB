@@ -338,7 +338,16 @@ p41 = conn.execute("select data->'perms' from sf_doc where org_id = %s and coll 
 ok('v41: 004 removes attempts, lcms and lcmsForms from the Trainer role and keeps the rest', p41 == {'assignments': True, 'batches': True}, p41)
 conn.execute(open(os.path.join(ROOT, 'supabase/migrations/004_v41_trainer_defaults.sql')).read())
 ok('v41: 004 is safe to run again', conn.execute("select data->'perms' from sf_doc where org_id = %s and coll = 'roles' and key = 'r_trainer'", (ORG,)).fetchone()[0] == p41)
+# v41.18: an admin turns LCMS back on for trainers; the next deploy re-runs 004 and must keep that choice
+conn.execute("update sf_doc set data = jsonb_set(data, '{perms,lcms}', 'true') where org_id = %s and coll = 'roles' and key = 'r_trainer'", (ORG,))
+conn.execute(open(os.path.join(ROOT, 'supabase/migrations/004_v41_trainer_defaults.sql')).read())
+ok('v41.18: re-running 004 keeps the admin\'s choice', conn.execute("select (data->'perms'->>'lcms')::boolean from sf_doc where org_id = %s and coll = 'roles' and key = 'r_trainer'", (ORG,)).fetchone()[0] is True)
 
+# ---------------- v41.18: 008 usage meter ----------------
+u_l = as_user(L, 'select sf_usage()')[0][0]
+u_a = as_user('admin', 'select sf_usage()')[0][0]
+ok('v41.18: a learner gets no usage totals', u_l is None, u_l)
+ok('v41.18: an admin gets them', isinstance(u_a, dict) and 'storage' in u_a, u_a)
 failed = [n for n, c in RES if not c]
 print('\nSUMMARY', len(RES) - len(failed), '/', len(RES))
 if DB: conn.close(); admin.execute(f'drop database {DB} with (force)')

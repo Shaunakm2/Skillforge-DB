@@ -28,7 +28,7 @@ async def main():
         ok('offline quiz completes', await S("s.qDone"))
         await pg.evaluate("window.__app.go('users', { adminView:true, role:'admin', meName:'Lena Fischer', meRole:'admin' })"); await W(400)
         await pg.get_by_role('button', name='+ Create account').click(); await pg.get_by_role('menuitem', name='Single account').click(); await W(); um = pg.locator('.ovl-28').last
-        await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@northwind.com').fill('maya2@northwind.com'); await um.get_by_placeholder('e.g. NW-1015').fill('NW-4444')
+        await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@company.com').fill('maya2@northwind.com'); await um.get_by_placeholder('e.g. NW-1015').fill('NW-4444')
         await pg.get_by_role('button', name='Create account', exact=True).click(); await W(400)
         ok('offline: duplicate name made unique', await S("s.users.some(u => u.name === 'Maya Okafor (NW-4444)')"))
         ok('NO JS ERRORS', not errs, errs[:3])

@@ -10,9 +10,9 @@ await import('../public/js/core/assessment.js'); await import('../supabase/funct
 
 function fakeSupabase(T) {
   const q = (table) => { const f = []; let single = false, op = 'select', payload = null, sel = null;
-    const api = { select(s) { if (op === 'select') sel = s; else sel = s; return api; }, eq(c, v) { f.push([c, v]); return api; }, in(c, vs) { f.push([c, vs, 'in']); return api; }, maybeSingle() { single = true; return api; },
+    const api = { select(s) { if (op === 'select') sel = s; else sel = s; return api; }, eq(c, v) { f.push([c, v]); return api; }, in(c, vs) { f.push([c, vs, 'in']); return api; }, neq(c, v) { f.push([c, v, 'neq']); return api; }, limit() { return api; }, maybeSingle() { single = true; return api; },
       insert(p) { op = 'insert'; payload = p; return api; }, update(p) { op = 'update'; payload = p; return api; }, upsert(p) { op = 'upsert'; payload = p; return api; }, delete() { op = 'delete'; return api; },
-      then(res) { const rows = T[table], m = r => f.every(([c, v, k]) => { const val = c === 'data->>empId' ? r.data && r.data.empId : r[c]; return k === 'in' ? v.includes(val) : val === v; });
+      then(res) { const rows = T[table], m = r => f.every(([c, v, k]) => { const val = c === 'data->>empId' ? r.data && r.data.empId : r[c]; return k === 'in' ? v.includes(val) : k === 'neq' ? val !== v : val === v; });
         if (op === 'select') { const out = rows.filter(m); return res({ data: single ? out[0] || null : out, error: null }); }
         if (op === 'insert') { if (rows.some(r => r.org_id === payload.org_id && r.coll === payload.coll && r.key === payload.key)) return res({ error: { code: '23505' } }); rows.push({ ...payload }); return res({ error: null }); }
         if (op === 'update') { const hit = rows.filter(m); hit.forEach(r => Object.assign(r, payload)); return res({ data: hit.map(r => ({ key: r.key })), error: null }); }
@@ -130,4 +130,18 @@ test('v34: changing your own password ends your OTHER sessions and keeps this on
   assert.deepStrictEqual(T.revoked.splice(0), [['U-L', 'sess-1']]);
   assert.strictEqual((await call({ action: 'changePassword', password: 'Strong-pass-2026' }, { token: jwt({ sub: 'U-L' }) })).status, 200);
   assert.deepStrictEqual(T.revoked, [], 'no session id in the token: nothing is revoked (so the person is not signed out)');
+});
+
+// v41.18: account actions stay inside the admin's own organisation; no admin can lock themselves out
+test('admin-users: no reset / ban / takeover of a login from another organisation; no self-ban or self-demotion', async () => {
+  const T = world(); T.authUsers.push({ id: 'U-Z', email: 'z@other.co' }); T.sf_member.push({ org_id: 'other', user_id: 'U-Z', email: 'z@other.co', emp_id: 'Z1', role: 'Learner', active: true, app_name: 'Zed' });
+  const call = await load('admin-users', T, ENV), tok = jwt({ sub: 'U-A' });
+  assert.strictEqual((await call({ action: 'resetPassword', org: 'o', email: 'z@other.co' }, { token: tok })).status, 404);
+  assert.strictEqual((await call({ action: 'ban', org: 'o', email: 'z@other.co' }, { token: tok })).status, 404);
+  const take = await call({ action: 'create', org: 'o', email: 'z@other.co', empId: 'Z9', name: 'Zed', role: 'Learner' }, { token: tok });
+  assert.strictEqual(take.status, 400); assert.match((await take.json()).error, /another organisation/);
+  assert.strictEqual(T.updates.length, 0, 'no password was changed');
+  assert.strictEqual((await call({ action: 'ban', org: 'o', email: 'a@x' }, { token: tok })).status, 400);
+  assert.strictEqual((await call({ action: 'setRole', org: 'o', email: 'a@x', role: 'Learner' }, { token: tok })).status, 400);
+  assert.strictEqual((await call({ action: 'setRole', org: 'o', email: 'l@x', role: 'Trainer' }, { token: tok })).status, 200);
 });

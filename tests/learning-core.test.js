@@ -233,3 +233,36 @@ test('access requests: no past or far-future due dates, no self-approval, only p
   await L.handle(db, mgr, 'decideRequest', { id: req.id, approve: true, due: '2026-11-15' });
   assert.strictEqual((await db.get('enroll', 'E1')).data.x, '2026-11-15');
 });
+
+// v41.18: Quizzes › Time limit is enforced on the server clock (it used to be saved but never applied)
+test('time limit: answers after the limit are refused, submitting still works', async () => {
+  const db = world(); db.seed('quizzes', '8', { id: 8, name: 'Written', ids: [1, 5], pass: 50, attempts: 'Unlimited', time: 10 });
+  const r = await L.handle(db, ctx(), 'startAttempt', { courseId: 'w', step: 0 });
+  assert.strictEqual(r.quiz.timeLimit, 10); assert.strictEqual(r.quiz.endsAt, '2026-10-04T10:10:00.000Z');
+  await L.handle(db, ctx({ now: new Date('2026-10-04T10:05:00Z') }), 'answer', { attemptId: r.attemptId, index: 0, answer: { sel: 0 } });
+  await L.handle(db, ctx({ now: new Date('2026-10-04T10:10:20Z') }), 'answer', { attemptId: r.attemptId, index: 1, answer: { text: 'within grace' } });
+  const r2 = await L.handle(db, ctx({ now: new Date('2026-10-04T11:00:00Z') }), 'startAttempt', { courseId: 'w', step: 0 });
+  await assert.rejects(L.handle(db, ctx({ now: new Date('2026-10-04T11:10:31Z') }), 'answer', { attemptId: r2.attemptId, index: 0, answer: { sel: 0 } }), /Time is up/);
+  const sub = await L.handle(db, ctx({ now: new Date('2026-10-04T11:11:00Z') }), 'submit', { attemptId: r2.attemptId });
+  assert.strictEqual(sub.passed, false);
+});
+test('no time limit: endsAt is null and late answers are accepted', async () => {
+  const db = world();
+  const r = await L.handle(db, ctx(), 'startAttempt', { courseId: 'w', step: 0 });
+  assert.strictEqual(r.quiz.timeLimit, null); assert.strictEqual(r.quiz.endsAt, null);
+  await L.handle(db, ctx({ now: new Date('2026-10-05T10:00:00Z') }), 'answer', { attemptId: r.attemptId, index: 0, answer: { sel: 0 } });
+});
+// v41.18: nobody rates their own written answer or accepts their own assignment; the rater's note is kept
+test('raters cannot grade themselves, and their feedback is stored', async () => {
+  const db = world(); db.seed('enroll', 'T1', { w: '2026-12-01' });
+  const T = ctx({ emp: 'T1', role: 'Trainer', perms: ['gradebook'] });
+  const r = await L.handle(db, T, 'startAttempt', { courseId: 'w', step: 0 }), at = db.peek('attempt', r.attemptId);
+  for (let k = 0; k < at.items.length; k++) await L.handle(db, T, 'answer', { attemptId: r.attemptId, index: k, answer: { sel: 0, text: 'my own answer' } });
+  await L.handle(db, T, 'submit', { attemptId: r.attemptId });
+  const rid = Object.values(db.peek('attempt', r.attemptId).answers).map(a => a && a.reviewId).find(Boolean);
+  await assert.rejects(L.handle(db, T, 'rescore', { reviewId: rid, rating: 10 }), /own answer/);
+  await L.handle(db, ctx({ emp: 'T2', role: 'Trainer', perms: ['gradebook'] }), 'rescore', { reviewId: rid, rating: 7, feedback: 'Good start' });
+  assert.strictEqual(db.peek('reviews', rid).feedback, 'Good start'); assert.strictEqual(db.peek('reviews', rid).rating, 7);
+  db.seed('asgSub', 'T1|w|0', { id: 'T1|w|0', learnerEmp: 'T1', courseId: 'w', step: 0, status: 'Submitted', text: 'x' });
+  await assert.rejects(L.handle(db, T, 'reviewAssignment', { id: 'T1|w|0', decision: 'accept' }), /own assignment/);
+});

@@ -147,9 +147,10 @@ async def main():
         ok('required document starts as not opened', r['canAck'] and not r['ackReady'], r)
         await pg.evaluate("window.__app.renderVals().docsRows.find(d => d.title === 'Information Security Policy').ack()"); await W()
         ok('cannot acknowledge before opening', await S("!((s.docAck['Maya Okafor'] || {}).d1 || {}).ackAt"))
-        # (headless Chromium has no PDF viewer, so capture the call instead of the tab)
-        opened = await pg.evaluate("(() => { const calls = [], o = window.open; window.open = (...a) => { calls.push(a); return {}; }; window.__app.renderVals().docsRows.find(d => d.title === 'Information Security Policy').open(); window.open = o; return calls; })()"); await W()
-        ok('Open shows the file in a new tab without giving it access to this page', len(opened) == 1 and opened[0][0] == 'assets/docs/information-security-policy.pdf' and opened[0][1] == '_blank' and 'noopener' in opened[0][2], opened)
+        # v41.7: documents open in the LMS's own viewer (so the view is always recorded); no new tab
+        await pg.evaluate("window.__app.renderVals().docsRows.find(d => d.title === 'Information Security Policy').open()"); await W()
+        ok('Open shows the file in the in-app viewer', await S("s.docView === 'd1'"), await S("s.docView"))
+        await pg.evaluate("window.__app.setState({ docView: null })"); await W()
         await pg.evaluate("window.__app.renderVals().docsRows.find(d => d.title === 'Information Security Policy').ack()"); await W()
         ok('acknowledged after opening, for the current version', await S("s.docAck['Maya Okafor'].d1.ackV === 2"))
         ok('view-only document has no download button', await V("v.docsRows.find(d => d.title === 'Workplace Safety Handbook').canDl === false"))

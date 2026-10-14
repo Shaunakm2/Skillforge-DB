@@ -178,7 +178,7 @@ async def main():
         ok('rename does not orphan history in the database', await pg.evaluate("!!window.__sb.get('enroll', 'NW-1002') && window.__sb.members.find(m => m.emp_id === 'NW-1002').app_name === 'Jonas Bergström'"))
         # duplicate names get the employee ID
         await B('+ Create account').click(); await pg.get_by_role('menuitem', name='Single account').click(); await W(); um = pg.locator('.ovl-28').last
-        await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@northwind.com').fill('maya.o2@northwind.com'); await um.get_by_placeholder('e.g. NW-1015').fill('NW-3999')
+        await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@company.com').fill('maya.o2@northwind.com'); await um.get_by_placeholder('e.g. NW-1015').fill('NW-3999')
         await B('Create account').click(); await W(1500)
         ok('duplicate name made unique, temporary password shown once', await S("s.users.some(u => u.name === 'Maya Okafor (NW-3999)')") and await pg.locator('.tp-pw').count() == 1)
         # trainer scope: can't change another trainer's batch; refused change is reverted and reported
