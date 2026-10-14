@@ -49,7 +49,11 @@ SkillforgeApp.prototype.vmAuth = function (c) {
       setL({ busy:true }); Backend.setNewPassword(a).then(() => Backend.afterSignIn()).then(r => { this.setState(st => ({ login: { ...st.login, npw:'', npw2:'' } })); this.onBackendSignedIn(r); })
         .catch(e => setL({ busy:false, err: e.message || String(e) })); },
     goForgot: () => this.setState({ loginView:'forgot', login: { ...L0, err:'' } }), goSignin: () => this.setState({ loginView:'signin', login: { ...L0, err:'' } }),
-    sendReset: () => { if (!L0.email.trim()) return setL({ err:'Enter your username.' }); if (Backend.on) { const u = s.users.find(x => (x.empId || '').toLowerCase() === L0.email.trim().toLowerCase()); Backend.resetLink(u ? u.email : L0.email.trim()).catch(() => {}); } this.setState({ loginView:'sent' }); },
+    sendReset: () => { if (!L0.email.trim()) return setL({ err:'Enter your username.' });
+      // v41.18: before sign-in the app has no user list, so an employee ID can't be turned into an e-mail here (it used to
+      // be sent to Supabase as if it were an e-mail, fail silently, and still say the link was sent).
+      if (Backend.on && !/@/.test(L0.email)) return setL({ err:'Enter your work email address to get a reset link. Don’t know it? Ask your L&D administrator to reset your password.' });
+      if (Backend.on) { const u = s.users.find(x => (x.empId || '').toLowerCase() === L0.email.trim().toLowerCase()); Backend.resetLink(u ? u.email : L0.email.trim()).catch(() => {}); } this.setState({ loginView:'sent' }); },
     // Microsoft sign-in: real OAuth through Supabase (Azure provider) when connected; a demo shortcut offline.
     ssoLogin: () => { if (Backend.on) return Backend.client().auth.signInWithOAuth({ provider:'azure', options:{ scopes:'email', redirectTo: location.origin + location.pathname } });
       const u = s.users.find(x => x.email.toLowerCase() === L0.email.trim().toLowerCase()); if (u && u.status !== 'Deactivated') signInAs(u); else setL({ err:'Enter your work email first, then continue with Microsoft.' }); },

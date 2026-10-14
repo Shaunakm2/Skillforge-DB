@@ -24,7 +24,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
   const userRows2 = userRows.map(u => { const on = !!s.uSel[u.id]; return { ...u, phoneLabel: u.phone || '—', termsLabel: u.terms ? 'Yes' : 'No', termsBg: u.terms ? '#DCFCE7' : '#FDECEC', termsFg: u.terms ? '#166534' : '#A63232', attempts: () => this.setState({ attModal: u.name, uMng:null }), resetPw: () => this.setState({ pwReset: u.id, uMng:null }), sel: !!on, tick: on ? '✓' : '', bg: on ? '#16324F' : '#FFFFFF', bd: on ? '#16324F' : '#BFCFDB', rowBg: on ? '#F4F8FC' : 'transparent', pick: () => this.setState(st => ({ uSel: { ...st.uSel, [u.id]: !st.uSel[u.id] } })), viewL: () => this.go('reports', { adminView:true, repType:'learning', repUser: u.name, repCourse:'All', repStatus:'All', repDept:'All', uMng:null }),   // v36: was a message only
       manage: () => this.setState({ uMng: u.id }), assignL: () => this.setState({ enrModal: { user: u.name }, uMng:null }) }; });
   const uSelIds = userRows2.filter(u => s.uSel[u.id]).map(u => u.id), uAllOn = userRows2.length > 0 && uSelIds.length === userRows2.length;
-  const ud = s.ud || { id:null, roleId:'r_learner', name:'', email:'', role:'Learner', dept:deptList(s)[0] || '', manager:'Priya Raman', status:'Invited', lastLogin:'Never', empId:'', phone:'', gender:'Prefer not to say', terms:false, designation:'', joined:TODAY_KEY };
+  const ud = s.ud || { id:null, roleId:'r_learner', name:'', email:'', role:'Learner', dept:deptList(s)[0] || '', manager:'None', status:'Invited', lastLogin:'Never', empId:'', phone:'', gender:'Prefer not to say', terms:false, designation:'', joined:TODAY_KEY };
   const setUd = k => e => this.setState(st => ({ ud: { ...(st.ud || ud), [k]: e.target.value } }));
   const V = {
     attModal: !!s.attModal,

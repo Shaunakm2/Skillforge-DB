@@ -51,13 +51,11 @@ SkillforgeApp.prototype.amCourses = function (c) {
   const isAct = c => availability(c) === 'Active';
   const ccMatch = c => !ccq || (c.title + ' ' + (c.code || '') + ' ' + c.catLabel + ' ' + (c.author || '')).toLowerCase().includes(ccq);
   const ccRows = adminCourseRows.filter(c => ccMatch(c) && (s.ccFilter === 'All' || (s.ccFilter === 'Active' ? isAct(c) : !isAct(c))));
-  const csvCell = v => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   const exportCourses = () => {
     const head = ['Course ID', 'Title', 'Category', 'Status', 'Availability', 'Live from', 'Live until', 'Modules', 'Learning approach', 'Assigned to', 'Enrolled', 'Author', 'Director', 'Due date'];
     const rows = ccRows.map(c => [c.code, c.title, c.catLabel, c.status, c.avail, c.availFrom ? fmtDateTime(c.availFrom) : '', c.availUntil ? fmtDateTime(c.availUntil) : '', c.items.length, c.features.linear ? 'Linear' : 'Non-linear', c.aud || 'Assign later', c.enrolled, c.author || '', c.director || '', c.due || '']);
-    const csv = '\ufeff' + [head].concat(rows).map(r => r.map(csvCell).join(',')).join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' })), a = document.createElement('a');
-    a.href = url; a.download = 'skillforge-courses-' + TODAY_KEY + '.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // v41.18: the shared export (formula-injection guard: a title starting with = + - @ is not run by Excel)
+    csvDownload('skillforge-courses-' + TODAY_KEY + '.csv', [head].concat(rows));
     this.toastMsg(ccRows.length + (ccRows.length === 1 ? ' course' : ' courses') + ' exported');
   };
   const CTABS = [['basics', 'Basics'], ['modules', 'Modules'], ['assign', 'Assignment'], ['settings', 'Availability & rules']];

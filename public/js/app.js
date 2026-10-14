@@ -71,7 +71,12 @@ class SkillforgeApp extends Skillforge.Store {
     window.addEventListener('beforeunload', e => { if (this.state.authed && this.openEditor()) { e.preventDefault(); e.returnValue = ''; } });
     window.addEventListener('sf-toast', e => this.toastMsg(String(e.detail || '').slice(0, 200)));
     // v39: Escape closes the small toolbar menus (Users: Export, Create account)
-    window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.state.docView) this.setState({ docView: null }); else if (e.key === 'Escape' && this.state.uMenu) this.setState({ uMenu: null }); });
+    window.addEventListener('keydown', e => { if (e.key !== 'Escape') return;
+      if (this.state.docView) return this.setState({ docView: null }); if (this.state.uMenu) return this.setState({ uMenu: null });
+      if (this.openEditor()) return;   // v41.18: an editor (account, course, module, document, KPI, role) is never closed by one key press
+      // v41.18: Escape closes the top-most pop-up exactly like clicking outside it (it only worked for two pop-ups)
+      const ov = [...document.querySelectorAll('.ovl-1')].filter(el => { const r = el.getBoundingClientRect(); return r.width && r.height; }).pop();
+      if (ov) ov.dispatchEvent(new MouseEvent('click', { bubbles: false, cancelable: true })); });
     try { const im = sessionStorage.getItem('sf-idle'); if (im) { sessionStorage.removeItem('sf-idle'); this.setState(s2 => ({ login: { ...s2.login, err: 'You were signed out after ' + (+im || 30) + ' minutes without activity.' } })); } } catch (e) {}
     // Idle sign-out (App settings › Sign out after inactivity, default 30 minutes): shared PCs are common in training rooms.
     // Activity in any tab counts (localStorage), so a second open tab doesn't sign someone out while they work in the first.
@@ -102,8 +107,11 @@ class SkillforgeApp extends Skillforge.Store {
     this.viewTimer = setInterval(() => { const t = this._viewTarget; if (!t || document.hidden || !this.state.authed) return;
       const v = (this.state.viewSec[t.key] || 0) + 1; this.setState({ viewSec: { ...this.state.viewSec, [t.key]: v } });
       if (v >= t.need) { this._viewTarget = null; t.done(); } }, 1000);
+    // v41.18: assessment time limit. Ticks once a second; at zero the attempt is handed in (the server also refuses late answers).
+    this.quizTimer = setInterval(() => { const st = this.state; if (!st.qEndsMs || st.qDone || st.screen !== 'quiz' || !st.authed) return;
+      if (Date.now() >= st.qEndsMs) { const v = this.renderVals(); if (v.quizTimeUp) v.quizTimeUp(); } else this.setState({ qTick: Date.now() }); }, 1000);
   }
-  componentWillUnmount() { clearInterval(this.timer); clearInterval(this.viewTimer); clearInterval(this.idleTimer); clearTimeout(this.tt); }
+  componentWillUnmount() { clearInterval(this.timer); clearInterval(this.viewTimer); clearInterval(this.idleTimer); clearInterval(this.quizTimer); clearTimeout(this.tt); }
   // v36: longer messages stay up longer (2.6 s to 7 s, by length) and can be closed early.
   toastMsg(m) { clearTimeout(this.tt); this.setState({ toast:m }); this.tt = setTimeout(() => this.setState({ toast:null }), Math.min(7000, Math.max(2600, String(m || '').length * 55))); }
   /* v36: reminders. Without the server they reach the person's bell in this app (demo). Connected, nothing can be delivered

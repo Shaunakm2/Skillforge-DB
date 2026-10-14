@@ -69,6 +69,6 @@ SkillforgeApp.prototype.accountVals = function (s, role) {
     acLastLogin: u.lastLogin || 'Just now',
     // help
     hpRows: [['How do I find my assigned courses?', 'Home shows what’s due soon. Catalog › “Assigned to me” lists every course assigned to you.'], ['I ran out of assessment attempts', 'Ask your L&D admin. They can give extra attempts from Settings › Assessment attempt management.'], ['My name, email or department is wrong', 'Ask an admin to update it in Users & accounts.'], ['I can’t open a document or video', 'Check that pop-ups are allowed, then try again. If it still fails, contact L&D support below.']].map(([q, a]) => ({ q, a })),
-    hpContact: 'L&D support · learning@northwind.com',
+    hpContact: 'L&D support · contact your L&D administrator',
   };
 };

@@ -730,7 +730,7 @@ sf-if,sf-for{display:contents}
 .reports-12{cursor:pointer;background:#2563EB;border:0;border-radius:999px;padding:10px 18px;font-weight:700;font-size:13.5px;color:#FFFFFF}
 .reports-13{display:flex;gap:4px}
 .reports-14{white-space:nowrap;cursor:pointer;padding:8px 14px;border-radius:999px;font-weight:600;font-size:13.5px}
-.reports-15{border:1px solid #C9D7E2;border-radius:999px;padding:9px 14px;font-size:13.5px;font-weight:600;background:#FFFFFF;outline:0;width:140px}
+.reports-15{border:1px solid #C9D7E2;border-radius:999px;padding:9px 14px;font-size:13.5px;font-weight:600;background:#FFFFFF;outline:0;width:190px;max-width:100%}
 .reports-16{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .reports-17{font-family:var(--font-display);font-size:28px;font-weight:800}
 .reports-18{background:#FFFFFF;border:1px solid #D7E3EC;border-radius:22px;overflow-x:auto}
@@ -757,7 +757,7 @@ sf-if,sf-for{display:contents}
 .users-and-accounts-11{cursor:pointer;background:none;border:0;color:#C3D2DD;font-size:13px;margin-left:auto}
 .users-and-accounts-12{min-width:1200px}
 .users-and-accounts-13{display:grid;grid-template-columns:36px minmax(180px,1.6fr) 84px 112px minmax(104px,1fr) minmax(104px,1fr) 100px 96px 56px 92px 128px;gap:10px;padding:12px 20px;background:#F4F8FC;font-size:12px;font-weight:700;color:#526B7A;letter-spacing:.04em;align-items:center}
-.users-and-accounts-14{width:20px;height:20px;border-radius:6px;color:#FFFFFF;font-size:12px;font-weight:800;display:grid;place-items:center;cursor:pointer;padding:0}
+.users-and-accounts-14{flex-shrink:0;width:20px;height:20px;border-radius:6px;color:#FFFFFF;font-size:12px;font-weight:800;display:grid;place-items:center;cursor:pointer;padding:0}
 .users-and-accounts-15{display:grid;grid-template-columns:36px minmax(180px,1.6fr) 84px 112px minmax(104px,1fr) minmax(104px,1fr) 100px 96px 56px 92px 128px;gap:10px;padding:10px 20px;border-top:1px solid #E6EEF5;align-items:center;font-size:13.5px}
 .users-and-accounts-16{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
 .users-and-accounts-17{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2258,3 +2258,14 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
 .cc-row{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:12px 18px;border-bottom:1px solid #EEF2F5}
 .cc-m{width:24px;height:24px;border-radius:50%;color:#FFFFFF;display:grid;place-items:center;font-weight:800;font-size:13px;margin-top:2px}
 .cc-fix{display:block;margin-top:4px;padding:8px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;color:#78350F;font-size:13.5px}
+
+/* v41.18 */
+.quiz-timer{margin-left:auto;margin-right:12px;padding:2px 10px;border-radius:999px;background:#EAF1F6;color:#16324F;font-variant-numeric:tabular-nums;font-weight:700}
+.quiz-timer-low{background:#FDECEC;color:#A63232}
+.qb-head-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:700px){.qb-head-actions{justify-content:flex-start}}
+.db-period{display:flex;align-items:center;gap:6px}.db-period .ovl-21{min-width:0;width:150px}
+.db-sl .ovl-31{min-width:160px}.db-sl-w .ovl-31{min-width:200px}
+@media (max-width:760px){.db-period{grid-column:1/-1}.db-period .ovl-21{width:100%}}
+/* v41.18: on phones, messages appear at the top (under the header) instead of covering buttons such as Resume */
+@media (max-width:760px){.ovl-33,.ovl-33-up{top:calc(108px + env(safe-area-inset-top));bottom:auto}}

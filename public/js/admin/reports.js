@@ -1,20 +1,33 @@
 /* Skillforge LMS — reports. */
 SkillforgeApp.prototype.amReports = function (c) {
-  const { INK, W, s, segs, perms } = c;
+  const { INK, W, segs, perms } = c, s0 = c.s;
   // People with only the course-completion permission (trainers) see just that report.
   // Trainers (reportsCompletion permission) get the course completion and course progress reports.
   // v36: the Kirkpatrick analysis lives in Reports; people with the Training feedback permission see it (and its row report).
   const allowed = Object.keys(RDEF).filter(k => perms.has('reports') || (['usercourses', 'allcompletion', 'progress'].includes(k) && perms.has('reportsCompletion'))
     || (['kirkpatrick', 'kpfeedback'].includes(k) && perms.has('feedback')));
+  // v41.18: each report shows only the filters it really uses. A filter that does not apply (or a status left over from
+  // another report) is ignored, so it can no longer empty the table without the reader seeing why.
+  const rt0 = allowed.includes(s0.repType) ? s0.repType : allowed[0];
+  const ST_ALL = ['Completed', 'In progress', 'Not started', 'Overdue'];
+  const REP_F = { learning: 'range dept mgr user', completion: 'dept mgr course', coursewise: 'dept mgr course', compliance: 'dept mgr course status user',
+    login: 'dept mgr user', quiz: 'range dept mgr', progress: 'dept mgr course status user', allcompletion: 'dept mgr course status user',
+    usercourses: 'dept mgr course user', kpfeedback: 'status user' };
+  const REP_ST = { compliance: ['Valid', 'Expiring soon', 'Expired', 'Overdue', 'Not completed'], progress: ['In progress', 'Not started', 'Overdue'], allcompletion: ST_ALL,
+    kpfeedback: ['Scheduled', 'Due', 'Sent', 'Responded'] };
+  const fOn = new Set(String(REP_F[rt0] || '').split(' ').filter(Boolean)), stOpts = REP_ST[rt0] || [];
+  const s = { ...s0, repDept: fOn.has('dept') ? s0.repDept : 'All', repMgr: fOn.has('mgr') ? s0.repMgr : 'All', repCourse: fOn.has('course') ? s0.repCourse : 'All',
+    repStatus: fOn.has('status') && stOpts.includes(s0.repStatus) ? s0.repStatus : 'All', repUser: fOn.has('user') ? s0.repUser : '' };
   // reports
   // Everyone with an account except deactivated people (invited people already have assignments due), the same rule as the
   // dashboards and statistics, so every screen shows the same totals.
-  const people = s.users.filter(u => u.status !== 'Deactivated' && (s.repDept === 'All' || u.dept === s.repDept) && (s.repMgr === 'All' || u.manager === s.repMgr));
+  const noMgr = u => !u.manager || u.manager === 'None';
+  const people = s.users.filter(u => u.status !== 'Deactivated' && (s.repDept === 'All' || u.dept === s.repDept) && (s.repMgr === 'All' || (s.repMgr === 'None' ? noMgr(u) : u.manager === s.repMgr)));
   const Tx = (v, w, fg) => ({ isText:true, isBar:false, isChip:false, v, w: w || 500, fg: fg || INK });
   const Bx = (p, color) => ({ isText:false, isBar:true, isChip:false, v: p + '%', pct: p + '%', color });
   const Cx = (v, bg, fg) => ({ isText:false, isBar:false, isChip:true, v, bg, fg });
   let rows = [], kp = [];
-  const rt = allowed.includes(s.repType) ? s.repType : allowed[0];
+  const rt = rt0;
   // ---- v29: these six reports are built from the real records (LearnStats), never generated ----
   const DAYS = { '7d':7, '30d':30, '90d':90 }[s.repRange] || 30, from = Progress.plus(TODAY_KEY, -DAYS + 1);
   const LS = ['learning', 'completion', 'coursewise', 'compliance'].includes(rt) ? LearnStats.build(s) : null, inPeople0 = new Set(people.map(u => u.name));
@@ -160,6 +173,12 @@ SkillforgeApp.prototype.amReports = function (c) {
   const repPills = (repGroups.find(g => g[0] === curG) || [null, []])[1].map(k => ({ label: RDEF[k].name, tip: RDEF[k].short, dot: RDEF[k].dot, on: k === rt, pick: () => this.setState({ repType:k }) }));
   const repTypes = allowed.map(k => { const on = k === rt; return { label:RDEF[k].name, short:RDEF[k].short, dot:RDEF[k].dot, bg: on ? INK : W, fg: on ? '#F8FBFD' : INK, sub: on ? '#C3D2DD' : '#526B7A', pick: () => this.setState({ repType:k }) }; });
   return {
+    // v41.18: real managers and courses (were fixed demo values), and only the filters this report uses
+    repF: { range: fOn.has('range'), dept: fOn.has('dept'), mgr: fOn.has('mgr'), course: fOn.has('course'), status: fOn.has('status'), user: fOn.has('user') },
+    repMgr: s.repMgr, repCourse: s.repCourse, repStatus: s.repStatus, repUser: s.repUser,
+    repMgrOptions: [{ v:'All', l:'All managers' }].concat([...new Set(s0.users.map(u => u.manager).filter(m => m && m !== 'None'))].sort().map(m => ({ v:m, l:m })), [{ v:'None', l:'No manager' }]),
+    repCourseOptions: [{ v:'All', l:'All courses' }].concat([...new Set((s0.adminCourses || []).map(a => a.title).filter(Boolean))].sort().map(t => ({ v:t, l:t }))),
+    repStatusOptions: ['All'].concat(stOpts).map(v => ({ v, l: v === 'All' ? 'All statuses' : v })),
     repTypes, repGroupTabs, repPills, repCurShort: (RDEF[rt] || {}).short || '', repIsKp: rt === 'kirkpatrick', repNotKp: rt !== 'kirkpatrick',
     rep, repPager: PG.pager,
     repColOpen: !!s.repColOpen, repColToggle: () => this.setState({ repColOpen: !s.repColOpen }),

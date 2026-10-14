@@ -58,6 +58,7 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
     const list = tab === 'pending' ? all.filter(x => x.status === 'Submitted') : all.filter(x => x.status !== 'Submitted');
     const cTitle = id => ((s.adminCourses || []).find(c => c.id === id) || {}).title || 'a course';
     const decide = (x, accept) => { const comment = ((s.asgRv || {})[x.id] || '').trim();
+      if ((x.learner || '') === this.meName()) return this.toastMsg('You cannot review your own assignment. Ask another trainer or an admin.');
       if (!accept && !comment) return this.toastMsg('Write what to change before returning it');
       const done = () => { this.setState(st => ({ asgRv: { ...(st.asgRv || {}), [x.id]: '' } })); this.toastMsg(accept ? 'Accepted. ' + (x.learner || 'The learner') + '’s step is complete.' : 'Returned to ' + (x.learner || 'the learner')); };
       if (Backend.on) return Backend.call('reviewAssignment', { id: x.id, decision: accept ? 'accept' : 'return', comment }).then(done).catch(e => this.toastMsg(e.message));
@@ -65,7 +66,8 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
         if (accept) { const L = x.learner, me = { ...(st.itemDone[L] || {}) }; me[x.courseId] = { ...(me[x.courseId] || {}), [x.step]: { at: TODAY_KEY, src: 'assignment' } }; out.itemDone = { ...st.itemDone, [L]: me }; }
         return out; }); done(); };
     const n = all.filter(x => x.status === 'Submitted').length;
-    return { asgSummary: n ? n + (n === 1 ? ' submission is' : ' submissions are') + ' waiting for review' : 'Nothing waiting. Learners’ assignment submissions appear here.',
+    return { asgAny: all.length > 0,   // v41.18: the panel appears once there is something to review
+      asgSummary: n ? n + (n === 1 ? ' submission is' : ' submissions are') + ' waiting for review' : 'Nothing waiting. Learners’ assignment submissions appear here.',
       asgTabs: [['pending', 'To review (' + n + ')'], ['done', 'Reviewed']].map(([k, l]) => { const on = tab === k; return { label: l, bg: on ? INK : W, fg: on ? '#F8FBFD' : INK, border: on ? INK : '#C9D7E2', pick: () => this.setState({ asgTab: k }) }; }),
       asgNone: !list.length, asgNoneText: tab === 'pending' ? 'No submissions to review.' : 'Nothing reviewed yet.',
       asgRows: list.slice(0, 100).map(x => ({ learner: x.learner || x.learnerEmp, where: (x.title || 'Assignment') + ' · ' + cTitle(x.courseId) + ' · ' + Fmt.dt(x.at), status: x.status,
@@ -83,8 +85,9 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
     const scale = Array.from({ length: q.points + 1 }, (_, v) => { const on = dr.rating === v; return { label: String(v), bg: on ? '#16324F' : '#FFFFFF', fg: on ? '#F8FBFD' : '#16324F', border: on ? '#16324F' : '#C9D7E2', pick: () => setRv(r.id, { rating:v }) }; });
     const save = () => {
       if (dr.rating === null || dr.rating === undefined) return this.toastMsg('Pick a rating first');
+      if (r.learner === this.meName()) return this.toastMsg('You cannot rate your own answer. Ask another trainer or an admin.');
       // Connected: the server records the rating and re-scores the attempt (the step passes if the score is high enough).
-      if (Backend.on) { Backend.call('rescore', { reviewId: r.id, rating: dr.rating }).then(() => { this.setState(st => ({ rvEdit:null, rvDraft: { ...st.rvDraft, [r.id]: undefined } })); this.toastMsg('Rating saved · ' + r.learner.split(' ')[0] + ' ' + dr.rating + '/' + q.points); }).catch(e => this.toastMsg(e.message)); return; }
+      if (Backend.on) { Backend.call('rescore', { reviewId: r.id, rating: dr.rating, feedback: (dr.feedback || '').trim() }).then(() => { this.setState(st => ({ rvEdit:null, rvDraft: { ...st.rvDraft, [r.id]: undefined } })); this.toastMsg('Rating saved · ' + r.learner.split(' ')[0] + ' ' + dr.rating + '/' + q.points); }).catch(e => this.toastMsg(e.message)); return; }
       this.setState(st => ({ reviews: st.reviews.map(x => x.id === r.id ? { ...x, rating: dr.rating, feedback: (dr.feedback || '').trim() } : x), rvEdit:null, rvDraft: { ...st.rvDraft, [r.id]: undefined } }), () => this.syncQuizDone(r.learner, Object.keys((this.state.itemQuiz || {})[r.learner] || {})));
       this.toastMsg('Rating saved · ' + r.learner.split(' ')[0] + ' ' + dr.rating + '/' + q.points);
     };

@@ -63,27 +63,15 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   const gradeNow = QQ && s.qChecked ? (remote ? (rG ? rG.g : null) : Assessment.grade(QQ, s.answers[s.qi])) : null;
   const isRight = gradeNow === 1;
   const freshQ = { qSel:null, qChecked:false, qText:'', qMulti:{}, qMatch:{}, qOrder:null };
-  const quizAction = () => {
-    if (!QQ || (!s.qChecked && !canAnswer)) return;
-    if (remote && !s.qChecked) {
-      if (s.rBusy) return; const ans = curAns(), qi = s.qi; this.setState({ rBusy:true });
-      Backend.call('answer', { attemptId: s.rAttemptId, index: qi, answer: ans }).then(r => { const { g, _touched, feedbackIncorrect, ...rev } = r;
-        this.setState(st => ({ rBusy:false, qChecked:true, qCorrect: st.qCorrect + (g === 1 ? 1 : 0), answers: { ...st.answers, [qi]: ans }, rGrades: { ...(st.rGrades || {}), [qi]: { g, rev } } })); })
-        .catch(e => { this.setState({ rBusy:false }); this.toastMsg(e.message); });
-      return;
-    }
-    if (remote && s.qi === qN - 1) {
-      if (s.rBusy) return; this.setState({ rBusy:true });
-      Backend.call('submit', { attemptId: s.rAttemptId }).then(r => { this.setState(st => ({ rBusy:false, qDone:true, rResult: r, xp: st.xp + st.qCorrect * 30 }));
-        if (r.passed) this.toastMsg('Assessment passed'); }).catch(e => { this.setState({ rBusy:false }); this.toastMsg(e.message); });
-      return;
-    }
-    if (!s.qChecked) {
-      const ans = curAns(), g = Assessment.grade(QQ, ans);
-      this.setState({ qChecked:true, qCorrect: s.qCorrect + (g === 1 ? 1 : 0), answers: { ...s.answers, [s.qi]: ans } });
-      return;
-    }
-    if (s.qi === qN - 1) {
+  // Connected: hand the attempt in (also used when the time limit runs out).
+  const submitRemote = () => {
+    if (s.rBusy || s.qDone) return; this.setState({ rBusy:true });
+    Backend.call('submit', { attemptId: s.rAttemptId }).then(r => { this.setState(st => ({ rBusy:false, qDone:true, qEndsMs:null, rResult: r, xp: st.xp + st.qCorrect * 30 }));
+      if (r.passed) this.toastMsg('Assessment passed'); }).catch(e => { this.setState({ rBusy:false }); this.toastMsg(e.message); });
+  };
+  // Offline: score the attempt in the browser (also used when the time limit runs out; unanswered questions score 0).
+  const finishLocal = () => {
+    if (s.qDone) return;
       // Written answers go to the trainer's review queue.
       const z = s.quizzes.find(x => x.id === s.attemptQuiz) || crsQuiz;
       const answers = { ...s.answers }, newReviews = [];
@@ -98,14 +86,29 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
       if (icIsItem) {
         // Keep every attempt: the step passes as soon as one attempt passes (including after a trainer rates written answers).
         const u = role.name, uq = { ...(s.itemQuiz[u] || {}) }, cq = { ...(uq[s.courseId] || {}) }; cq[s.itemIdx] = (cq[s.itemIdx] || []).concat([{ attempt: att, answers }]); uq[s.courseId] = cq;
-        this.setState({ qDone:true, answers, reviews: allReviews, xp: s.xp + s.qCorrect * 30, itemQuiz: { ...s.itemQuiz, [u]: uq } }, () => this.syncQuizDone(u, [s.courseId]));
+        this.setState({ qDone:true, qEndsMs:null, answers, reviews: allReviews, xp: s.xp + s.qCorrect * 30, itemQuiz: { ...s.itemQuiz, [u]: uq } }, () => this.syncQuizDone(u, [s.courseId]));
         if (passed) this.toastMsg(icSt.filter((x, k) => !x.done && k !== s.itemIdx).length ? 'Assessment passed' : course.title + ' complete');
       } else {
         // Course lessons: the assessment step only counts as done when the learner passes.
-        this.setState({ qDone:true, answers, reviews: allReviews, xp: s.xp + s.qCorrect * 30 }); if (passed) this.markLesson(s.courseId, s.lessonKey, { at: TODAY_KEY, score: sc.pct });
+        this.setState({ qDone:true, qEndsMs:null, answers, reviews: allReviews, xp: s.xp + s.qCorrect * 30 }); if (passed) this.markLesson(s.courseId, s.lessonKey, { at: TODAY_KEY, score: sc.pct });
       }
+  };
+  const quizAction = () => {
+    if (!QQ || (!s.qChecked && !canAnswer)) return;
+    if (remote && !s.qChecked) {
+      if (s.rBusy) return; const ans = curAns(), qi = s.qi; this.setState({ rBusy:true });
+      Backend.call('answer', { attemptId: s.rAttemptId, index: qi, answer: ans }).then(r => { const { g, _touched, feedbackIncorrect, ...rev } = r;
+        this.setState(st => ({ rBusy:false, qChecked:true, qCorrect: st.qCorrect + (g === 1 ? 1 : 0), answers: { ...st.answers, [qi]: ans }, rGrades: { ...(st.rGrades || {}), [qi]: { g, rev } } })); })
+        .catch(e => { this.setState({ rBusy:false }); this.toastMsg(e.message); });
       return;
     }
+    if (remote && s.qi === qN - 1) return submitRemote();
+    if (!s.qChecked) {
+      const ans = curAns(), g = Assessment.grade(QQ, ans);
+      this.setState({ qChecked:true, qCorrect: s.qCorrect + (g === 1 ? 1 : 0), answers: { ...s.answers, [s.qi]: ans } });
+      return;
+    }
+    if (s.qi === qN - 1) return finishLocal();
     this.setState({ qi:s.qi + 1, ...freshQ });
   };
   // Starting an attempt uses one of the learner's allowed attempts.
@@ -113,7 +116,8 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
     if (!myAtt.canStart) { this.toastMsg('You have used all ' + myAtt.allowed + ' attempts. Ask your admin for another attempt.'); return null; }
     const attempt = Assessment.buildAttempt(crsQuiz, s.qs);
     if (!attempt.length) { this.toastMsg('This quiz has no questions yet'); return null; }
-    return { attemptStartedAt: nowStamp(), attemptStartedMs: Date.now(), qi:0, qCorrect:0, qDone:false, attempt, answers:{}, attemptQuiz: crsQuiz.id, ...freshQ, attemptsUsed: { ...s.attemptsUsed, [me]: { ...(s.attemptsUsed[me] || {}), [crsQuiz.id]: myAtt.used + 1 } } };
+    const lim = +crsQuiz.time || 0;   // v41.18: Quizzes › Time limit (minutes)
+    return { attemptStartedAt: nowStamp(), attemptStartedMs: Date.now(), qEndsMs: lim ? Date.now() + lim * 60000 : null, qi:0, qCorrect:0, qDone:false, attempt, answers:{}, attemptQuiz: crsQuiz.id, ...freshQ, attemptsUsed: { ...s.attemptsUsed, [me]: { ...(s.attemptsUsed[me] || {}), [crsQuiz.id]: myAtt.used + 1 } } };
   };
   const qsc = remote ? (s.rResult ? s.rResult.score : { auto: qN, autoRight: Object.values(s.rGrades || {}).filter(x => x.g === 1).length, pending: 0, final: false, pct: 0, written: 0 })
     : Assessment.score(att, s.answers, s.qs, s.reviews);
@@ -121,6 +125,7 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   const startRemote = () => { const step = icIsItem ? s.itemIdx : FLAT.findIndex(l => l.key === s.lessonKey);
     Backend.call('startAttempt', { courseId: s.courseId, step }).then(r => this.go('quiz', { rAttemptId: r.attemptId, rq: Object.fromEntries(r.questions.map(q => [q.id, q])), rGrades:{}, rResult:null, rBusy:false,
       attempt: r.questions.map(q => ({ qid: q.id, order: Array.from({ length: (q.opts || q.pairs || q.items || []).length }, (_, i) => i) })), attemptStartedAt: nowStamp(), attemptStartedMs: Date.now(),
+      qEndsMs: r.quiz.timeLimit ? Date.now() + r.quiz.timeLimit * 60000 : null,
       qi:0, qCorrect:0, qDone:false, answers:{}, attemptQuiz: r.quiz.id, ...freshQ })).catch(e => this.toastMsg(e.message)); };
   const qMedia = QQ && QQ.media ? { ...QQ.media, isImage: QQ.media.kind === 'image', isAudio: QQ.media.kind === 'audio', isVideo: QQ.media.kind === 'video' } : {};
   const fbText = !QQ ? '' : isWrittenQ ? 'Your trainer will rate this answer. Your score updates once it is rated.'
@@ -315,6 +320,10 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
     setQText: e => this.setState({ qText: e.target.value }),
     feedback: isWrittenQ ? { bg:'#EAF1F6', fg:'#334E68', title:'Answer submitted' } : qType === 'Likert scale' ? { bg:'#EAF1F6', fg:'#334E68', title:'Response saved' } : gradeNow > 0 && gradeNow < 1 ? { bg:'#E7F0F7', fg:'#7A4A06', title:'Partly right · ' + Math.round(gradeNow * 100) + '%' } : isRight ? { bg:'#E3F1EE', fg:'#245E52', title:'Correct · +30 XP' } : { bg:'#FDECEC', fg:'#A63232', title:'Not quite' },
     quizAction,
+    // v41.18: time limit: countdown in the quiz header; at zero the attempt is handed in automatically
+    quizTimed: !!s.qEndsMs && !s.qDone, quizTimeLeft: (() => { const t = Math.max(0, Math.ceil(((s.qEndsMs || 0) - Date.now()) / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); })(),
+    quizTimeCls: 'quiz-timer' + (!!s.qEndsMs && s.qEndsMs - Date.now() < 60000 ? ' quiz-timer-low' : ''),
+    quizTimeUp: () => { if (s.qDone || !s.qEndsMs) return; this.toastMsg('Time is up. Your answers so far have been handed in.'); if (remote) submitRemote(); else finishLocal(); },
     quizBtnLabel: !s.qChecked ? (isWrittenQ || qType === 'Likert scale' ? 'Submit answer' : 'Check answer') : s.qi === qN - 1 ? 'See results' : 'Next question',
     quizBtnBg: !s.qChecked && !canAnswer ? '#D7E3EC' : '#16324F',
     quizBtnFg: !s.qChecked && !canAnswer ? '#526B7A' : '#F8FBFD',

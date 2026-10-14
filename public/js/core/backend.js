@@ -435,7 +435,7 @@ const Backend = (() => {
   async function scormReport(force) {
     const cur = sess; if (!cur || cur.kind !== 'course') return { done: false };
     const d = (typeof ScormRT !== 'undefined' && ScormRT.peek()) || {};
-    const status = String(d['cmi.core.lesson_status'] || d['cmi.success_status'] || d['cmi.completion_status'] || '').toLowerCase();
+    const status = typeof ScormRT !== 'undefined' && ScormRT.status ? ScormRT.status(d) : String(d['cmi.core.lesson_status'] || '').toLowerCase();
     const score = d.score != null ? d.score : (d['cmi.core.score.raw'] || d['cmi.score.raw'] || null);
     const sig = status + '|' + score; if (!force && sig === lastSent) return { done: false, status };
     lastSent = sig;

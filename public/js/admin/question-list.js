@@ -100,6 +100,11 @@ SkillforgeApp.prototype.qbankVals = function (s, role) {
   const QPG = Pager(this, s, 'qbank', rows, 50);
   return {
     ...prev, qbRows: QPG.rows, qbPager: QPG.pager, qbEmpty: !rows.length, qbFilters: FILTERS.map(([k, name, opts]) => ({ name, opts, val: F[k], on: F[k] !== 'All', set: e => setF({ [k]: e.target.value }) })),
+    // v41.18: four everyday filters stay visible; the other seven open with "More filters" (they stay open while one is set)
+    ...(() => { const MAIN = ['type', 'diff', 'course', 'status'], mk = ([k, name, opts]) => ({ name, opts, val: F[k], on: F[k] !== 'All', set: e => setF({ [k]: e.target.value }) });
+      const more = FILTERS.filter(f => !MAIN.includes(f[0])), nOn = more.filter(f => F[f[0]] !== 'All').length, open = !!s.qbMore || nOn > 0;
+      return { qbFiltersMain: FILTERS.filter(f => MAIN.includes(f[0])).map(mk), qbFiltersMore: more.map(mk), qbMoreOpen: open,
+        qbMoreLabel: open ? (nOn ? 'More filters · ' + nOn + ' on' : 'Fewer filters') : 'More filters', qbMoreToggle: () => { if (nOn && open) return this.toastMsg('Clear the extra filters first, or use Clear all'); this.setState({ qbMore: !open }); } }; })(),
     qbActive: active, qbHasActive: active.length > 0 || !!uq, qbClear: () => setF({ type:'All', diff:'All', cat:'All', course:'All', module:'All', status:'All', author:'All', usage:'All', skill:'All', bloom:'All', tag:'All', q:'' }),
     qbQ: F.q || '', setQbQ: e => setF({ q: e.target.value }),
     qbSortOpts: Object.entries(SORTS).map(([v, [l]]) => ({ v, l })), qbSort: F.sort, setQbSort: e => setF({ sort: e.target.value }),

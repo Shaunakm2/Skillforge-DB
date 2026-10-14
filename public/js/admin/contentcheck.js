@@ -14,6 +14,9 @@ SkillforgeApp.prototype.amContentCheck = function (c) {
     try {
       add('Settings', 'Supabase connected', Backend.on, Backend.on ? 'ok' : 'js/config.js has no SUPABASE_URL', 'Fill SUPABASE_URL and SUPABASE_ANON_KEY in public/js/config.js');
       add('Settings', 'CONTENT_ORIGIN in config.js', !!CO, CO || 'empty', 'Set CONTENT_ORIGIN in public/js/config.js to the content site address, e.g. https://skillforge-db.pages.dev');
+      // v41.18: SCORM packages run their own JavaScript. On the app's own address they could read the signed-in person's session.
+      if (CO) add('Settings', 'Content site is a different address from the LMS', CO !== location.origin, CO === location.origin ? 'both are ' + CO : 'LMS ' + location.origin + ' · content ' + CO,
+        'Use a separate Cloudflare Pages project (Root directory: content-site) for CONTENT_ORIGIN; never the LMS address itself');
       // 2. content site
       let h = null;
       if (CO) { try { const r = await fetch(CO + '/health', { cache: 'no-store' }); const t = await r.text(); try { h = JSON.parse(t); } catch (e) { h = null; } } catch (e) { h = null; }
