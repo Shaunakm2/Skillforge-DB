@@ -46,7 +46,7 @@
       <sf-if value="{{ lgSignin }}">
         <h1 class="sf-l2-h">Sign in</h1>
         <sf-if value="{{ lgSetupErr }}"><div class="sf-login-err" role="alert">{{ lgSetupErr }}</div></sf-if>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-user">Username</label><input maxlength="254" id="sf-user" class="sf-in" autocomplete="username" value="{{ lg.email }}" on-input="{{ setLgEmail }}" on-keydown="{{ lgKey }}" placeholder="Work email or employee ID"></div>
+        <div class="ui-61"><label class="sf-l2-label" for="sf-user">Username</label><input maxlength="254" id="sf-user" class="sf-in" autocomplete="username" value="{{ lg.email }}" on-input="{{ setLgEmail }}" on-keydown="{{ lgKey }}" placeholder="name@company.com" type="email" autocomplete="email"></div>
         <div class="ui-61"><label class="sf-l2-label" for="sf-pw">Password</label>
           <span class="sf-pw"><input id="sf-pw" class="sf-in" type="{{ lgPwType }}" autocomplete="current-password" value="{{ lg.pw }}" on-input="{{ setLgPw }}" on-keydown="{{ lgKey }}" placeholder="Password"><button class="sf-pw-eye" on-click="{{ toggleLgShow }}" aria-label="{{ lgShowLabel }} password">{{ lgShowLabel }}</button></span></div>
         <button class="sf-check" role="checkbox" aria-checked="{{ lgRemOn }}" on-click="{{ lgRemember }}"><span class="sf-check-box"><sf-if value="{{ lgRemOn }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="4"><path d="M5 12l5 5 9-10"></path></svg></sf-if></span>Remember me</button>
@@ -66,8 +66,8 @@
       </sf-if>
       <sf-if value="{{ lgForgot }}">
         <h1 class="sf-l2-h">Reset password</h1>
-        <p class="sf-login-msg">Enter your username and we’ll email you a reset link.</p>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-user2">Username</label><input maxlength="254" id="sf-user2" class="sf-in" value="{{ lg.email }}" on-input="{{ setLgEmail }}" placeholder="Work email or employee ID"></div>
+        <p class="sf-login-msg">Enter your work email and we’ll email you a reset link.</p>
+        <div class="ui-61"><label class="sf-l2-label" for="sf-user2">Work email</label><input maxlength="254" id="sf-user2" class="sf-in" value="{{ lg.email }}" on-input="{{ setLgEmail }}" placeholder="Work email or employee ID"></div>
         <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert">{{ lg.err }}</div></sf-if>
         <button class="sf-login-btn" on-click="{{ sendReset }}" style="background:{{ brandAccent }}">Send reset link</button>
         <button class="sf-link sf-center" on-click="{{ goSignin }}">← Back to sign in</button>
@@ -685,7 +685,7 @@
         <sf-for list="{{ quizSegs }}" as="s"><span class="quiz-3" style="background:{{ s.bg }}"></span></sf-for>
       </div>
       <div class="quiz-4">
-        <div class="quiz-5"><span>QUESTION {{ quizNum }} OF {{ quizTotal }}</span><span class="ui-33">{{ quizQXp }}</span></div>
+        <div class="quiz-5"><span>QUESTION {{ quizNum }} OF {{ quizTotal }}</span><sf-if value="{{ quizTimed }}"><span class="{{ quizTimeCls }}" role="timer" aria-label="Time left">⏱ {{ quizTimeLeft }} left</span></sf-if><span class="ui-33">{{ quizQXp }}</span></div>
         <div class="quiz-6">{{ q.q }}</div>
         <sf-if value="{{ qMedia.isImage }}"><img class="asm-media asm-media-img" src="{{ qMedia.src }}" alt="{{ qMedia.name }}"></sf-if>
         <sf-if value="{{ qMedia.isAudio }}"><audio class="asm-media-audio" controls preload="metadata" src="{{ qMedia.src }}"></audio></sf-if>
@@ -1056,7 +1056,7 @@
       <div class="ui-68"><div class="ui-45">{{ s.l }}</div><div class="ui-69">{{ s.v }}</div></div>
     </sf-for>
   </div>
-  <div class="ui-70 asm-review">
+  <sf-if value="{{ asgAny }}"><div class="ui-70 asm-review">
     <div class="asm-review-head"><div><h2 class="asm-h2">Assignments to review</h2><div class="ui-6">{{ asgSummary }}</div></div>
       <div class="ui-87"><sf-for list="{{ asgTabs }}" as="t"><button class="ui-97" on-click="{{ t.pick }}" style="border:1px solid {{ t.border }};background:{{ t.bg }};color:{{ t.fg }}">{{ t.label }}</button></sf-for></div></div>
     <sf-if value="{{ asgNone }}"><div class="ui-100">{{ asgNoneText }}</div></sf-if>
@@ -1067,7 +1067,7 @@
       <sf-if value="{{ a.open }}"><div class="lm-rv"><input maxlength="1000" class="ovl-21" value="{{ a.draft }}" on-input="{{ a.setDraft }}" placeholder="Comment for the learner (required when you return it)">
         <button class="ui-82" on-click="{{ a.ret }}">Return for changes</button><button class="ui-91" on-click="{{ a.ok }}">Accept</button></div></sf-if>
     </div></sf-for>
-  </div>
+  </div></sf-if>
   <div class="ui-70 asm-review">
     <div class="asm-review-head">
       <div><h2 class="asm-h2">Written answers</h2><div class="ui-6">{{ rvSummary }}</div></div>
@@ -1177,7 +1177,7 @@
 <sf-if value="{{ isAnalytics }}">
 <div class="ui-42" data-screen-label="Admin analytics">
   <div class="ui-65">
-    <div><h1 class="ui-66">Learning analytics</h1><div class="ui-29">What is happening? Trends, engagement and drop-off · Northwind</div></div>
+    <div><h1 class="ui-66">Learning analytics</h1><div class="ui-29">What is happening? Trends, engagement and drop-off</div></div>
     <div class="admin-analytics-1">
       <sf-for list="{{ rangeTabs }}" as="t"><button class="admin-analytics-2" on-click="{{ t.pick }}" style="background:{{ t.bg }};color:{{ t.fg }};box-shadow:{{ t.shadow }}">{{ t.label }}</button></sf-for>
     </div>
@@ -1259,14 +1259,12 @@
 <div class="admin-settings-16" data-screen-label="Question bank">
   <div class="ui-65">
     <div><h1 class="ui-66">Question bank</h1><div class="ui-29">{{ qCount }} questions. Filter to find what you need, click a question to see it in full, or tick several to bundle them into a quiz.</div></div>
-    <button class="question-bank-1 hover-13" on-click="{{ openQModal }}">+ Add question</button>
-  </div>
-  <div class="question-bank-2">
-    <span class="question-bank-3"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"></path></svg></span>
-    <div class="question-bank-4"><div class="question-bank-5">Upload questions in bulk, with metadata</div><div class="question-bank-6">CSV with question, type, options, correct answer, explanation, category, difficulty, skill, Bloom level and tags. Every row is checked; rejected rows come back with a reason.</div></div>
-    <button class="question-bank-7" on-click="{{ qbTemplate }}">Download template</button>
-    <button class="question-bank-8 hover-14" on-click="{{ qbOpenBulk }}">Upload CSV</button>
-    <button class="question-bank-8 sf-export" on-click="{{ qbExport }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Export active questions</button>
+    <div class="qb-head-actions">
+      <button class="question-bank-8 hover-14" on-click="{{ qbOpenBulk }}" title="CSV with question, type, options, correct answer, explanation, category, difficulty, skill, Bloom level and tags. Every row is checked; rejected rows come back with a reason.">Upload CSV</button>
+      <button class="sf-link" on-click="{{ qbTemplate }}">Template</button>
+      <button class="sf-link" on-click="{{ qbExport }}">Export</button>
+      <button class="question-bank-1 hover-13" on-click="{{ openQModal }}">+ Add question</button>
+    </div>
   </div>
   <div class="qb-stats"><sf-for list="{{ qbStats }}" as="x"><button class="qb-stat" on-click="{{ x.pick }}"><span class="qb-sv" style="color:{{ x.c }}">{{ x.v }}</span><span class="ui-6">{{ x.l }}</span></button></sf-for></div>
   <div class="qb-filters ui-70">
@@ -1276,12 +1274,16 @@
       <label class="qb-sort"><span class="ui-6">Sort</span><sf-select class="ovl-31" value="{{ qbSort }}" on-change="{{ setQbSort }}"><sf-for list="{{ qbSortOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label>
     </div>
     <div class="qb-fgrid">
-      <sf-for list="{{ qbFilters }}" as="f">
+      <sf-for list="{{ qbFiltersMain }}" as="f">
         <label class="qb-f" data-on="{{ f.on }}"><span class="qb-fl">{{ f.name }}</span><sf-select class="qb-fs" value="{{ f.val }}" on-change="{{ f.set }}"><sf-for list="{{ f.opts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label>
       </sf-for>
+      <sf-if value="{{ qbMoreOpen }}"><sf-for list="{{ qbFiltersMore }}" as="f">
+        <label class="qb-f" data-on="{{ f.on }}"><span class="qb-fl">{{ f.name }}</span><sf-select class="qb-fs" value="{{ f.val }}" on-change="{{ f.set }}"><sf-for list="{{ f.opts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label>
+      </sf-for></sf-if>
     </div>
     <div class="qb-frow">
       <span class="ui-55">{{ qbCount }}</span>
+      <button class="sf-link" on-click="{{ qbMoreToggle }}" aria-expanded="{{ qbMoreOpen }}">{{ qbMoreLabel }}</button>
       <sf-for list="{{ qbActive }}" as="c"><button class="qb-pill" on-click="{{ c.clear }}" title="Remove filter">{{ c.label }} ✕</button></sf-for>
       <sf-if value="{{ qbHasActive }}"><button class="sf-link" on-click="{{ qbClear }}">Clear all</button></sf-if>
     </div>
@@ -1925,8 +1927,7 @@
     <sf-if value="{{ isTr }}"><label class="db-sl db-sl-w"><span class="ui-6">Training</span><sf-select class="ovl-31" value="{{ dbSl.training }}" on-change="{{ setDbTraining }}"><sf-for list="{{ dbTrOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label></sf-if>
     <sf-if value="{{ dbHasTnotTr }}"><label class="db-sl db-sl-w"><span class="ui-6">Training</span><sf-select class="ovl-31" value="{{ dbSl.training }}" on-change="{{ setDbTraining }}"><sf-for list="{{ dbTrOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label></sf-if>
     <label class="db-sl"><span class="ui-6">Location</span><sf-select class="ovl-31" value="{{ dbSl.location }}" on-change="{{ setDbLoc }}"><sf-for list="{{ dbLocOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label>
-    <label class="db-sl"><span class="ui-6">From</span><input class="ovl-21" type="date" value="{{ dbSl.from }}" on-input="{{ setDbFrom }}"></label>
-    <label class="db-sl"><span class="ui-6">To</span><input class="ovl-21" type="date" value="{{ dbSl.to }}" on-input="{{ setDbTo }}"></label>
+    <div class="db-sl"><span class="ui-6">Period</span><div class="db-period"><input class="ovl-21" type="date" value="{{ dbSl.from }}" on-input="{{ setDbFrom }}" aria-label="From"><span aria-hidden="true">–</span><input class="ovl-21" type="date" value="{{ dbSl.to }}" on-input="{{ setDbTo }}" aria-label="To"></div></div>
     <div class="db-pre"><sf-for list="{{ dbPresets }}" as="p"><button class="db-chip db-prei" on-click="{{ p.pick }}">{{ p.l }}</button></sf-for></div>
     <sf-if value="{{ dbHasSl }}"><button class="sf-link" on-click="{{ dbClearSl }}">Clear filters</button></sf-if>
     <span class="sf-grow"></span><span class="ui-6">{{ dbCalc }}</span>
@@ -2267,7 +2268,7 @@
 <sf-if value="{{ isAssign }}">
 <div class="ui-42" data-screen-label="Course assignment">
   <div class="ui-65">
-    <div><h1 class="ui-66">Course assignment</h1><div class="ui-29">+ Assign has three tabs: Assign, Unassign (pick a person, tick courses to remove) and Bulk upload (CourseCode, UserId, AssignmentType = Assign or Unassign). Below, pick a course to see who has it and unassign one person or many.</div></div>
+    <div><h1 class="ui-66">Course assignment</h1><div class="ui-29">Pick a course to see who has it, then assign or unassign. <b>Assign / Unassign</b> handles many people at once or a bulk file.</div></div>
     <div class="ui-87"><button class="ui-82 sf-export" on-click="{{ caExport }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Export</button><button class="ca-plus" on-click="{{ openCaM }}" title="Assign courses" aria-label="Assign courses"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span>Assign / Unassign</span></button></div>
   </div>
   <sf-if value="{{ rqHas }}"><div class="ui-70 rq-box">
@@ -2578,8 +2579,6 @@
     <div class="reports-8">
       <div><h2 class="reports-9">{{ rep.name }}</h2><div class="ui-56">{{ rep.desc }}</div></div>
       <div class="ui-30">
-        <button class="reports-10 hover-1" on-click="{{ saveRep }}">Save report</button>
-        <button class="reports-11" on-click="{{ scheduleRep }}">{{ scheduleLabel }}</button>
         <button class="reports-10" on-click="{{ repColToggle }}">Columns · {{ repColNote }}</button>
         <button class="reports-10" on-click="{{ exportRepCsv }}">CSV</button>
         <button class="reports-12" on-click="{{ exportRepPdf }}">Print / PDF</button>
@@ -2587,12 +2586,12 @@
     </div>
     <sf-if value="{{ repGeneric }}">
     <div class="ui-83">
-      <div class="reports-13"><sf-for list="{{ repRangeOpts }}" as="o"><button class="reports-14" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div>
-      <sf-select class="ui-31" value="{{ repDept }}" on-change="{{ setRepDept }}"><sf-for list="{{ repDeptOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
-      <sf-select class="ui-31" value="{{ repMgr }}" on-change="{{ setRepMgr }}"><sf-for list="{{ repMgrOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
-      <sf-select class="ui-31" value="{{ repCourse }}" on-change="{{ setRepCourse }}"><sf-for list="{{ repCourseOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
-      <sf-select class="ui-31" value="{{ repStatus }}" on-change="{{ setRepStatus }}"><sf-for list="{{ repStatusOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
-      <input maxlength="120" class="reports-15" value="{{ repUser }}" on-input="{{ setRepUser }}" placeholder="User name">
+      <sf-if value="{{ repF.range }}"><div class="reports-13"><sf-for list="{{ repRangeOpts }}" as="o"><button class="reports-14" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div></sf-if>
+      <sf-if value="{{ repF.dept }}"><sf-select class="ui-31" value="{{ repDept }}" on-change="{{ setRepDept }}" aria-label="Department"><sf-for list="{{ repDeptOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></sf-if>
+      <sf-if value="{{ repF.mgr }}"><sf-select class="ui-31" value="{{ repMgr }}" on-change="{{ setRepMgr }}" aria-label="Manager"><sf-for list="{{ repMgrOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></sf-if>
+      <sf-if value="{{ repF.course }}"><sf-select class="ui-31" value="{{ repCourse }}" on-change="{{ setRepCourse }}" aria-label="Course"><sf-for list="{{ repCourseOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></sf-if>
+      <sf-if value="{{ repF.status }}"><sf-select class="ui-31" value="{{ repStatus }}" on-change="{{ setRepStatus }}" aria-label="Status"><sf-for list="{{ repStatusOptions }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></sf-if>
+      <sf-if value="{{ repF.user }}"><input maxlength="120" class="reports-15" value="{{ repUser }}" on-input="{{ setRepUser }}" placeholder="Search a person" aria-label="Search a person"></sf-if>
       <span class="ui-13">{{ rep.rowCountLabel }}</span>
     </div>
     </sf-if>
@@ -2797,7 +2796,7 @@
       <div class="branding-7">SIGN-IN PREVIEW</div>
       <div class="ui-38"><span class="branding-8" style="background:{{ brandAccent }}">S</span><span class="branding-9">{{ brandName }}</span></div>
       <div class="branding-10">{{ brandMsg }}</div>
-      <div class="branding-11">name@northwind.com</div>
+      <div class="branding-11">name@company.com</div>
       <div class="branding-12" style="background:{{ brandAccent }}">Continue with SSO</div>
     </div>
   </div>
@@ -2987,7 +2986,7 @@
         <div class="db-fmt-r"><sf-if value="{{ dbSFIsWeekly }}"><label class="ui-61"><span class="ui-6">Day</span><sf-select class="ovl-31" value="{{ dbSF.day }}" on-change="{{ setSF.day }}"><sf-for list="{{ dbSFDays }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label></sf-if>
           <sf-if value="{{ dbSFIsMonthly }}"><label class="ui-61"><span class="ui-6">Day of the month</span><sf-select class="ovl-31" value="{{ dbSF.day }}" on-change="{{ setSF.day }}"><sf-for list="{{ dbSFMDays }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label></sf-if>
           <label class="ui-61"><span class="ui-6">Time</span><input class="ovl-21" type="time" value="{{ dbSF.time }}" on-input="{{ setSF.time }}"></label></div>
-        <label class="ui-61"><span class="ui-6">Recipients (comma separated, up to 20, only {{ dbSchedDomains }})</span><textarea class="ovl-21" rows="2" maxlength="1200" value="{{ dbSF.to }}" on-input="{{ setSF.to }}" placeholder="name@northwind.com, other@northwind.com"></textarea></label>
+        <label class="ui-61"><span class="ui-6">Recipients (comma separated, up to 20, only {{ dbSchedDomains }})</span><textarea class="ovl-21" rows="2" maxlength="1200" value="{{ dbSF.to }}" on-input="{{ setSF.to }}" placeholder="name@company.com, other@company.com"></textarea></label>
         <sf-if value="{{ dbSFErr }}"><div class="sf-login-err">{{ dbSF.err }}</div></sf-if>
         <div class="ovl-26"><button class="ui-60" on-click="{{ dbSFCancel }}">Cancel</button><button class="ui-91" on-click="{{ dbSFSave }}">Save schedule</button></div></div></sf-if>
       <sf-if value="{{ dbSchedNotForm }}"><div class="ovl-26"><button class="ui-60" on-click="{{ dbSchedClose }}">Close</button><button class="ui-91" on-click="{{ dbSchedNew }}">+ Add schedule</button></div></sf-if>
@@ -3771,7 +3770,7 @@
       <div class="ui-41"><h2 class="ovl-3">{{ udTitle }}</h2><button class="ovl-4" on-click="{{ closeUserModal }}">✕</button></div>
       <div class="ovl-23">
         <label class="ui-61"><span class="ui-8">Full name</span><input maxlength="120" class="ovl-29" value="{{ ud.name }}" on-input="{{ setUdName }}"></label>
-        <label class="ui-61"><span class="ui-8">Work email</span><input maxlength="254" class="ovl-29" value="{{ ud.email }}" on-input="{{ setUdEmail }}" placeholder="name@northwind.com"></label>
+        <label class="ui-61"><span class="ui-8">Work email</span><input maxlength="254" class="ovl-29" value="{{ ud.email }}" on-input="{{ setUdEmail }}" placeholder="name@company.com"></label>
       </div>
       <div class="ovl-23">
         <label class="ui-61"><span class="ui-8">Employee ID</span><input maxlength="40" class="ovl-29" value="{{ ud.empId }}" on-input="{{ setUdEmp }}" placeholder="e.g. NW-1015"></label>
