@@ -2,6 +2,14 @@
 
 Newest first. Entries before v38 are the original per-version files, kept verbatim; originals are in `docs/archive/`.
 
+## v41.20 (remember me, no demo courses, duplicate names, logo, SCORM full screen)
+- **Remember me works.** Ticked: you stay signed in for 45 minutes after your last activity, even if you close the tab or the browser (REMEMBER_MINUTES in js/config.js). Every click, key press, playing video or open SCORM package moves the 45 minutes forward. The idle sign-out never logs a remembered person out sooner than 45 minutes. Not ticked: the sign-in ends when the tab closes (as before). Sign out removes the stored sign-in. Before, the box only remembered the username.
+- **Demo courses no longer appear when connected.** The learner catalog always added the 9 built-in demo courses on top of the courses in the database; it now shows only database courses. Also: search no longer lists demo lessons, the report course filter and builder preview use real courses, the "Continue learning" card no longer uses demo lessons, and the Engagement trends "Where learners drop off" demo panel is hidden.
+- **Same name allowed.** Two people can have the same name; only e-mail and employee ID must be unique (bulk upload, single account, ZingHR). The app tells them apart with an invisible marker, so nothing like "(employee ID)" is added to the name. CSV / Excel exports and certificates print the plain name; the edit form shows the plain name. Names created earlier as "Name (ID)" can be corrected with Edit details.
+- **Skillforge logo opens the LMS home page** from everywhere, including Settings (it opened the Settings home there). Unsaved changes in an editor are confirmed first.
+- **SCORM full screen.** A "Full screen" button above SCORM / HTML5 / xAPI packages. Real full screen where the browser allows it, otherwise the package fills the browser window; Escape or "Exit full screen" returns. The package is not reloaded, so the learner keeps their place. A package's own full-screen button is allowed too.
+- Tests: `tests/e2e/v41_20_e2e.py` (39 checks); the test Supabase double now keeps the sign-in in the app's storage like supabase-js.
+
 ## v41.19 (discussions, accounts, sample data)
 - **Discussions: Post did nothing.** Replies went to a sample thread that doesn't exist in the database ("Thread not found"). They now go to the thread on screen and are saved through the `learning` function (`post`), so they are in the database. **+ New discussion** added (there was no way to start one). The page re-reads discussions from the database when opened.
 - **Supabase free plan usage** moved from the Settings home to **Settings › Database & storage** (also still on LCMS and Documents library, where uploads happen). The Database & storage tile shows the % used.
