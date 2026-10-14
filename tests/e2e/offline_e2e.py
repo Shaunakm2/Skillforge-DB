@@ -30,7 +30,7 @@ async def main():
         await pg.get_by_role('button', name='+ Create account').click(); await pg.get_by_role('menuitem', name='Single account').click(); await W(); um = pg.locator('.ovl-28').last
         await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@company.com').fill('maya2@northwind.com'); await um.get_by_placeholder('e.g. NW-1015').fill('NW-4444')
         await pg.get_by_role('button', name='Create account', exact=True).click(); await W(400)
-        ok('offline: duplicate name made unique', await S("s.users.some(u => u.name === 'Maya Okafor (NW-4444)')"))
+        ok('offline: duplicate name allowed (no employee ID added)', await S("s.users.some(u => u.empId === 'NW-4444' && Identity.plain(u.name) === 'Maya Okafor' && !u.name.includes('('))"))
         ok('NO JS ERRORS', not errs, errs[:3])
         await b.close()
     print('SUMMARY', sum(c for _,c in RES), '/', len(RES))

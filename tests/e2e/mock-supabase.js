@@ -160,7 +160,11 @@
     }
     return { error: 'Unknown action' };
   }
-  window.supabase = { createClient() { return {
+  // v41.20: like supabase-js, the sign-in is kept in the storage the app passes in (auth.storage), under sb-<ref>-auth-token
+  const AK = 'sb-mock-auth-token'; let store = null;
+  const save = () => { if (!store) return; if (session) store.setItem(AK, JSON.stringify(session)); else store.removeItem(AK); };
+  const load = () => { if (session || !store) return; try { const v = store.getItem(AK); if (v) session = JSON.parse(v); } catch (e) {} };
+  window.supabase = { createClient(url, key, opts) { store = (opts && opts.auth && opts.auth.storage) || null; return {
     from: t => query(t),
     rpc: async (fn, a) => {
       if (fn === 'sf_login_lookup') { T.calls.push(['sf_login_lookup']); const m = members.find(x => x.emp_id === String(a.p_emp).toUpperCase() && x.active);
@@ -171,12 +175,12 @@
       if (fn === 'sf_directory') return { data: [...rows.values()].filter(r => r.coll === 'users' && r.data.status !== 'Deactivated').map(r => ({ id: r.key, name: r.data.name, dept: r.data.dept, designation: r.data.designation, role: r.data.role, manager: r.data.manager, managerKey: r.data.managerKey, status: r.data.status })), error: null };
       return { data: null, error: { message: 'unknown rpc' } }; },
     auth: {
-      getSession: async () => ({ data: { session } }),
-      getUser: async () => ({ data: { user: session && { ...session.user, app_metadata: { must_change: !!(members.find(m => m.user_id === session.user.id) || {}).must_change } } } }),
+      getSession: async () => { load(); return { data: { session } }; },
+      getUser: async () => { load(); return ({ data: { user: session && { ...session.user, app_metadata: { must_change: !!(members.find(m => m.user_id === session.user.id) || {}).must_change } } } }); },
       signInWithPassword: async ({ email, password }) => { const m = members.find(x => x.email === String(email).toLowerCase()); if (!m || m.password !== password) return { data: null, error: { message: 'Invalid login credentials' } };
-        session = { access_token: 'at-' + m.user_id, user: { id: m.user_id, email: m.email } }; return { data: { user: session.user, session }, error: null }; },
+        session = { access_token: 'at-' + m.user_id, user: { id: m.user_id, email: m.email } }; save(); return { data: { user: session.user, session }, error: null }; },
       setSession: async ({ access_token }) => { const id = access_token.slice(3), m = members.find(x => x.user_id === id); session = { access_token, user: { id, email: m.email } }; return { error: null }; },
-      signOut: async () => { session = null; return {}; }, refreshSession: async () => ({}), onAuthStateChange: () => ({}), signInWithOAuth: async () => ({}),
+      signOut: async () => { session = null; save(); return {}; }, refreshSession: async () => ({}), onAuthStateChange: () => ({}), signInWithOAuth: async () => ({}),
       resetPasswordForEmail: async () => ({ error: null }),
     },
     storage: { from: b => ({ upload: async (p, f) => { if (role() !== 'Admin' && !(role() === 'Trainer' && p.split('/')[1] === 'lcms')) return { error: { message: 'new row violates row-level security policy' } }; storage.set(b + '/' + p, f); return { error: null }; },

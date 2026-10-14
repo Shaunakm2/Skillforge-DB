@@ -179,11 +179,11 @@ async def main():
         await pg.locator('.ovl-28').last.locator('input').nth(0).fill('Jonas Bergström'); await B('Save changes').click(); await W(1800)
         ok('rename cascades in the app', await S("!!s.enroll['Jonas Bergström'] && !s.enroll['Jonas Berg']"))
         ok('rename does not orphan history in the database', await pg.evaluate("!!window.__sb.get('enroll', 'NW-1002') && window.__sb.members.find(m => m.emp_id === 'NW-1002').app_name === 'Jonas Bergström'"))
-        # duplicate names get the employee ID
+        # v41.20: duplicate names are allowed (same visible name, kept apart internally)
         await B('+ Create account').click(); await pg.get_by_role('menuitem', name='Single account').click(); await W(); um = pg.locator('.ovl-28').last
         await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@company.com').fill('maya.o2@northwind.com'); await um.get_by_placeholder('e.g. NW-1015').fill('NW-3999')
         await B('Create account').click(); await W(1500)
-        ok('duplicate name made unique, temporary password shown once', await S("s.users.some(u => u.name === 'Maya Okafor (NW-3999)')") and await pg.locator('.tp-pw').count() == 1)
+        ok('duplicate name allowed (same name, no employee ID added), first password shown once', await S("s.users.some(u => u.empId === 'NW-3999' && u.name !== 'Maya Okafor' && Identity.plain(u.name) === 'Maya Okafor')") and await pg.locator('.tp-pw').count() == 1)
         # trainer scope: can't change another trainer's batch; refused change is reverted and reported
         dan = await pg.evaluate("(() => { const m = window.__sb.members.find(x => x.app_name === 'Daniel Reyes'); m.must_change = false; m.password = 'Dan-pass-2026x'; return m.emp_id; })()")
         await pg.evaluate("Backend.signOut()"); await pg.evaluate("window.__app.setState({ authed:false, loginView:'signin' })"); await W()
@@ -225,6 +225,10 @@ async def main():
         # v31: idle sign-out when connected reloads the tab, so nothing the previous person could read stays in memory
         # (last check: the reload also resets the in-page test database)
         await pg.evaluate("window.__app.setState(st => ({ platform: { ...st.platform, defaults: { ...st.platform.defaults, idleMins: 5 } } }))"); await W(200)
+        # v41.20: with Remember me, 10 minutes idle is not enough (at least 45 minutes)
+        await pg.evaluate("(() => { const a = window.__app; Backend.keepSignIn(true); a._lastAct = Date.now() - 10 * 60000; localStorage.setItem('sf-act', String(a._lastAct)); a._idleCheck(); })()"); await W(800)
+        ok('v41.20: Remember me keeps you signed in through 10 idle minutes', await pg.evaluate("window.__app.state.authed"))
+        await pg.evaluate("Backend.keepSignIn(false)")
         marker = await pg.evaluate("window.__app.__marker = 'previous-person'; window.__app.state.authed")
         await pg.evaluate("(() => { const a = window.__app; a._lastAct = Date.now() - 10 * 60000; localStorage.setItem('sf-act', String(a._lastAct)); a._idleCheck(); })()")
         await pg.wait_for_function("!window.__app || window.__app.__marker !== 'previous-person'", timeout=10000); await pg.wait_for_selector('#sf-user'); await W(500)
