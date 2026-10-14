@@ -133,11 +133,17 @@
     await update(db, 'attemptsUsed', ctx.emp, d => { d = d || {}; const cur = d[z.id] || 0; if (!A.attemptsInfo(z, cur, extra).canStart) fail(409, 'You have used all your attempts.'); d[z.id] = n = cur + 1; return d; }, {});
     const id = uid(), byId = new Map(bank.map(q => [String(q.id), q]));
     // Someone who can read the answer keys may still take the course; the attempt is marked so reports can show it.
-    const rec = { id, emp: ctx.emp, courseId: c.id, step: i, quizId: z.id, attemptNo: n, items: att, answers: {}, startedAt: iso(ctx.now), submittedAt: null, keyAccess: hasKeys(ctx) };
+    // v41.18: the quiz's time limit (Quizzes › Time limit, saved as z.time in minutes) is enforced here, on the server clock.
+    const limitMin = timeLimitOf(z), endsAt = limitMin ? iso(new Date(ctx.now.getTime() + limitMin * 60000)) : null;
+    const rec = { id, emp: ctx.emp, courseId: c.id, step: i, quizId: z.id, attemptNo: n, items: att, answers: {}, startedAt: iso(ctx.now), endsAt, submittedAt: null, keyAccess: hasKeys(ctx) };
     if (!(await db.put('attempt', id, rec, null))) fail(409, 'Try again');
-    return { attemptId: id, attemptNo: n, quiz: { id: z.id, name: z.name, pass: z.pass, timeLimit: z.timeLimit || null }, attempts: A.attemptsInfo(z, n, extra),
+    return { attemptId: id, attemptNo: n, quiz: { id: z.id, name: z.name, pass: z.pass, timeLimit: limitMin || null, endsAt }, attempts: A.attemptsInfo(z, n, extra),
       questions: att.map(a => sanitize(byId.get(String(a.qid)), a.order)) };
   }
+  // Time limit in minutes (0 = none). Older quizzes may carry timeLimit instead of time.
+  const timeLimitOf = z => Math.max(0, Math.min(600, Math.round(Number(z.time || z.timeLimit) || 0)));
+  const TIME_GRACE_MS = 30 * 1000;   // network delay between the learner's last click and the server
+  const timeUp = (at, ctx) => !!at.endsAt && ctx.now.getTime() > Date.parse(at.endsAt) + TIME_GRACE_MS;
   async function loadAttempt(db, ctx, id) {
     const r = await db.get('attempt', String(id)); if (!r || r.data.emp !== ctx.emp) fail(404, 'Attempt not found'); return r;
   }
@@ -146,6 +152,7 @@
     if (at.submittedAt) fail(409, 'This attempt is already submitted');
     if (!Number.isInteger(k) || k < 0 || k >= at.items.length) fail(400, 'No such question');
     if (at.answers[k]) fail(409, 'This question is already answered');
+    if (timeUp(at, ctx)) fail(409, 'Time is up for this attempt. Answers after the time limit are not accepted; submit to see your result.');
     const q = (await db.get('qs', String(at.items[k].qid))).data, orig = toOriginal(q, at.items[k].order, b.answer);
     const c = (await db.get('adminCourses', String(at.courseId))).data;
     const ok = await db.put('attempt', at.id, { ...at, answers: { ...at.answers, [k]: orig } }, r.version);
@@ -177,9 +184,13 @@
   async function rescore(db, ctx, b) {
     if (!can(ctx, 'gradebook')) fail(403, 'Rating answers needs the Gradebook permission');
     const rv = await db.get('reviews', String(b.reviewId)); if (!rv) fail(404, 'Answer not found');
+    // v41.18: nobody rates their own answer (an admin included: another rater must do it)
+    if (rv.data.learnerEmp === ctx.emp) fail(403, 'You cannot rate your own answer');
     const q = (await db.get('qs', String(rv.data.qid))).data, rating = Number(b.rating);
     if (!Number.isInteger(rating) || rating < 0 || rating > (q.points || 0)) fail(400, 'Rating must be 0 to ' + q.points);
-    await update(db, 'reviews', rv.data.id, d => ({ ...d, rating, ratedBy: ctx.emp, ratedAt: iso(ctx.now) }));
+    // v41.18: the rater's note to the learner was dropped when connected; it is now stored with the rating
+    const feedback = b.feedback === undefined ? undefined : str(b.feedback, 1000, 'Feedback');
+    await update(db, 'reviews', rv.data.id, d => ({ ...d, rating, ...(feedback === undefined ? {} : { feedback }), ratedBy: ctx.emp, ratedAt: iso(ctx.now) }));
     const at = (await db.get('attempt', rv.data.attemptId)).data, z = (await db.get('quizzes', String(at.quizId))).data;
     const qmap = await db.getMany('qs', at.items.map(x => String(x.qid)));
     const ids = Object.values(at.answers).map(a => a && a.reviewId).filter(Boolean), rvs = [...(await db.getMany('reviews', ids)).values()].map(x => x.data);
@@ -252,6 +263,7 @@
     if (!can(ctx, 'gradebook')) fail(403, 'Reviewing assignments needs the Gradebook permission');
     const cur = await db.get('asgSub', String(b.id || '')); if (!cur) fail(404, 'Submission not found');
     if (cur.data.status !== 'Submitted') fail(409, 'This submission was already reviewed');
+    if (cur.data.learnerEmp === ctx.emp) fail(403, 'You cannot review your own assignment');
     const accept = b.decision === 'accept', comment = str(b.comment, 1000, 'Comment');
     if (!accept && !comment) fail(400, 'Say what to change when you return an assignment');
     const d = cur.data;

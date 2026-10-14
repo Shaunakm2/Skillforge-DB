@@ -57,12 +57,22 @@ Deno.serve(async (req) => {
     // End every session of a login. A failure is an error for the caller (they must know the person is still signed in).
     const revoke = async (userId: string) => { const r = await admin.rpc("sf_revoke_sessions", { p_user: userId, p_keep: null }); if (r.error) throw new Error("Could not end the person's sessions: " + r.error.message); };
     // Find a login by email: membership first, then auth.users through a service-only SQL function (no listing).
-    const findUser = async (email: string) => {
+    // v41.18: reset / ban / role / rename act ONLY on logins that belong to this organisation (sf_member). Before, the
+    // auth.users fallback let an admin of one organisation reset or ban a login of another organisation on the same project.
+    const findMember = async (email: string) => {
       const { data } = await admin.from("sf_member").select("user_id").eq("org_id", org).eq("email", email).maybeSingle();
-      if (data) return data.user_id as string;
-      const { data: id, error } = await admin.rpc("sf_auth_user_id", { p_email: email }); if (error) throw error;
-      return (id as string) || null;
+      return data ? data.user_id as string : null;
     };
+    // Creating an account may reuse an existing login only if that login is not a member of ANOTHER organisation.
+    const findUser = async (email: string) => {
+      const mine = await findMember(email); if (mine) return mine;
+      const { data: id, error } = await admin.rpc("sf_auth_user_id", { p_email: email }); if (error) throw error;
+      if (!id) return null;
+      const { data: other } = await admin.from("sf_member").select("org_id").eq("user_id", id).neq("org_id", org).limit(1);
+      if (other && other.length) throw Object.assign(new Error("This email already has a login in another organisation"), { reason: true });
+      return id as string;
+    };
+    const isMe = (id: string | null) => !!id && id === me.user.id;
     const createOne = async (p: any) => {
       const email = String(p.email || "").trim().toLowerCase(), empId = String(p.empId || "").trim().toUpperCase(), name = String(p.name || "").trim();
       const role = ROLES.includes(p.role) ? p.role : "Learner";
@@ -73,7 +83,7 @@ Deno.serve(async (req) => {
       const { data: dupe } = await admin.from("sf_member").select("email").eq("org_id", org).eq("emp_id", empId).maybeSingle();
       if (dupe && dupe.email !== email) return { email, reason: "Employee ID " + empId + " already belongs to " + dupe.email };
       const pw = tempPassword();
-      let id = await findUser(email);
+      let id: string | null; try { id = await findUser(email); } catch (e) { if ((e as any).reason) return { email, reason: (e as Error).message }; throw e; }
       if (id) {
         const { error } = await admin.auth.admin.updateUserById(id, { password: pw, app_metadata: { must_change: true } }); if (error) return { email, reason: error.message };
         try { await revoke(id); } catch (e) { return { email, reason: String((e as Error).message) }; }
@@ -99,7 +109,7 @@ Deno.serve(async (req) => {
         return json({ created, skipped });
       }
       case "resetPassword": {
-        const email = String(body.email || "").toLowerCase(), id = await findUser(email); if (!id) return json({ error: "No login for " + email }, 404);
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ error: "No login for " + email }, 404);
         const pw = tempPassword();
         const { error } = await admin.auth.admin.updateUserById(id, { password: pw, app_metadata: { must_change: true } });
         if (error) return json({ error: error.message }, 400);
@@ -107,7 +117,8 @@ Deno.serve(async (req) => {
         return json({ tempPassword: pw });
       }
       case "ban": case "unban": {
-        const email = String(body.email || "").toLowerCase(), id = await findUser(email); if (!id) return json({ error: "No login for " + email }, 404);
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ error: "No login for " + email }, 404);
+        if (body.action === "ban" && isMe(id)) return json({ error: "You cannot deactivate your own account" }, 400);
         const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: body.action === "ban" ? "876000h" : "none" }); if (error) return json({ error: error.message }, 400);
         const { error: e2 } = await admin.from("sf_member").update({ active: body.action === "unban" }).eq("org_id", org).eq("user_id", id);
         if (e2) return json({ error: e2.message }, 400);
@@ -115,7 +126,8 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "setRole": {
-        const email = String(body.email || "").toLowerCase(), id = await findUser(email); if (!id) return json({ error: "No login for " + email }, 404);
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ error: "No login for " + email }, 404);
+        if (isMe(id) && body.role !== "Admin") return json({ error: "You cannot remove your own admin access. Ask another admin." }, 400);
         if (!ROLES.includes(body.role)) return json({ error: "Role must be Learner, Trainer or Admin" }, 400);
         const { error } = await admin.from("sf_member").update({ role: body.role, role_id: body.roleId ? String(body.roleId) : null }).eq("org_id", org).eq("user_id", id);
         if (error) return json({ error: error.message }, 400);
@@ -124,7 +136,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "rename": {
-        const email = String(body.email || "").toLowerCase(), id = await findUser(email); if (!id) return json({ ok: true, note: "no login" });
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ ok: true, note: "no login" });
         const patch: any = { app_name: String(body.name || "").trim() }; if (body.empId) patch.emp_id = String(body.empId).trim().toUpperCase();
         const { error } = await admin.from("sf_member").update(patch).eq("org_id", org).eq("user_id", id);
         return error ? json({ error: error.message }, 400) : json({ ok: true });
