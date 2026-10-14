@@ -7,7 +7,7 @@ project_id = "skillforge"
 enable_signup = false                  # logins are created only by admins (admin-users function); nobody can sign themselves up
 jwt_expiry = 1800                      # access tokens live 30 minutes; deactivation/reset also revokes sessions at once (sf_revoke_sessions)
 enable_refresh_token_rotation = true
-minimum_password_length = 10           # same rule as the app: 10+ characters ...
+minimum_password_length = 8            # v41.19: 8 so the default first password Pass@123 is accepted. The app still asks for 10+ when people choose their own ...
 password_requirements = "lower_upper_letters_digits"   # ... with lower- and upper-case letters and a digit
 
 [auth.email]

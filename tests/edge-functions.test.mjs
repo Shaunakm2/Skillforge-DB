@@ -10,9 +10,9 @@ await import('../public/js/core/assessment.js'); await import('../supabase/funct
 
 function fakeSupabase(T) {
   const q = (table) => { const f = []; let single = false, op = 'select', payload = null, sel = null;
-    const api = { select(s) { if (op === 'select') sel = s; else sel = s; return api; }, eq(c, v) { f.push([c, v]); return api; }, in(c, vs) { f.push([c, vs, 'in']); return api; }, neq(c, v) { f.push([c, v, 'neq']); return api; }, limit() { return api; }, maybeSingle() { single = true; return api; },
+    const api = { select(s) { if (op === 'select') sel = s; else sel = s; return api; }, eq(c, v) { f.push([c, v]); return api; }, in(c, vs) { f.push([c, vs, 'in']); return api; }, neq(c, v) { f.push([c, v, 'neq']); return api; }, ilike(c, v) { f.push([c, String(v).replace(/\\(.)/g, '$1').toLowerCase(), 'ilike']); return api; }, limit() { return api; }, maybeSingle() { single = true; return api; },
       insert(p) { op = 'insert'; payload = p; return api; }, update(p) { op = 'update'; payload = p; return api; }, upsert(p) { op = 'upsert'; payload = p; return api; }, delete() { op = 'delete'; return api; },
-      then(res) { const rows = T[table], m = r => f.every(([c, v, k]) => { const val = c === 'data->>empId' ? r.data && r.data.empId : r[c]; return k === 'in' ? v.includes(val) : k === 'neq' ? val !== v : val === v; });
+      then(res) { const rows = T[table], m = r => f.every(([c, v, k]) => { const val = c === 'data->>empId' ? r.data && r.data.empId : r[c]; return k === 'in' ? v.includes(val) : k === 'neq' ? val !== v : k === 'ilike' ? String(val || '').toLowerCase() === v : val === v; });
         if (op === 'select') { const out = rows.filter(m); return res({ data: single ? out[0] || null : out, error: null }); }
         if (op === 'insert') { if (rows.some(r => r.org_id === payload.org_id && r.coll === payload.coll && r.key === payload.key)) return res({ error: { code: '23505' } }); rows.push({ ...payload }); return res({ error: null }); }
         if (op === 'update') { const hit = rows.filter(m); hit.forEach(r => Object.assign(r, payload)); return res({ data: hit.map(r => ({ key: r.key })), error: null }); }
@@ -90,7 +90,7 @@ test('admin-users: only admins; temporary password; custom role saved; no user l
   const T = world(), call = await load('admin-users', T, ENV);
   assert.strictEqual((await call({ action: 'create', org: 'o', email: 'n@x.co', empId: 'N1', name: 'New' }, { token: jwt({ sub: 'U-T' }) })).status, 403);
   const r = await (await call({ action: 'create', org: 'o', email: 'n@x.co', empId: 'N1', name: 'New', role: 'Learner', roleId: 'r_qa', userKey: 'u9' }, { token: jwt({ sub: 'U-A' }) })).json();
-  assert.ok(r.tempPassword && r.tempPassword.length === 14, JSON.stringify(r));
+  assert.strictEqual(r.tempPassword, 'Pass@123', 'v41.19: new logins get the default first password');
   const m = T.sf_member.find(x => x.emp_id === 'N1'); assert.strictEqual(m.role_id, 'r_qa'); assert.strictEqual(m.user_key, 'u9');
   assert.strictEqual(T.updates.length, 0);
   const r2 = await (await call({ action: 'resetPassword', org: 'o', email: 'l@x' }, { token: jwt({ sub: 'U-A' }) })).json();
@@ -144,4 +144,20 @@ test('admin-users: no reset / ban / takeover of a login from another organisatio
   assert.strictEqual((await call({ action: 'ban', org: 'o', email: 'a@x' }, { token: tok })).status, 400);
   assert.strictEqual((await call({ action: 'setRole', org: 'o', email: 'a@x', role: 'Learner' }, { token: tok })).status, 400);
   assert.strictEqual((await call({ action: 'setRole', org: 'o', email: 'l@x', role: 'Trainer' }, { token: tok })).status, 200);
+});
+
+// v41.19: default first password, login found by employee ID or any letter case, default password can't be kept
+test('v41.19: default first password Pass@123 (or random), member found by employee ID / e-mail case, default refused as new password', async () => {
+  const T = world(), call = await load('admin-users', T, ENV), tok = jwt({ sub: 'U-A' });
+  const r = await (await call({ action: 'resetPassword', org: 'o', email: 'L@X' }, { token: tok })).json();
+  assert.strictEqual(r.tempPassword, 'Pass@123'); assert.strictEqual(T.updates[0][0], 'U-L'); assert.strictEqual(T.updates[0][1].app_metadata.must_change, true);
+  const byEmp = await call({ action: 'ban', org: 'o', email: 'changed@x', empId: 'L1' }, { token: tok }); assert.strictEqual(byEmp.status, 200, 'found by employee ID after an e-mail edit');
+  const none = await call({ action: 'unban', org: 'o', email: 'nobody@x', empId: 'Q9' }, { token: tok }); assert.strictEqual(none.status, 404);
+  const nb = await none.json(); assert.ok(nb.noLogin && /no login yet/.test(nb.error), JSON.stringify(nb));
+  const T2 = world(), rnd = await load('admin-users', T2, { ...ENV, DEFAULT_PASSWORD: 'random' });
+  const r2 = await (await rnd({ action: 'create', org: 'o', email: 'n@x.co', empId: 'N1', name: 'New' }, { token: tok })).json();
+  assert.ok(r2.tempPassword && r2.tempPassword.length === 14, JSON.stringify(r2));
+  const learning = await load('learning', world(), ENV);
+  const keep = await learning({ action: 'changePassword', password: 'Pass@123' }, { token: jwt({ sub: 'U-L' }) }); assert.strictEqual(keep.status, 400);
+  assert.strictEqual((await learning({ action: 'changePassword', password: 'Strong-pass-2026' }, { token: jwt({ sub: 'U-L' }) })).status, 200);
 });

@@ -1,5 +1,7 @@
 // Skillforge LMS — Edge Function "admin-users" (admins only).
-// Logins are created with a random temporary password and must be changed at first sign-in.
+// v41.19: logins are created (and reset) with the organisation's default first password (secret DEFAULT_PASSWORD,
+// default Pass@123). It must be changed at first sign-in (app_metadata.must_change), so it only ever opens the
+// "Set your password" screen. Set DEFAULT_PASSWORD=random to go back to a random 14-character password per person.
 //   create      { email, empId, name, role, roleId?, userKey? } -> { tempPassword }
 //   bulkCreate  { people: [{ email, empId, name, role }] } -> { created: [{ email, empId, tempPassword }], skipped: [{ email, reason }] }
 //   resetPassword { email }                             -> { tempPassword }
@@ -29,6 +31,8 @@ const ROLES = ["Learner", "Trainer", "Admin"];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMP = /^[A-Z0-9][A-Z0-9_\-/]{1,29}$/;
 
+const DEFAULT_PW = (Deno.env.get("DEFAULT_PASSWORD") || "Pass@123").trim();
+function firstPassword() { return DEFAULT_PW && DEFAULT_PW.toLowerCase() !== "random" ? DEFAULT_PW : tempPassword(); }
 function tempPassword() {   // 14 characters, upper + lower + digit + symbol, from crypto
   const sets = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!@#$%*?"], all = sets.join("");
   const b = new Uint32Array(14); crypto.getRandomValues(b);
@@ -59,10 +63,17 @@ Deno.serve(async (req) => {
     // Find a login by email: membership first, then auth.users through a service-only SQL function (no listing).
     // v41.18: reset / ban / role / rename act ONLY on logins that belong to this organisation (sf_member). Before, the
     // auth.users fallback let an admin of one organisation reset or ban a login of another organisation on the same project.
-    const findMember = async (email: string) => {
-      const { data } = await admin.from("sf_member").select("user_id").eq("org_id", org).eq("email", email).maybeSingle();
-      return data ? data.user_id as string : null;
+    // v41.19: also matched by employee ID (an e-mail edited in Users & accounts, or different letter case, no longer
+    // makes the login "disappear"), and the e-mail is compared case-insensitively.
+    const findMember = async (email: string, empId?: unknown) => {
+      const e = String(email || "").trim().toLowerCase();
+      if (e) { const { data } = await admin.from("sf_member").select("user_id").eq("org_id", org).ilike("email", e.replace(/[\\%_]/g, (ch) => "\\" + ch)).limit(1);
+        if (data && data.length) return data[0].user_id as string; }
+      const emp = String(empId || "").trim().toUpperCase();
+      if (emp) { const { data } = await admin.from("sf_member").select("user_id").eq("org_id", org).eq("emp_id", emp).maybeSingle(); if (data) return data.user_id as string; }
+      return null;
     };
+    const noLogin = (email: string) => (email || "This person") + " has no login yet. Use Settings › Database & storage › Create missing logins, or create the account again.";
     // Creating an account may reuse an existing login only if that login is not a member of ANOTHER organisation.
     const findUser = async (email: string) => {
       const mine = await findMember(email); if (mine) return mine;
@@ -82,7 +93,7 @@ Deno.serve(async (req) => {
       if (name in Object.prototype || name === "__proto__" || name === "prototype" || name.length > 120) return { email, reason: "Choose another name" };
       const { data: dupe } = await admin.from("sf_member").select("email").eq("org_id", org).eq("emp_id", empId).maybeSingle();
       if (dupe && dupe.email !== email) return { email, reason: "Employee ID " + empId + " already belongs to " + dupe.email };
-      const pw = tempPassword();
+      const pw = firstPassword();
       let id: string | null; try { id = await findUser(email); } catch (e) { if ((e as any).reason) return { email, reason: (e as Error).message }; throw e; }
       if (id) {
         const { error } = await admin.auth.admin.updateUserById(id, { password: pw, app_metadata: { must_change: true } }); if (error) return { email, reason: error.message };
@@ -109,15 +120,15 @@ Deno.serve(async (req) => {
         return json({ created, skipped });
       }
       case "resetPassword": {
-        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ error: "No login for " + email }, 404);
-        const pw = tempPassword();
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email, body.empId); if (!id) return json({ error: noLogin(email) }, 404);
+        const pw = firstPassword();
         const { error } = await admin.auth.admin.updateUserById(id, { password: pw, app_metadata: { must_change: true } });
         if (error) return json({ error: error.message }, 400);
         await revoke(id);
         return json({ tempPassword: pw });
       }
       case "ban": case "unban": {
-        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ error: "No login for " + email }, 404);
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email, body.empId); if (!id) return json({ error: noLogin(email), noLogin: true }, 404);
         if (body.action === "ban" && isMe(id)) return json({ error: "You cannot deactivate your own account" }, 400);
         const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: body.action === "ban" ? "876000h" : "none" }); if (error) return json({ error: error.message }, 400);
         const { error: e2 } = await admin.from("sf_member").update({ active: body.action === "unban" }).eq("org_id", org).eq("user_id", id);
@@ -126,7 +137,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "setRole": {
-        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ error: "No login for " + email }, 404);
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email, body.empId); if (!id) return json({ error: noLogin(email), noLogin: true }, 404);
         if (isMe(id) && body.role !== "Admin") return json({ error: "You cannot remove your own admin access. Ask another admin." }, 400);
         if (!ROLES.includes(body.role)) return json({ error: "Role must be Learner, Trainer or Admin" }, 400);
         const { error } = await admin.from("sf_member").update({ role: body.role, role_id: body.roleId ? String(body.roleId) : null }).eq("org_id", org).eq("user_id", id);
@@ -136,7 +147,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "rename": {
-        const email = String(body.email || "").toLowerCase(), id = await findMember(email); if (!id) return json({ ok: true, note: "no login" });
+        const email = String(body.email || "").toLowerCase(), id = await findMember(email, body.empId); if (!id) return json({ ok: true, note: "no login" });
         const patch: any = { app_name: String(body.name || "").trim() }; if (body.empId) patch.emp_id = String(body.empId).trim().toUpperCase();
         const { error } = await admin.from("sf_member").update(patch).eq("org_id", org).eq("user_id", id);
         return error ? json({ error: error.message }, 400) : json({ ok: true });

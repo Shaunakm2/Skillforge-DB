@@ -127,11 +127,11 @@
     async del(c, k) { rows.delete(K(c, k)); },
   };
   const strong = p => p.length >= 10 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p);
-  let pwSeq = 0; const temp = () => 'Tmp-' + (++pwSeq) + 'xY9!kQ';
+  let pwSeq = 0; const temp = () => T.firstPw || ('Tmp-' + (++pwSeq) + 'xY9!kQ');   // v41.19: T.firstPw mirrors DEFAULT_PASSWORD
   async function learning(b) {
     T.calls.push(['learning', b.action]);
     if (!session) return { error: 'Not signed in' };
-    if (b.action === 'changePassword') { const m = members.find(x => x.user_id === session.user.id); if (!strong(b.password)) return { error: 'Use at least 10 characters with upper- and lower-case letters and a number.' }; m.password = b.password; m.must_change = false; return { ok: true }; }
+    if (b.action === 'changePassword') { const m = members.find(x => x.user_id === session.user.id); if (!strong(b.password)) return { error: 'Use at least 10 characters with upper- and lower-case letters and a number.' }; m.password = b.password; m.must_change = false; if (T.dropSessionOnPw) session = null; return { ok: true }; }   // v41.19: T.dropSessionOnPw = the old session no longer works after the change
     const m = me(); if (!m) return { error: 'Not linked' };
     const c0 = ctx();
     if (b.action === 'me') return { empId: m.emp_id, role: m.role, roleId: m.role_id || null, perms: m.role === 'Admin' ? ['*'] : c0.perms, name: m.app_name, mustChange: !!m.must_change };
@@ -149,12 +149,12 @@
       let x = members.find(y => y.email === email); const pw = temp();
       if (!x) { x = { user_id: 'u' + (members.length + 1), email, emp_id: e, app_name: p.name, role: p.role || 'Learner', active: true }; members.push(x); }
       Object.assign(x, { password: pw, must_change: true, emp_id: e, app_name: p.name, role: p.role || x.role, role_id: p.roleId || null, user_key: p.userKey || null }); return { email, empId: e, tempPassword: pw }; };
-    const find = () => members.find(x => x.email === String(b.email).toLowerCase());
+    const find = () => members.find(x => x.email === String(b.email).toLowerCase()) || (b.empId ? members.find(x => x.emp_id === String(b.empId).toUpperCase()) : null);
     switch (b.action) {
       case 'create': { const r = create(b); return r.reason ? { error: r.reason } : r; }
       case 'bulkCreate': { const c = [], s = []; (b.people || []).forEach(p => { const r = create(p); (r.reason ? s : c).push(r); }); return { created: c, skipped: s }; }
       case 'resetPassword': { const x = find(); if (!x) return { error: 'No login' }; x.password = temp(); x.must_change = true; return { tempPassword: x.password }; }
-      case 'ban': case 'unban': { const x = find(); if (!x) return { error: 'No login' }; x.active = b.action === 'unban'; return { ok: true }; }
+      case 'ban': case 'unban': { const x = find(); if (!x) return { error: (b.email || 'This person') + ' has no login yet.' }; x.active = b.action === 'unban'; return { ok: true }; }
       case 'setRole': { const x = find(); if (!x) return { error: 'No login' }; x.role = b.role; x.role_id = b.roleId || null; return { ok: true }; }
       case 'rename': { const x = find(); if (x) x.app_name = b.name; return { ok: true }; }
     }

@@ -46,14 +46,16 @@ async def main():
             errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
             await pg.goto('https://app.test/index.html'); await pg.wait_for_selector('#sf-user')
             await pg.add_script_tag(url='https://app.test/__test/learning-core.js')
+            await pg.evaluate("window.__demo = { ...window.__app.state }")   # v41.19: sample data is loaded by the test, not offered by the app
             W = lambda ms=300: pg.wait_for_timeout(ms)
             S = lambda e: pg.evaluate(f"(() => {{ const s = window.__app.state; return {e}; }})()")
             async def login(u, pw):
                 await pg.evaluate("window.__app.setState({ authed:false, loginView:'signin' })"); await W()
                 await pg.locator('#sf-user').fill(u); await pg.locator('#sf-pw').fill(pw); await pg.get_by_role('button', name='Login', exact=True).click(); await W(1000)
             await login('lena.fischer@northwind.com', 'Admin-pass-2026')
+            await pg.evaluate("window.__app.setState(Object.fromEntries(Object.entries(window.__demo).filter(([k]) => ['users','adminCourses','lcms','qs','quizzes','enroll','itemDone','assignedOn','bookmarks'].includes(k))))"); await W()
             await pg.evaluate("window.__app.go('database', { adminView:true })"); await W()
-            await pg.locator('button').filter(has_text='Save the data shown').click(); await W(2500)
+            await pg.locator('button').filter(has_text='Start with an empty organisation').click(); await W(2500)
             # a SCORM module in the content store, as step 0 of the safety course (not linear), Maya enrolled
             await pg.evaluate("""(() => { const sb = window.__sb, c = sb.get('adminCourses', 'safety');
               sb.serverWrite('lcms', 'mscorm', { id:'mscorm', code:'MOD-900', type:'SCORM', title:'Fire drill', file:{ name:'fire.zip', path:'northwind/scorm/pk1/', launch:'index.html', src:'' } });

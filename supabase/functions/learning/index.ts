@@ -79,6 +79,8 @@ Deno.serve(async (req) => {
     if (body.action === "changePassword") {
       const pw = String(body.password || "");
       if (!strongEnough(pw)) return json({ error: "Use at least 10 characters with upper- and lower-case letters and a number." }, 400);
+      // v41.19: the organisation's default first password (DEFAULT_PASSWORD, default Pass@123) can't be kept as the new one
+      { const d = (Deno.env.get("DEFAULT_PASSWORD") || "Pass@123").trim(); if (d && pw === d) return json({ error: "Choose a password different from the default first password." }, 400); }
       const { error } = await admin.auth.admin.updateUserById(c.sub, { password: pw, app_metadata: { ...(c.app_metadata || {}), must_change: false } });
       if (error) return json({ error: error.message }, 400);
       // v34: a new password ends every OTHER session of this person (this one carries on)
