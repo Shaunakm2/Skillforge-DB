@@ -8,6 +8,10 @@ SkillforgeApp.prototype.vmDashboard = function (c) {
   const XPM = LearnXP.build(s), myXp = XPM.get(role.name) || 0;
   const level = Math.floor(myXp / 1000) + 1, nextLevelXp = (Math.floor(myXp / 1000) + 1) * 1000, levelFrac = (myXp % 1000) / 1000;
   const C = 2 * Math.PI * 32;
+  // v41.22: streak, week ticks and level name come from the person's real learning records (js/core/badges.js), not fixed values.
+  const myStreak = Badges.streakOf(s, role.name);
+  const LEVEL_NAMES = ['Newcomer', 'Explorer', 'Achiever', 'Rising Leader', 'Champion', 'Master'];   // edit freely: one name per level; the last one is used for every higher level
+  const levelName = LEVEL_NAMES[Math.min(level, LEVEL_NAMES.length) - 1];
   // leaderboard
   // Team = people with my manager (or my department when I have none). People who switched the leaderboard off in Preferences are
   // left out of other people's boards (they still see their own place).
@@ -67,7 +71,7 @@ SkillforgeApp.prototype.vmDashboard = function (c) {
       // v39: the course's own cover (uploaded by an admin) fills the right of the card; none = plain navy card
       hasImg: !!(a.banner && a.banner.src), artImg: a.banner && a.banner.src ? 'url("' + a.banner.src + '")' : '' }; }
   const sat = s.lessonsToday > 0;
-  const week = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((l, i) => { const d = i < 5 || (i === 5 && sat); const today = i === 5; return { l, mark: d ? '✓' : '', bg: d ? '#0066A1' : '#FFFFFF', border: d ? '#0066A1' : today ? '#0066A1' : '#D7E3EC', fg: d ? '#FFFFFF' : '#16324F' }; });
+  const week = Badges.weekStrip(s, role.name).map(d => ({ l: d.label, mark: d.done ? '✓' : '', bg: d.done ? '#0066A1' : '#FFFFFF', border: d.done || d.today ? '#0066A1' : '#D7E3EC', fg: d.done ? '#FFFFFF' : '#16324F' }));
   const questsRaw = [{ t:'Complete 1 lesson', xp:50, done: sat }, { t:'Reply in a discussion', xp:20, done: s.quests.discuss }, { t:'Score 80%+ on a quiz', xp:100, done: s.qDone && qsc.pct >= 80 }];
   const quests = questsRaw.map(x => ({ ...x, bg: x.done ? '#E3F1EE' : '#F4F8FC', box: x.done ? '#007A4D' : '#BFCFDB', boxFill: x.done ? '#007A4D' : '#FFFFFF', fg: x.done ? '#245E52' : '#16324F' }));
   // Badges come from Settings › Master data › Badges; earned from this person's learning records.
@@ -80,15 +84,16 @@ SkillforgeApp.prototype.vmDashboard = function (c) {
     annShow: s.annAll ? liveAnns : liveAnns.slice(0, 1), annMore: liveAnns.length > 1,
     annMoreLabel: s.annAll ? 'Show fewer announcements' : 'Show all ' + liveAnns.length + ' announcements', annToggle: () => this.setState({ annAll: !s.annAll }),
     isLearner: s.role === 'learner',
-    streak: 14,
+    streak: myStreak,
     xpFmt: fmt(myXp),
     level,
+    levelName, levelNameUp: levelName.toUpperCase(),
     nextLevel: level + 1,
     xpToNext: fmt(nextLevelXp - myXp),
     nextLevelXpFmt: fmt(nextLevelXp),
     levelPct: Math.round(levelFrac * 100) + '%',
     ringDash: (C * levelFrac).toFixed(1) + ' ' + C.toFixed(1),
-    teamRank,
+    teamRank, hasTeamRank: teamAll.length > 1,   // alone on the board (e.g. a learner who can only read their own records) is not a real rank
     cont: cont || {}, hasCont: !!cont, noCont: !cont,
     dashStats: Tiles.apply(s, 'home', dashStats.map(d => ({ ...d, key: d.label })), d => d.key, (d, l) => ({ ...d, label: l })),
     dueCompact,
