@@ -5,7 +5,7 @@
     "test": "node --test tests/*.test.js tests/*.test.mjs",
     "test:db": "python3 tests/db/test_rls.py",
     "test:load": "python3 tests/db/load_test.py",
-    "test:e2e": "python3 tests/e2e/offline_e2e.py && python3 tests/e2e/backend_e2e.py && python3 tests/e2e/scorm_isolation_e2e.py && python3 tests/e2e/analytics_docs_e2e.py && python3 tests/e2e/v29_numbers_e2e.py && python3 tests/e2e/v30_e2e.py && python3 tests/e2e/attack_e2e.py && python3 tests/e2e/v31_e2e.py && python3 tests/e2e/v32_e2e.py && python3 tests/e2e/v33_e2e.py && python3 tests/e2e/v35_e2e.py && python3 tests/e2e/v36_e2e.py && python3 tests/e2e/v39_e2e.py && python3 tests/e2e/v41_e2e.py && python3 tests/e2e/v41_18_e2e.py && python3 tests/e2e/v41_19_e2e.py && python3 tests/e2e/v41_20_e2e.py",
+    "test:e2e": "python3 tests/e2e/offline_e2e.py && python3 tests/e2e/backend_e2e.py && python3 tests/e2e/scorm_isolation_e2e.py && python3 tests/e2e/analytics_docs_e2e.py && python3 tests/e2e/v29_numbers_e2e.py && python3 tests/e2e/v30_e2e.py && python3 tests/e2e/attack_e2e.py && python3 tests/e2e/v31_e2e.py && python3 tests/e2e/v32_e2e.py && python3 tests/e2e/v33_e2e.py && python3 tests/e2e/v35_e2e.py && python3 tests/e2e/v36_e2e.py && python3 tests/e2e/v39_e2e.py && python3 tests/e2e/v41_e2e.py && python3 tests/e2e/v41_18_e2e.py && python3 tests/e2e/v41_19_e2e.py && python3 tests/e2e/v41_20_e2e.py && python3 tests/e2e/v41_21_e2e.py",
     "test:stack": "node tests/stack/edge_smoke.mjs",
     "build": "node scripts/build.mjs",
     "vendor": "bash scripts/vendor-supabase.sh",

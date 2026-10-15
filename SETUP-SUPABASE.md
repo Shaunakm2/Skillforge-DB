@@ -25,7 +25,7 @@
 ## 1. Database
 
 1. Create a Supabase project (region Mumbai).
-2. Run **all** migrations in order: `001` to `008` (`scripts/deploy-supabase.sh` does this and steps 4 and 2 below; see `docs/DEPLOY.md`).
+2. Run **all** migrations in order: `001` to `009` (`scripts/deploy-supabase.sh` does this and steps 4 and 2 below; see `docs/DEPLOY.md`).
 3. Add your admin login:
    - **Authentication › Users › Add user** (Auto confirm).
    - Then run:
