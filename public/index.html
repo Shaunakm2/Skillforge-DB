@@ -1239,7 +1239,10 @@
       </div>
     </sf-for>
   </div>
-<sf-if value="{{ demoOnly }}"><div class="admin-analytics-20"><div><h2 class="ui-81">Where learners drop off</h2><div class="admin-analytics-6">Where do people stop? Leading Through Change, share of enrolled learners reaching each module</div></div><div class="admin-analytics-21"><span>Module 1</span><span class="ui-48"><span class="admin-analytics-22"></span></span><span class="ui-2">100%</span></div><div class="admin-analytics-21"><span>Module 2</span><span class="ui-48"><span class="admin-analytics-23"></span></span><span class="ui-2">82%</span></div><div class="admin-analytics-21"><span>Module 3</span><span class="ui-48"><span class="admin-analytics-24"></span></span><span class="ui-2">64%</span></div><div class="admin-analytics-21"><span>Module 4</span><span class="ui-48"><span class="admin-analytics-25"></span></span><span class="ui-2">51%</span></div><div class="admin-analytics-26">Biggest drop: Module 2 to Module 3 (18 points). Review the content there first.</div></div></sf-if>
+<sf-if value="{{ dropHas }}"><div class="admin-analytics-20"><div class="sf-label-row"><div><h2 class="ui-81">Where learners drop off</h2><div class="admin-analytics-6">{{ dropSub }}</div></div><sf-select class="ui-31" value="{{ dropSel }}" on-change="{{ setDropCourse }}" aria-label="Course"><sf-for list="{{ dropOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></div>
+  <sf-for list="{{ dropRows }}" as="r"><div class="admin-analytics-21"><span class="sf-drop-l" title="{{ r.label }}">{{ r.label }}</span><span class="ui-48"><span style="display:block;height:100%;width:{{ r.w }};background:{{ r.col }}"></span></span><span class="ui-2">{{ r.pct }}</span></div></sf-for>
+  <div class="admin-analytics-26">{{ dropNote }}</div></div></sf-if>
+<sf-if value="{{ dropEmpty }}"><div class="admin-analytics-20"><h2 class="ui-81">Where learners drop off</h2><div class="ui-6">Appears once a course with two or more steps is assigned to people.</div></div></sf-if>
 </div>
 </sf-if>
 
@@ -3185,6 +3188,13 @@
             <div class="ui-61"><span class="ui-5">End date · calculated</span><div class="bt-end">{{ bdEndLabel }}</div></div>
           </div>
           <div class="ui-6">{{ bdEndNote }} <span class="bt-warn">{{ bdStartShift }}</span></div>
+          <div class="ui-70 bt-pad bt-col bt-sched"><div class="sf-sr-head"><span class="ui-8">Schedule for this batch</span><span class="ui-6">Change the length or end date of this batch only; the training type stays as it is</span></div>
+            <div class="ui-87"><sf-for list="{{ bdSchedChips }}" as="c"><button class="question-bank-10" on-click="{{ c.pick }}" style="border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }}">{{ c.label }}</button></sf-for></div>
+            <sf-if value="{{ bdSchedDays }}"><label class="ui-61"><span class="ui-5">{{ bdSchedDaysLabel }}</span><input class="create-course-35" type="number" min="1" max="120" value="{{ bd.daysN }}" on-input="{{ setBdDaysN }}"></label></sf-if>
+            <sf-if value="{{ bdSchedEnd }}"><label class="ui-61"><span class="ui-5">Custom end date</span><input class="create-course-35" type="date" value="{{ bd.endWant }}" on-input="{{ setBdEndWant }}"></label></sf-if>
+            <button class="sf-check" role="checkbox" aria-checked="{{ bdSatOn }}" on-click="{{ toggleBdSat }}"><span class="sf-check-box"><sf-if value="{{ bdSatOn }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="4"><path d="M5 12l5 5 9-10"></path></svg></sf-if></span>Saturdays are training days</button>
+            <div class="ui-6">{{ bdSchedNote }}</div>
+          </div>
           <div class="ui-70">
             <div class="sf-sr-head"><span class="ui-8">Holidays within this batch</span><span class="ui-6">Each one pushes the end date back a working day</span></div>
             <sf-for list="{{ bdHolRows }}" as="h"><div class="bt-trow"><span class="bt-hol-ic">✦</span><span class="ui-12"><span class="ui-95">{{ h.name }}</span><span class="ui-6">{{ h.label }} · {{ h.scope }}</span></span><sf-if value="{{ h.canRemove }}"><button class="users-and-accounts-21 sf-del" on-click="{{ h.remove }}">Remove</button></sf-if></div></sf-for>
@@ -3235,13 +3245,13 @@
           <label class="ui-61"><span class="ui-5">Description</span><input maxlength="120" class="create-course-9" value="{{ td.desc }}" on-input="{{ setTdDesc }}" placeholder="Who it's for"></label>
           <label class="ui-61"><span class="ui-5">Batch ID code</span><input maxlength="40" class="create-course-9" value="{{ td.code }}" on-input="{{ setTdCode }}" placeholder="e.g. Comms"></label>
           <label class="ui-61"><span class="ui-5">Level</span><input maxlength="120" class="create-course-9" value="{{ td.level }}" on-input="{{ setTdLevel }}" placeholder="L1"><span class="ui-6">Batch IDs look like <strong>{{ tdIdPreview }}</strong></span></label>
-          <label class="ui-61"><span class="ui-5">Required passing %</span><input class="create-course-9" type="number" min="1" max="100" value="{{ td.passPct }}" on-input="{{ setTdPass }}"></label>
+          <label class="ui-61"><span class="ui-5">Required passing % <i class="ui-6">(optional)</i></span><input class="create-course-9" type="number" min="1" max="100" value="{{ td.passPct }}" on-input="{{ setTdPass }}"></label>
           <div class="ui-61"><span class="ui-5">Duration</span><div class="bt-end">{{ tdDuration }}</div><span class="ui-6">Set by the number of days in the plan below</span></div>
-          <label class="ui-61"><span class="ui-5">LMS weight %</span><input class="create-course-9" type="number" min="0" max="100" value="{{ td.lmsW }}" on-input="{{ setTdLmsW }}"></label>
+          <label class="ui-61"><span class="ui-5">LMS weight % <i class="ui-6">(optional)</i></span><input class="create-course-9" type="number" min="0" max="100" value="{{ td.lmsW }}" on-input="{{ setTdLmsW }}"></label>
           <div class="ui-61"><span class="ui-5">External weight %</span><div class="bt-end">{{ tdExtW }}</div><span class="ui-6">Always 100 minus the LMS weight</span></div>
         </div>
         <div class="ui-70 bt-pad bt-col">
-          <div class="sf-label-row"><span class="ui-8">External assessments</span><span class="ui-6">Scored outside the LMS · name / max marks / weight</span></div>
+          <div class="sf-label-row"><span class="ui-8">External assessments <i class="ui-6">(optional)</i></span><span class="ui-6">Scored outside the LMS · name / max marks / weight</span></div>
           <sf-for list="{{ tdExt }}" as="e"><div class="cw-ext"><input maxlength="120" class="ovl-21" value="{{ e.name }}" on-input="{{ e.setName }}" placeholder="e.g. Role-play evaluation"><span class="ui-6">/</span><input class="ovl-21 cw-w" type="number" min="1" max="1000" value="{{ e.max }}" on-input="{{ e.setMax }}" title="Maximum marks"><span class="ui-6">w</span><input class="ovl-21 cw-w" type="number" min="0.1" max="10" step="0.5" value="{{ e.w }}" on-input="{{ e.setW }}" title="Weight"><span></span><button class="create-course-23" on-click="{{ e.remove }}" title="Remove">✕</button></div></sf-for>
           <sf-if value="{{ tdExtEmpty }}"><div class="ui-6">None. Only LMS assessments will count.</div></sf-if>
           <button class="asm-add" on-click="{{ addTdExt }}">+ Add external assessment</button>
@@ -3249,7 +3259,7 @@
         </div>
         <sf-for list="{{ tdDays }}" as="d">
           <div class="ui-70 bt-day">
-            <div class="bt-day-head"><span class="bt-day-n">Day {{ d.n }}</span><input maxlength="120" class="ovl-21 bt-day-title" value="{{ d.title }}" on-input="{{ d.setTitle }}" placeholder="Day title, e.g. Orientation"><button class="create-course-22" on-click="{{ d.up }}" disabled="{{ d.isFirst }}" title="Move day up">↑</button><button class="create-course-23" on-click="{{ d.removeDay }}" title="Remove day">✕</button></div>
+            <div class="bt-day-head"><span class="bt-day-n">Day {{ d.n }}</span><input maxlength="120" class="ovl-21 bt-day-title" value="{{ d.title }}" on-input="{{ d.setTitle }}" placeholder="Day title (optional), e.g. Orientation"><button class="create-course-22" on-click="{{ d.up }}" disabled="{{ d.isFirst }}" title="Move day up">↑</button><button class="create-course-23" on-click="{{ d.removeDay }}" title="Remove day">✕</button></div>
             <sf-for list="{{ d.items }}" as="i"><div class="bt-item"><span class="create-course-17" style="background:{{ i.bg }};color:{{ i.fg }}">{{ i.glyph }}</span><span class="ui-12"><span class="ui-95">{{ i.title }}</span><span class="ui-6">{{ i.type }} · {{ i.code }}</span></span><button class="bt-tag bt-tagbtn" on-click="{{ i.toggleEss }}" title="Switch Essential / Other" style="background:{{ i.essBg }};color:{{ i.essFg }}">{{ i.essLabel }}</button><button class="create-course-23" on-click="{{ i.remove }}" title="Remove">✕</button></div></sf-for>
             <sf-if value="{{ d.empty }}"><div class="ui-6 bt-pad">No courses or modules yet.</div></sf-if>
             <div class="bt-add"><sf-select class="ovl-31" value="{{ d.pick }}" on-change="{{ d.setPick }}"><sf-for list="{{ d.opts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select><button class="courses-admin-7" on-click="{{ d.add }}">+ Add</button></div>

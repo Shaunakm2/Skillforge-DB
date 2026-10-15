@@ -501,7 +501,7 @@ const Backend = (() => {
   async function signOut() { if (on) { scormLeave(); if (channel) sb.removeChannel(channel); await sb.auth.signOut(); } if (LS) { LS.removeItem(KEEP_KEY); Object.keys(LS).filter(isAuthKey).forEach(k => LS.removeItem(k)); } }
   async function setNewPassword(pw) {
     const { data: u0 } = await sb.auth.getUser(); const email = u0 && u0.user && u0.user.email; recovery = false;
-    const { data, error } = await sb.functions.invoke('learning', { body: { action: 'changePassword', password: pw } });
+    const { data, error } = await sb.functions.invoke('learning', { body: { action: 'changePassword', password: pw, org } });
     let msg = data && data.error; if (error && !msg) { try { msg = (await error.context.json()).error; } catch (e) { msg = error.message; } } if (msg) throw new Error(msg);
     // v41.19: sign in again with the new password. Only refreshing the old session could leave the browser holding the
     // token from before the change (still marked "must change", or a session Supabase had already closed), and the next

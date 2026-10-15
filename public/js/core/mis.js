@@ -14,12 +14,12 @@ const Mis = (() => {
   let key = null, val = null;
   /* Structured records (dates as YYYY-MM-DD) — the dashboard uses these; the report formats them. */
   function records(s) {
-    const k = [s.batches, s.users, s.statuses, s.ttypes];
+    const k = [s.batches, s.users, s.statuses, s.ttypes, s.holidays];
     if (key && k.every((x, i) => x === key[i])) return val;
     const userBy = new Map(s.users.map(u => [u.name, u])), stBy = new Map(s.statuses.map(x => [x.id, x])), ttBy = new Map(s.ttypes.map(t => [t.id, t]));
     const out = [];
     s.batches.slice().sort((a, b) => a.start.localeCompare(b.start) || a.code.localeCompare(b.code)).forEach(b => {
-      const tt = ttBy.get(b.type) || { days:[], passPct:70, name:'' }, days = tt.days.length, ojtS = plusW(b.end, 1), ojtE = b.ojtEnd || plusW(b.end, tt.ojtDays || 5), hand = b.handover || plusW(ojtE, 1);
+      const tt = ttBy.get(b.type) || { days:[], passPct:70, name:'' }, days = typeof batchDates === 'function' ? batchDates(b, tt, holSetFor(s.holidays, b)).length || tt.days.length : tt.days.length, ojtS = plusW(b.end, 1), ojtE = b.ojtEnd || plusW(b.end, tt.ojtDays || 5), hand = b.handover || plusW(ojtE, 1);
       const counted = Object.keys((b.cert || {}).lms || {}).filter(x => b.cert.lms[x] > 0), exts = ((b.cert || {}).ext || []).filter(e => e.w > 0);
       b.trainees.forEach(name => {
         const u = userBy.get(name) || { name }, list = (b.st || {})[name] || [], last = list[list.length - 1], S = stBy.get(last ? last.status : 'st_intr') || { name:'In-Training', type:'active' };
@@ -31,8 +31,8 @@ const Mis = (() => {
         const scores = counted.map(x => prog[x] && prog[x].score != null ? prog[x].score : null).concat(exts.map(e => ext[e.id] != null ? Math.round(ext[e.id] / e.max * 100) : null));
         const reached = ['ojt', 'graduated', 'failed'].includes(T) || (T === 'active' && TODAY_KEY > b.end), seedS = 58 + Math.floor(Progress.hash(name + b.code) * 41);
         const sc = i => scores[i] != null ? scores[i] : reached && (b.gen || scores.every(x => x == null)) ? Math.min(100, seedS + i * 3) : null;
-        const fmtS = v => v == null ? '' : (v >= tt.passPct ? 'Pass' : 'Fail') + ' (' + v + '%)', m = i => fmtS(sc(i));
-        const v1 = sc(0), m1 = fmtS(v1), m1b = v1 != null && v1 < tt.passPct ? fmtS(Math.min(100, v1 + 12)) : '';
+        const noPass = tt.passPct == null || tt.passPct === '', fmtS = v => v == null ? '' : noPass ? v + '%' : (v >= tt.passPct ? 'Pass' : 'Fail') + ' (' + v + '%)', m = i => fmtS(sc(i));   // v41.21: no pass mark yet = score only
+        const v1 = sc(0), m1 = fmtS(v1), m1b = !noPass && v1 != null && v1 < tt.passPct ? fmtS(Math.min(100, v1 + 12)) : '';
         out.push({ year: +b.start.slice(0, 4), month: MONTHS[+b.start.slice(5, 7) - 1], monthKey: b.start.slice(0, 7), brand: u.brand || '', segment: b.segment || (tt.name.includes('Communication') ? 'Communication Training' : 'Functional Training'),
           traineeType: b.traineeType || (u.joined && u.joined >= Progress.plus(b.start, -14) ? 'New Hire' : 'Existing'), training: b.trainingName || tt.name, batch: b.code, batchId: b.id, trainer: b.trainer, empId: u.empId || '', name,
           division: u.division || '', subDivision: u.subDivision || '', hiringManager: u.manager && u.manager !== 'None' ? u.manager : '', divisionHead: u.divisionHead || '', gender: u.gender || '', designation: u.designation || '', location: u.site || '', wfo: u.wfo || 'WFO',

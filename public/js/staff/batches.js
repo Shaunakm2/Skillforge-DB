@@ -36,7 +36,18 @@ const INVOL_REASONS = ['Attendance', 'Performance', 'Misconduct', 'Background ve
 
 const isWeekend = k => { const w = new Date(k + 'T12:00:00').getDay(); return w === 0 || w === 6; };
 const addDays = (k, n) => { const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() + n); return dateKey(d); };
-const trainDays = (start, n, hol) => { const out = []; if (!start || !n) return out; let k = start, guard = 0; while (out.length < n && guard++ < 600) { if (!isWeekend(k) && !(hol && hol.has(k))) out.push(k); k = addDays(k, 1); } return out; };
+const offDay = (k, sat) => { const w = new Date(k + 'T12:00:00').getDay(); return w === 0 || (w === 6 && !sat); };
+const trainDays = (start, n, hol, sat) => { const out = []; if (!start || !n) return out; let k = start, guard = 0; while (out.length < n && guard++ < 900) { if (!offDay(k, sat) && !(hol && hol.has(k))) out.push(k); k = addDays(k, 1); } return out; };
+/* v41.21: per-batch schedule. b.sched: 'standard' (the training type's days) · 'fast' (fewer days: the plan is compressed) ·
+ * 'extended' (more days: extra days at the end) · 'end' (custom end date: the days between start and that date).
+ * b.sat: Saturdays are training days. Plan day di of a T-day type falls on batch day planDayOf(T, N, di). */
+const batchDates = (b, tt, hol) => { if (!b || !b.start) return []; const sat = !!b.sat, T = tt ? tt.days.length : 0;
+  if (b.sched === 'end' && b.endWant && b.endWant >= b.start) { const out = []; let k = b.start, g = 0; while (k <= b.endWant && g++ < 900) { if (!offDay(k, sat) && !(hol && hol.has(k))) out.push(k); k = addDays(k, 1); } return out; }
+  const N = (b.sched === 'fast' || b.sched === 'extended') && +b.daysN > 0 ? +b.daysN : T;
+  return trainDays(b.start, N, hol, sat); };
+const planDayOf = (T, N, di) => !T || !N || N >= T ? di : Math.min(N - 1, Math.floor(di * N / T));
+const dayPlan = (tt, N) => { const T = tt ? tt.days.length : 0, out = Array.from({ length: N }, () => []); for (let di = 0; di < T; di++) { const bi = planDayOf(T, N, di); if (out[bi]) out[bi].push(di); } return out; };
+const schedLabel = (b, tt) => { const T = tt ? tt.days.length : 0; return b.sched === 'fast' ? 'Fast track' : b.sched === 'extended' ? 'Extended' : b.sched === 'end' ? 'Custom end date' : 'Standard (' + T + (T === 1 ? ' day' : ' days') + ')'; };
 const holSetFor = (glob, b) => new Set((glob || []).map(h => h.date).concat(((b && b.holidays) || []).map(h => h.date)));
 /* A batch is Completed only when someone marks the training complete. After the last training day it waits in
    "Awaiting closure" until every trainer update is in (no one still in training, attendance logged for every day). */
@@ -72,6 +83,11 @@ const HOLIDAYS0 = [
 ];
 
 /* Certification rule copied from a training type: LMS assessment modules in the plan count with weight 1. */
+/* v41.21: passing % and LMS weight are optional on a training type (null = not set yet). No pass mark: nobody is marked
+ * certified / not certified. No LMS weight: LMS and external count equally (50 / 50). */
+const nz = v => v === '' || v == null || Number.isNaN(v) ? null : v;
+const pctL = v => nz(v) == null ? 'Not set' : v + '%';
+const lmsWOf = C => nz(C.lmsW) == null ? 50 : C.lmsW;
 const certFrom = (tt, lcms) => { const lms = {}; tt.days.forEach((d, di) => d.items.forEach((it, ii) => { if (it.kind === 'module') { const m = lcms.find(x => x.id === it.ref); if (m && m.type === 'Assessment') lms[di + ':' + ii] = 1; } })); return { pass: tt.passPct, lmsW: tt.lmsW, lms, ext: tt.ext.map(e => ({ ...e })) }; };
 
 const TTYPES0 = [
@@ -196,7 +212,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
     return { title: m ? m.title : '(module removed)', code: m ? m.code : '', type: m ? m.type : 'Module', glyph: T ? T.glyph : '?', bg: T ? T.bg : '#EAF1F6', fg: T ? T.fg : '#526B7A' };
   };
   const ttOf = b => s.ttypes.find(t => t.id === b.type) || { days:[], name:'(removed)', passPct:70, lmsW:50, ext:[] };
-  const schedOf = b => trainDays(b.start, ttOf(b).days.length, holSetFor(s.holidays, b));
+  const schedOf = b => batchDates(b, ttOf(b), holSetFor(s.holidays, b));
   const lmsCandidates = tt => { const out = []; tt.days.forEach((d, di) => d.items.forEach((it, ii) => {
     if (it.kind === 'module') { const m = s.lcms.find(x => x.id === it.ref); if (m && m.type === 'Assessment') out.push({ key: di + ':' + ii, di, it, label:'LMS assessment' }); }
     else if (courseHasQuiz(it.ref)) out.push({ key: di + ':' + ii, di, it, label:'Course quiz' }); })); return out; };
@@ -208,7 +224,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
     const L = Object.entries(C.lms || {}).filter(([k, w]) => w > 0 && keys.has(k)).map(([k, w]) => { const x = pg[k] || {}; return { w, score: (x.pct || 0) > 0 && x.score != null ? x.score : null }; });
     const E = (C.ext || []).filter(e => e.w > 0).map(e => { const v = ((b.ext || {})[u] || {})[e.id]; return { w: e.w, score: v == null ? null : v / e.max * 100 }; });
     const grp = a => { const h = a.filter(p => p.score != null), tw = h.reduce((t, p) => t + p.w, 0); return { n: a.length, have: h.length, avg: tw ? h.reduce((t, p) => t + p.w * p.score, 0) / tw : null }; };
-    const gl = grp(L), ge = grp(E), wl = gl.n ? C.lmsW : 0, we = ge.n ? 100 - C.lmsW : 0;
+    const gl = grp(L), ge = grp(E), wl = gl.n ? lmsWOf(C) : 0, we = ge.n ? 100 - lmsWOf(C) : 0;
     const parts = []; if (gl.avg != null && wl) parts.push([wl, gl.avg]); if (ge.avg != null && we) parts.push([we, ge.avg]);
     const tw = parts.reduce((t, p) => t + p[0], 0), final = tw ? one(parts.reduce((t, p) => t + p[0] * p[1], 0) / tw) : null;
     return { lAvg: gl.avg == null ? null : one(gl.avg), eAvg: ge.avg == null ? null : one(ge.avg), final, complete: gl.have === gl.n && ge.have === ge.n && gl.n + ge.n > 0, missing: (gl.n - gl.have) + (ge.n - ge.have), none: !gl.n && !ge.n, appeared: gl.have + ge.have > 0 };
@@ -222,7 +238,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
   const metrics = b => { let m = MC.map.get(b); if (!m) { m = metrics0(b); MC.map.set(b, m); } return m; };
   const metrics0 = b => {
     const tt = ttOf(b), dates = schedOf(b), cur = curStatus(b);
-    const items = []; tt.days.forEach((d, di) => d.items.forEach((it, ii) => items.push({ ...it, di, ii, key: di + ':' + ii, date: dates[di], due: !!dates[di] && dates[di] <= TODAY_KEY })));
+    const items = []; tt.days.forEach((d, di) => d.items.forEach((it, ii) => { const bi = planDayOf(tt.days.length, dates.length, di); items.push({ ...it, di, ii, key: di + ':' + ii, date: dates[bi], due: !!dates[bi] && dates[bi] <= TODAY_KEY }); }));
     const daysDue = dates.filter(d => d <= TODAY_KEY).length, C = b.cert, per = {};
     b.trainees.forEach(u => {
       const S = cur(u), T = S.type, act = d => typeOn(b, u, d) === 'active';
@@ -253,7 +269,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
       const ov = T === 'active' ? b.rag[u] || null : null;
       const c = certCalc(b, u, items, C);
       const evaluable = !['noshow', 'moved', 'attrition', 'absorbed'].includes(T);
-      const cert = !evaluable ? 'Not evaluated' : c.none ? 'No rule' : c.complete ? (c.final >= C.pass ? 'Certified' : 'Not certified') : 'In progress';
+      const cert = !evaluable ? 'Not evaluated' : c.none || nz(C.pass) == null ? 'No rule' : c.complete ? (c.final >= C.pass ? 'Certified' : 'Not certified') : 'In progress';
       per[u] = { S, T, entry: currentEntry(b, u), attPct, maxRun, essPct, othPct, avg, overdue, flags: all, open: all.filter(f => !f.ack).length, computed, override: ov, rag: ov ? ov.v : computed, c, cert };
     });
     const by = t => b.trainees.filter(u => per[u].T === t), joined = b.trainees.filter(u => per[u].T !== 'noshow');
@@ -316,7 +332,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
   };
 
   // ---- holidays ----
-  const recalc = (batches, hols) => batches.map(b => { const d = trainDays(b.start, ttOf(b).days.length, holSetFor(hols, b)); return { ...b, start: d[0] || b.start, end: d[d.length - 1] || b.end }; });
+  const recalc = (batches, hols) => batches.map(b => { const d = batchDates(b, ttOf(b), holSetFor(hols, b)); return { ...b, start: d[0] || b.start, end: d[d.length - 1] || b.end }; });
   const holBlock = (date, batches) => batches.filter(b => date >= b.start && lastLogged(b) && date <= lastLogged(b)).map(b => b.code);
   const hn = s.hNew || { date:'', name:'' };
   const endChanges = (before, after) => after.filter((b, i) => b.end !== before[i].end).map(b => b.code + ' now ends ' + fmtD(b.end));
@@ -360,7 +376,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
   let modalVals = { bModal:false };
   if (bd) {
     const tt = s.ttypes.find(t => t.id === bd.type), prev = s.batches.find(b => b.id === bd.id), logged = prev ? lastLogged(prev) : null;
-    const hol = holSetFor(s.holidays, bd), dates = tt && bd.start ? trainDays(bd.start, tt.days.length, hol) : [], end = dates[dates.length - 1] || '';
+    const hol = holSetFor(s.holidays, bd), dates = tt && bd.start ? batchDates(bd, tt, hol) : [], end = dates[dates.length - 1] || '';
     const code = prev ? prev.code : tt && dates[0] ? nextBatchCode(tt, dates[0], s.batches) : '—';
     const inRange = d => dates.length && d >= dates[0] && d <= end;
     const holList = s.holidays.filter(h => inRange(h.date)).map(h => ({ ...h, scope:'Organisation', canRemove:false }))
@@ -375,10 +391,11 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
     const ti = TABS.findIndex(t => t[0] === s.bdTab);
     const nLms = tt ? lmsCandidates(tt).filter(c => c.label === 'LMS assessment').length : 0;
     const planRows = [];
+    const DP = dayPlan(tt, dates.length);
     if (tt) dates.forEach((d, di) => {
-      if (di > 0) { let k = addDays(dates[di - 1], 1); while (k < d) { if (!isWeekend(k) && hol.has(k)) { const h = s.holidays.find(x => x.date === k) || (bd.holidays || []).find(x => x.date === k); planRows.push({ isHol:true, isDay:false, label: longD(k), name: h ? h.name : 'Holiday' }); } k = addDays(k, 1); } }
-      const day = tt.days[di];
-      planRows.push({ isHol:false, isDay:true, n: di + 1, title: day.title || 'Day ' + (di + 1), date: longD(d), items: day.items.map(it => { const x = itemInfo(it); return { ...x, essential: it.essential, other: !it.essential }; }) });
+      if (di > 0) { let k = addDays(dates[di - 1], 1); while (k < d) { if (!offDay(k, bd.sat) && hol.has(k)) { const h = s.holidays.find(x => x.date === k) || (bd.holidays || []).find(x => x.date === k); planRows.push({ isHol:true, isDay:false, label: longD(k), name: h ? h.name : 'Holiday' }); } k = addDays(k, 1); } }
+      const pd = DP[di] || [], title = pd.length ? pd.map(i => tt.days[i].title || 'Day ' + (i + 1)).join(' + ') : 'Extra day (not in the plan)';   // v41.21: fast track joins plan days; extended adds extra days
+      planRows.push({ isHol:false, isDay:true, n: di + 1, title, date: longD(d), items: pd.flatMap(i => tt.days[i].items).map(it => { const x = itemInfo(it); return { ...x, essential: it.essential, other: !it.essential }; }) });
     });
     const hd = bd.hDate || '', hName = bd.hName || '';
     modalVals = {
@@ -412,14 +429,21 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
       // the trainer may already be running another batch on these days (shown, not blocked: co-training and split days exist)
       bdTrainerWarn: (() => { if (!bd.trainer || !end) return ''; const o2 = s.batches.filter(b => b.id !== bd.id && b.trainer === bd.trainer && batchStatus(b) !== 'Completed' && !(b.end < dates[0] || b.start > end)).map(b => b.code);
         return o2.length ? bd.trainer + ' is also training ' + o2.join(', ') + ' on overlapping days' : ''; })(),
-      bdHasType: !!tt, bdTypeFacts: tt ? [['Duration', tt.days.length + (tt.days.length === 1 ? ' training day' : ' training days')], ['Passing %', tt.passPct + '%'], ['Weights', 'LMS ' + tt.lmsW + '% · External ' + (100 - tt.lmsW) + '%'], ['Assessments', nLms + ' LMS + ' + tt.ext.length + ' external']].map(([l, v]) => ({ l, v })) : [],
+      bdHasType: !!tt, bdTypeFacts: tt ? [['Duration', tt.days.length + (tt.days.length === 1 ? ' training day' : ' training days')], ['Passing %', pctL(tt.passPct)], ['Weights', nz(tt.lmsW) == null ? 'Not set (50 / 50)' : 'LMS ' + tt.lmsW + '% · External ' + (100 - tt.lmsW) + '%'], ['Assessments', nLms + ' LMS + ' + tt.ext.length + ' external']].map(([l, v]) => ({ l, v })) : [],
       setBdName: e => setBd({ name: e.target.value, nameAuto:false }),
       setBdType: e => { if (logged) return; const t = s.ttypes.find(x => x.id === e.target.value); setBd({ type: e.target.value, ...(bd.nameAuto ? { name: t ? t.name + ' · ' + new Date(bd.start + 'T12:00:00').toLocaleDateString('en-US', { month:'short' }) + ' cohort' : '' } : {}) }); },
       bdTrainerLock: !isAdmin,
       setBdTrainer: e => { if (isAdmin) setBd({ trainer: e.target.value }); }, setBdDiv: e => setBd({ division: e.target.value }),
       setBdStart: e => { if (logged) return; const v = e.target.value, t = s.ttypes.find(x => x.id === bd.type); setBd({ start: v, ...(bd.nameAuto && t && v ? { name: t.name + ' · ' + new Date(v + 'T12:00:00').toLocaleDateString('en-US', { month:'short' }) + ' cohort' } : {}) }); },
       bdEndLabel: end ? longD(end) + ', ' + end.slice(0, 4) : '—',
-      bdEndNote: !tt ? 'Choose a training type to calculate the end date.' : !bd.start ? 'Pick a start date.' : dates.length + ' training days, skipping weekends' + (holList.length ? ' and ' + holList.length + (holList.length === 1 ? ' holiday' : ' holidays') : '') + '.',
+      // v41.21: per-batch schedule (fast track, extended, custom end date, Saturdays)
+      bdSchedChips: [['standard', 'Standard'], ['fast', 'Fast track'], ['extended', 'Extended'], ['end', 'Custom end date']].map(([v, l]) => UI.chip(bd.sched || 'standard', v, l, () => setBd({ sched: v, daysN: v === 'fast' ? Math.max(1, (tt ? tt.days.length : 2) - 1) : v === 'extended' ? (tt ? tt.days.length : 0) + 1 : bd.daysN, endWant: v === 'end' ? (bd.endWant || end) : bd.endWant }))),
+      bdSchedDays: bd.sched === 'fast' || bd.sched === 'extended', bdSchedEnd: bd.sched === 'end',
+      bdSchedDaysLabel: bd.sched === 'fast' ? 'Training days (fewer than ' + (tt ? tt.days.length : '…') + ')' : 'Training days (more than ' + (tt ? tt.days.length : '…') + ')',
+      setBdDaysN: e => setBd({ daysN: e.target.value === '' ? '' : parseInt(e.target.value, 10) }), setBdEndWant: e => setBd({ endWant: e.target.value }),
+      bdSatOn: !!bd.sat, toggleBdSat: () => setBd({ sat: !bd.sat }),
+      bdSchedNote: !tt ? '' : bd.sched === 'fast' ? 'The ' + tt.days.length + '-day plan is spread over ' + dates.length + ' days: some days cover two plan days.' : bd.sched === 'extended' ? 'The plan runs as usual; the ' + Math.max(0, dates.length - tt.days.length) + ' extra days at the end are for revision, assessments or catch-up.' : bd.sched === 'end' ? dates.length + ' training days up to the end date' + (dates.length < tt.days.length ? ': the plan is compressed.' : dates.length > tt.days.length ? ': extra days at the end.' : '.') : 'The training type’s ' + tt.days.length + '-day plan.',
+      bdEndNote: !tt ? 'Choose a training type to calculate the end date.' : !bd.start ? 'Pick a start date.' : dates.length + ' training days, skipping ' + (bd.sat ? 'Sundays' : 'weekends') + (holList.length ? ' and ' + holList.length + (holList.length === 1 ? ' holiday' : ' holidays') : '') + '.',
       bdStartShift: tt && bd.start && dates[0] && dates[0] !== bd.start ? longD(bd.start) + ' is a ' + (isWeekend(bd.start) ? 'weekend' : 'holiday') + ', so Day 1 is ' + longD(dates[0]) + '.' : '',
       bdHolRows: holList, bdHolEmpty: !holList.length, bdHDate: hd, bdHName: hName,
       setBdHDate: e => setBd({ hDate: e.target.value }), setBdHName: e => setBd({ hName: e.target.value }),
@@ -457,7 +481,15 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
         if (bd.trainees.includes(bd.trainer)) return err('The trainer can’t also be a trainee in the same batch.', 'trainees');
         if (!bd.segment) return err('Choose the training segment.', 'details');
         if (!bd.trainingName) return err('Choose the training name.', 'details');
-        if (!bd.start || !dates.length) return err('Pick a start date.', 'details');
+        if (!bd.start || !dates.length) return err(bd.sched === 'end' && bd.start && bd.endWant && bd.endWant < bd.start ? 'The end date is before the start date.' : 'Pick a start date.', 'details');
+        // v41.21: per-batch schedule checks
+        { const T = tt.days.length, N = +bd.daysN || 0;
+          if (bd.sched === 'fast' && !(N >= 1 && N < T)) return err('Fast track: choose 1 to ' + Math.max(1, T - 1) + ' training days (the training type has ' + T + ').', 'details');
+          if (bd.sched === 'extended' && !(N > T && N <= 120)) return err('Extended: choose ' + (T + 1) + ' to 120 training days (the training type has ' + T + ').', 'details');
+          if (bd.sched === 'end' && !bd.endWant) return err('Pick the custom end date.', 'details');
+          if (dates.length > 120) return err('A batch can have at most 120 training days.', 'details');
+          if (logged && prev) { const was = schedOf(prev).filter(d => d <= logged), now = dates.filter(d => d <= logged);
+            if (was.join() !== now.join()) return err('Attendance is logged up to ' + longD(logged) + ', so the days up to then can’t move. Change only later days (e.g. extend or set a later end date).', 'details'); } }
         const md = bd.mode || 'In person', link = (bd.meetLink || '').trim();
         if (md !== 'Virtual' && !bd.placeId) return err(md === 'Hybrid' ? 'Choose the training room for people joining in person.' : 'Choose the training room.', 'details');
         if (md !== 'In person' && !link) return err('Paste the meeting link for people joining virtually.', 'details');
@@ -472,7 +504,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
         if (prev) { const gone = prev.trainees.filter(u => !bd.trainees.includes(u) && ((prev.st || {})[u] || []).length); if (gone.length) return err(gone.join(', ') + ' already have a status in this batch. Change their status instead of removing them.', 'trainees'); }
         const id = bd.id || 'b' + Date.now();
         const rec = { att:{}, attLog:{}, prog:{}, manual:{}, ack:{}, rag:{}, ext:{}, extBy:{}, st:{}, audit:[], createdBy: me, ...(prev || {}), id, code, name: bd.name.trim(), type: bd.type, trainer: bd.trainer, division: bd.division, segment: bd.segment, trainingName: bd.trainingName, traineeType: bd.traineeType || 'New Hire',
-          start: dates[0], end, mode: bd.mode || 'In person', meetLink: (bd.mode || 'In person') === 'In person' ? '' : (bd.meetLink || '').trim(), placeId: (bd.mode || 'In person') === 'Virtual' ? '' : (bd.placeId || ''), holidays: (bd.holidays || []).slice(), trainees: bd.trainees.slice(), cert: prev && prev.type === bd.type && prev.cert ? prev.cert : certFrom(tt, s.lcms) };
+          start: dates[0], end, mode: bd.mode || 'In person', meetLink: (bd.mode || 'In person') === 'In person' ? '' : (bd.meetLink || '').trim(), placeId: (bd.mode || 'In person') === 'Virtual' ? '' : (bd.placeId || ''), holidays: (bd.holidays || []).slice(), trainees: bd.trainees.slice(), sched: bd.sched || 'standard', daysN: ['fast', 'extended'].includes(bd.sched) ? +bd.daysN : null, endWant: bd.sched === 'end' ? bd.endWant : '', sat: !!bd.sat, cert: prev && prev.type === bd.type && prev.cert ? prev.cert : certFrom(tt, s.lcms) };
         rec.trainees.forEach(u => { if (!rec.prog[u]) rec.prog[u] = {}; });
         // history: what changed in setup
         const notes = [], A = (text, before, after) => notes.push({ id:'a' + Date.now() + notes.length, at: nowStamp(), ts: Date.now(), by: me, role: myRole, kind:'Setup', area:'Batch', text, before: before || '', after: after || '' });
@@ -486,6 +518,8 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
           if ((prev.placeId || '') !== rec.placeId) A('Training room changed', (s.places.find(p => p.id === prev.placeId) || {}).name || 'None', (s.places.find(p => p.id === rec.placeId) || {}).name || 'None');
           if (prev.start !== rec.start) A('Start date changed', fmtD(prev.start), fmtD(rec.start));
           if (prev.end !== rec.end) A('End date recalculated', fmtD(prev.end), fmtD(rec.end));
+          if ((prev.sched || 'standard') !== rec.sched || (prev.daysN || null) !== rec.daysN || (prev.endWant || '') !== rec.endWant) A('Schedule changed', schedLabel(prev, tt), schedLabel(rec, tt) + ' · ' + dates.length + ' days');
+          if (!!prev.sat !== rec.sat) A(rec.sat ? 'Saturdays are now training days' : 'Saturdays are no longer training days');
           const add = rec.trainees.filter(u => !prev.trainees.includes(u)), rem = prev.trainees.filter(u => !rec.trainees.includes(u));
           if (add.length) A('Trainees added: ' + add.join(', ')); if (rem.length) A('Trainees removed: ' + rem.join(', '));
           const ph = (prev.holidays || []).map(h => h.date), nh = rec.holidays.map(h => h.date);
@@ -495,7 +529,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
         rec.audit = (rec.audit || []).concat(notes);
         let enroll = s.enroll, n = 0;
         if (bd.assign) { enroll = { ...s.enroll };
-          rec.trainees.forEach(u => { const mine = { ...(enroll[u] || {}) }; tt.days.forEach((d, di) => d.items.forEach(it => { if (it.kind === 'course' && s.adminCourses.some(c => c.id === it.ref) && !mine[it.ref]) { mine[it.ref] = dates[di]; n++; } })); enroll[u] = mine; }); }
+          rec.trainees.forEach(u => { const mine = { ...(enroll[u] || {}) }; tt.days.forEach((d, di) => d.items.forEach(it => { if (it.kind === 'course' && s.adminCourses.some(c => c.id === it.ref) && !mine[it.ref]) { mine[it.ref] = dates[planDayOf(tt.days.length, dates.length, di)]; n++; } })); enroll[u] = mine; }); }
         this.setState({ batches: prev ? s.batches.map(b => b.id === id ? rec : b) : [rec].concat(s.batches), bDraft:null, enroll, bFilter:'All', bQuery:'' });
         this.toastMsg(rec.code + ' ' + (prev ? 'updated' : 'created') + ' · ends ' + longD(end) + ' · ' + rec.trainees.length + (rec.trainees.length === 1 ? ' trainee' : ' trainees') + (n ? ' · ' + n + ' course assignments' : ''));
       },
@@ -534,7 +568,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
     const cands = lmsCandidates(m.tt), counted = cands.filter(c => (C.lms[c.key] || 0) > 0);
     const extOn = C.ext.filter(e => e.w > 0);
     const nL = counted.length, nE = extOn.length;
-    const effL = nL ? (nE ? C.lmsW : 100) : 0, effE = nE ? (nL ? 100 - C.lmsW : 100) : 0;
+    const effL = nL ? (nE ? lmsWOf(C) : 100) : 0, effE = nE ? (nL ? 100 - lmsWOf(C) : 100) : 0;
     const sumWL = counted.reduce((t, c) => t + C.lms[c.key], 0), sumWE = extOn.reduce((t, e) => t + e.w, 0);
     const share = (w, sw, g) => sw ? one(g * w / sw) : 0;
     const sayExit = u => { const p = per[u]; return p.T === 'active' ? '' : p.S.name + (p.entry ? ' · ' + fmtD(p.entry.date) : ''); };
@@ -597,7 +631,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
 
     // reports
     const reports = {
-      summary: () => { const rows = [['Batch', b.code + ' · ' + b.name], ['Training type', m.tt.name], ['Trainer', b.trainer], ['Business division', b.division], ['Dates', b.start + ' to ' + b.end], ['Status', st], ['Pass mark', C.pass + '%'], ['Weights', 'LMS ' + effL + '% · External ' + effE + '%'], []];
+      summary: () => { const rows = [['Batch', b.code + ' · ' + b.name], ['Training type', m.tt.name], ['Trainer', b.trainer], ['Business division', b.division], ['Dates', b.start + ' to ' + b.end], ['Schedule', schedLabel(b, m.tt) + ' · ' + m.dates.length + ' training days' + (b.sat ? ' · Saturdays included' : '')], ['Status', st], ['Pass mark', pctL(C.pass)], ['Weights', 'LMS ' + effL + '% · External ' + effE + '%'], []];
         kpiTiles(k).forEach(t => rows.push([t.l, t.v, t.sub])); rows.push([]);
         rows.push(['Trainee', 'Employee ID', 'Department', 'Current status', 'Since', 'Attrition type', 'Reason', 'Details / destination', 'Attendance %', 'Essential completion %', 'Other completion %', 'LMS avg %', 'External avg %', 'Final weighted %', 'Certification', 'RAG']);
         b.trainees.forEach(u => { const p = per[u], usr = s.users.find(x => x.name === u) || {}, e = p.entry || {};
@@ -609,7 +643,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
       completion: () => { const rows = [['Trainee'].concat(m.items.map(i => 'D' + (i.di + 1) + ' ' + itemInfo(i).title + (i.essential ? ' [Essential]' : ' [Other]'))).concat(['Essential %', 'Other %', 'Avg score %'])];
         b.trainees.forEach(u => { const pg = b.prog[u] || {}; rows.push([u].concat(m.items.map(i => { const x = pg[i.key] || {}; return !activeOn(u, i.date || '9999') && i.due ? 'Not in training' : !i.due ? 'Not yet due' : (x.pct || 0) + '%' + (x.score != null ? ' (score ' + x.score + '%)' : ''); })).concat([per[u].essPct, per[u].othPct, per[u].avg])); });
         csvDownload(b.code + '-completion-' + TODAY_KEY + '.csv', rows); },
-      certification: () => { const rows = [['Rule', 'Final = ' + effL + '% × weighted LMS average + ' + effE + '% × weighted external average; certified at ' + C.pass + '% or higher'], [],
+      certification: () => { const rows = [['Rule', 'Final = ' + effL + '% × weighted LMS average + ' + effE + '% × weighted external average; certified at ' + pctL(C.pass) + ' or higher'], [],
           ['Trainee'].concat(counted.map(c => itemInfo(c.it).title + ' (LMS, weight ' + C.lms[c.key] + ')')).concat(extOn.map(e => e.name + ' (out of ' + e.max + ', weight ' + e.w + ')')).concat(['LMS avg %', 'External avg %', 'Final weighted %', 'Result'])];
         b.trainees.forEach(u => { const pg = b.prog[u] || {}; rows.push([u].concat(counted.map(c => { const x = pg[c.key] || {}; return (x.pct || 0) > 0 && x.score != null ? x.score : ''; })).concat(extOn.map(e => ((b.ext || {})[u] || {})[e.id] ?? '')).concat([per[u].c.lAvg, per[u].c.eAvg, per[u].c.final, per[u].cert])); });
         csvDownload(b.code + '-certification-' + TODAY_KEY + '.csv', rows); },
@@ -689,8 +723,8 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
             return { name: S.name, bg: STATUS_TYPES[S.type].bg, fg: STATUS_TYPES[S.type].fg, date: longD(x.date), by: 'by ' + x.by + (x.editedBy ? ' · corrected by ' + x.editedBy : ''),
               info: [x.attType && x.attType + ' · ' + x.reason, x.details, x.target && '→ ' + x.target, x.note].filter(Boolean).join(' — '), canFix: isAdmin, fix: () => this.setState({ sm: { ...x, u, err:'' } }) }; })) }; }),
       // plan
-      btPlan: m.tt.days.map((d, di) => { const date = m.dates[di], isToday = date === TODAY_KEY, past = date < TODAY_KEY, logged = b.att[date];
-        return { n: di + 1, title: d.title || 'Day ' + (di + 1), date: longD(date), state: isToday ? 'Today' : past ? 'Done' : 'Upcoming', stBg: isToday ? '#E7F0F7' : past ? '#E3F1EE' : '#EAF1F6', stFg: isToday ? '#7A4A06' : past ? '#245E52' : '#526B7A',
+      btPlan: dayPlan(m.tt, m.dates.length).map((pd, di) => { const date = m.dates[di], isToday = date === TODAY_KEY, past = date < TODAY_KEY, logged = b.att[date], d = { title: pd.length ? pd.map(i => m.tt.days[i].title || 'Day ' + (i + 1)).join(' + ') : 'Extra day (not in the plan)', items: pd.flatMap(i => m.tt.days[i].items) };
+        return { n: di + 1, title: d.title, date: longD(date), state: isToday ? 'Today' : past ? 'Done' : 'Upcoming', stBg: isToday ? '#E7F0F7' : past ? '#E3F1EE' : '#EAF1F6', stFg: isToday ? '#7A4A06' : past ? '#245E52' : '#526B7A',
           attMissing: (past || isToday) && !logged, items: d.items.map(it => { const x = itemInfo(it); return { ...x, essential: it.essential, other: !it.essential }; }) }; }),
       // attendance
       attDays: m.dates.map((d, i) => { const on = d === attDate, fut = d > TODAY_KEY, logged = !!b.att[d]; return { label: 'D' + (i + 1) + ' · ' + fmtD(d), sub: fut ? 'Upcoming' : logged ? 'Logged' : 'Not logged', bg: on ? INK : W, fg: on ? '#F8FBFD' : fut ? '#6E8796' : INK, border: on ? INK : logged || fut ? '#C9D7E2' : '#D64545', pick: () => this.setState({ attDate:d, attDraft:null }) }; }),
@@ -722,7 +756,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
                 this.toastMsg(u.split(' ')[0] + ': ' + itemInfo(i).title + (done ? ' marked incomplete' : ' marked complete')); } }; }) }; }),
       cmpCols: '210px repeat(' + m.items.length + ', minmax(96px, 1fr)) 90px 80px 90px',
       // certification (weighted)
-      cLock: !canEdit, cPass: C.pass, cLmsW: effL, cExtW: effE, cDefaultNote: 'Training type default: ' + m.tt.passPct + '% · LMS ' + m.tt.lmsW + '% / External ' + (100 - m.tt.lmsW) + '%',
+      cLock: !canEdit, cPass: C.pass, cLmsW: effL, cExtW: effE, cDefaultNote: 'Training type default: pass ' + pctL(m.tt.passPct) + ' · ' + (nz(m.tt.lmsW) == null ? 'weights not set (50 / 50)' : 'LMS ' + m.tt.lmsW + '% / External ' + (100 - m.tt.lmsW) + '%'),
       setCPass: e => { if (!guard()) return; const v = parseInt(e.target.value, 10); if (isNaN(v)) return; if (v < 1 || v > 100) return this.toastMsg('Passing % must be 1–100'); setCert({ pass: v }, { area:'Certification', key:'pass', text:'Passing % changed', before: C.pass + '%', after: v + '%' }); },
       setCLmsW: e => { if (!guard()) return; const v = parseInt(e.target.value, 10); if (isNaN(v)) return; if (v < 0 || v > 100) return this.toastMsg('LMS weight must be 0–100'); setCert({ lmsW: v }, { area:'Certification', key:'lmsW', text:'Weights changed', before: 'LMS ' + C.lmsW + '% / External ' + (100 - C.lmsW) + '%', after: 'LMS ' + v + '% / External ' + (100 - v) + '%' }); },
       cSplitNote: !nL && !nE ? '' : !nL ? 'No LMS assessments count, so external assessments carry 100%.' : !nE ? 'No external assessments count, so LMS assessments carry 100%.' : '',
@@ -741,16 +775,16 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
             setCert({ ext: C.ext.map(x => x.id === e.id ? { ...x, w: v } : x) }, { area:'Certification', key:'ew' + e.id, text: e.name + ' weight changed', before: String(e.w), after: String(v) }); },
           remove: () => { if (!guard()) return; setCert({ ext: C.ext.filter(x => x.id !== e.id) }, { area:'Certification', text:'External assessment removed: ' + e.name }); this.toastMsg(e.name + ' removed from certification'); } }; }),
       cAddExt: () => { if (!guard()) return; const nm = 'External assessment ' + (C.ext.length + 1); setCert({ ext: C.ext.concat([{ id:'x' + Date.now(), name: nm, max:100, w:1 }]) }, { area:'Certification', text:'External assessment added: ' + nm }); },
-      cFormula: nL + nE === 0 ? 'No assessments count yet.' : 'Final score = ' + (nL ? effL + '% × weighted LMS average' : '') + (nL && nE ? ' + ' : '') + (nE ? effE + '% × weighted external average' : '') + '. Certified at ' + C.pass + '% or higher, once every counted assessment has a score.',
+      cFormula: nL + nE === 0 ? 'No assessments count yet.' : 'Final score = ' + (nL ? effL + '% × weighted LMS average' : '') + (nL && nE ? ' + ' : '') + (nE ? effE + '% × weighted external average' : '') + '. Certified at ' + pctL(C.pass) + ' or higher, once every counted assessment has a score.',
       cNoRule: nL + nE === 0,
       cHead: counted.map(c => ({ title: itemInfo(c.it).title, sub: 'LMS · w ' + C.lms[c.key] + ' · ' + share(C.lms[c.key], sumWL, effL) + '%' })).concat(extOn.map(e => ({ title: e.name, sub: 'External · /' + e.max + ' · w ' + e.w + ' · ' + share(e.w, sumWE, effE) + '%' }))),
       cCols: '210px repeat(' + (nL + nE) + ', minmax(120px, 1fr)) 84px 84px 90px 170px',
       cRows: b.trainees.map((u, i) => { const p = per[u], pg = b.prog[u] || {}, lockRow = !canEdit || ['noshow', 'moved', 'attrition', 'absorbed'].includes(p.T);
         return { name:u, initials: ini(u), av: AV[i % 5], exit: sayExit(u), hasExit: p.T !== 'active',
-          cells: counted.map(c => { const x = pg[c.key] || {}, date = m.dates[c.di];
+          cells: counted.map(c => { const x = pg[c.key] || {}, date = m.dates[planDayOf(m.tt.days.length, m.dates.length, c.di)];
             if (!date || date > TODAY_KEY) return { isLms:true, isExt:false, label:'Not due', bg:'#F4F8FC', fg:'#6E8796' };
             if (!activeOn(u, date)) return { isLms:true, isExt:false, label:'—', bg:'#F4F8FC', fg:'#6E8796' };
-            return (x.pct || 0) > 0 && x.score != null ? { isLms:true, isExt:false, label: x.score + '%', bg: x.score >= C.pass ? '#DCFCE7' : '#FDECEC', fg: x.score >= C.pass ? '#166534' : '#A63232' } : { isLms:true, isExt:false, label:'Not taken', bg:'#FEF3C7', fg:'#92400E' }; })
+            return (x.pct || 0) > 0 && x.score != null ? { isLms:true, isExt:false, label: x.score + '%', bg: nz(C.pass) == null || x.score >= C.pass ? '#DCFCE7' : '#FDECEC', fg: nz(C.pass) == null || x.score >= C.pass ? '#166534' : '#A63232' } : { isLms:true, isExt:false, label:'Not taken', bg:'#FEF3C7', fg:'#92400E' }; })
             .concat(extOn.map(e => { const v = ((b.ext || {})[u] || {})[e.id];
               return { isLms:false, isExt:true, val: v == null ? '' : String(v), max: e.max, dis: lockRow, pctLabel: v == null ? '' : Math.round(v / e.max * 100) + '%',
                 set: ev => { if (!guard()) return; const raw = ev.target.value, owner = ((b.extBy || {})[u] || {})[e.id] || null;
@@ -813,11 +847,11 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
     ttVals = {
       ttModal: scrV === 'batches' && s.bView === 'types', td: tdr, tdTitle: tdr.id ? 'Edit training type' : 'New training type', tdErr: !!tdr.err, tdIdPreview: preview,
       setTdName: e => setT({ name: e.target.value }), setTdDesc: e => setT({ desc: e.target.value }), setTdCode: e => setT({ code: e.target.value.replace(/[^A-Za-z0-9]/g, '') }), setTdLevel: e => setT({ level: e.target.value.toUpperCase().replace(/[^L0-9]/g, '') }),
-      setTdPass: e => setT({ passPct: e.target.value === '' ? '' : parseInt(e.target.value, 10) }), setTdLmsW: e => setT({ lmsW: e.target.value === '' ? '' : parseInt(e.target.value, 10) }), tdExtW: tdr.lmsW === '' ? '—' : 100 - tdr.lmsW,
+      setTdPass: e => setT({ passPct: e.target.value === '' ? '' : parseInt(e.target.value, 10) }), setTdLmsW: e => setT({ lmsW: e.target.value === '' ? '' : parseInt(e.target.value, 10) }), tdExtW: nz(tdr.lmsW) == null ? '—' : 100 - tdr.lmsW,
       tdDuration: tdr.days.length + (tdr.days.length === 1 ? ' training day' : ' training days'),
       tdExt: tdr.ext.map((e, i) => ({ ...e, setName: ev => setT({ ext: tdr.ext.map((x, j) => j === i ? { ...x, name: ev.target.value } : x) }), setMax: ev => setT({ ext: tdr.ext.map((x, j) => j === i ? { ...x, max: ev.target.value === '' ? '' : parseInt(ev.target.value, 10) } : x) }), setW: ev => setT({ ext: tdr.ext.map((x, j) => j === i ? { ...x, w: ev.target.value === '' ? '' : parseFloat(ev.target.value) } : x) }), remove: () => setT({ ext: tdr.ext.filter((_, j) => j !== i) }) })),
       tdExtEmpty: !tdr.ext.length, addTdExt: () => setT({ ext: tdr.ext.concat([{ id:'x' + Date.now(), name:'', max:100, w:1 }]) }),
-      tdCertNote: 'Final score = ' + (tdr.lmsW === '' ? '…' : tdr.lmsW) + '% × LMS average (' + nLms + ' LMS ' + (nLms === 1 ? 'assessment' : 'assessments') + ' in the plan, weight 1 each) + ' + (tdr.lmsW === '' ? '…' : 100 - tdr.lmsW) + '% × weighted external average (' + tdr.ext.length + ' external). Certified at ' + (tdr.passPct || '…') + '%. Trainers can fine-tune per batch.',
+      tdCertNote: 'Optional for now (v41.21). Final score = ' + (nz(tdr.lmsW) == null ? '50 (not set)' : tdr.lmsW) + '% × LMS average (' + nLms + ' LMS ' + (nLms === 1 ? 'assessment' : 'assessments') + ' in the plan) + ' + (nz(tdr.lmsW) == null ? '50 (not set)' : 100 - tdr.lmsW) + '% × weighted external average (' + tdr.ext.length + ' external). ' + (nz(tdr.passPct) == null ? 'No passing % yet: trainees show “No rule” instead of certified / not certified.' : 'Certified at ' + tdr.passPct + '%.') + ' Trainers can fine-tune per batch.',
       tdDays: tdr.days.map((d, di) => ({ n: di + 1, title: d.title, setTitle: e => setDays(tdr.days.map((x, j) => j === di ? { ...x, title: e.target.value } : x)),
         items: d.items.map((it, ii) => { const x = itemInfo(it); return { ...x, essLabel: it.essential ? 'Essential' : 'Other', essBg: it.essential ? '#FDECEC' : '#EAF1F6', essFg: it.essential ? '#A63232' : '#526B7A',
           toggleEss: () => setDays(tdr.days.map((y, j) => j === di ? { ...y, items: y.items.map((z, q) => q === ii ? { ...z, essential: !z.essential } : z) } : y)),
@@ -828,7 +862,7 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
         up: () => { if (!di) return; const a = tdr.days.slice(); [a[di - 1], a[di]] = [a[di], a[di - 1]]; setDays(a); }, isFirst: di === 0,
         removeDay: () => { if (tdr.days.length === 1) return this.toastMsg('A training type needs at least one day'); setDays(tdr.days.filter((_, j) => j !== di)); } })),
       addDay: () => setDays(tdr.days.concat([{ title:'', items:[] }])),
-      tdSummary: tdr.days.length + (tdr.days.length === 1 ? ' day · ' : ' days · ') + tdr.days.reduce((t, d) => t + d.items.length, 0) + ' items · pass ' + (tdr.passPct || '…') + '%',
+      tdSummary: tdr.days.length + (tdr.days.length === 1 ? ' day · ' : ' days · ') + tdr.days.reduce((t, d) => t + d.items.length, 0) + ' items · pass ' + pctL(nz(tdr.passPct)),
       closeTt: () => this.setState({ ttDraft:null }),
       saveTt: () => { const nm = tdr.name.trim();
         if (!nm) return setT({ err:'Give the training type a name.' });
@@ -836,21 +870,23 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
         if (!/^[A-Za-z][A-Za-z0-9]{1,7}$/.test(tdr.code || '')) return setT({ err:'Batch ID code must be 2–8 letters or digits, starting with a letter (e.g. Comms).' });
         if (!/^L\d{1,2}$/.test(tdr.level || '')) return setT({ err:'Level must look like L1, L2 or L10.' });
         if (s.ttypes.some(t => t.id !== tdr.id && (t.code || '').toLowerCase() === tdr.code.toLowerCase() && t.level === tdr.level)) return setT({ err:'Another training type already uses ' + tdr.code + tdr.level + '. Batch IDs would clash.' });
-        if (!(tdr.passPct >= 1 && tdr.passPct <= 100)) return setT({ err:'Set a passing % from 1 to 100.' });
-        if (!(tdr.lmsW >= 0 && tdr.lmsW <= 100)) return setT({ err:'Set the LMS weight from 0 to 100. External gets the rest.' });
-        const badExt = tdr.ext.findIndex(e => !(e.name || '').trim() || !(e.max >= 1) || !(e.w > 0 && e.w <= 10)); if (badExt >= 0) return setT({ err:'External assessment ' + (badExt + 1) + ' needs a name, maximum marks and a weight from 0.1 to 10.' });
-        const emptyDay = tdr.days.findIndex(d => !d.items.length); if (emptyDay >= 0) return setT({ err:'Day ' + (emptyDay + 1) + ' has no courses or modules.' });
+        // v41.21: passing %, LMS weight, external assessments and the courses of each day are optional for now; if filled, they must be valid
+        const pass = nz(tdr.passPct), lmsW = nz(tdr.lmsW);
+        if (pass != null && !(pass >= 1 && pass <= 100)) return setT({ err:'Passing % must be from 1 to 100, or leave it empty.' });
+        if (lmsW != null && !(lmsW >= 0 && lmsW <= 100)) return setT({ err:'LMS weight must be from 0 to 100 (external gets the rest), or leave it empty.' });
+        const ext = tdr.ext.filter(e => (e.name || '').trim() || e.max !== 100 || e.w !== 1).map(e => ({ ...e, max: nz(e.max) == null ? 100 : e.max, w: nz(e.w) == null ? 1 : e.w }));
+        const badExt = ext.findIndex(e => !(e.name || '').trim() || !(e.max >= 1) || !(e.w > 0 && e.w <= 10)); if (badExt >= 0) return setT({ err:'External assessment ' + (badExt + 1) + ' needs a name; maximum marks at least 1 and a weight from 0.1 to 10 (or remove the row).' });
         const used = s.batches.filter(b => b.type === tdr.id && lastLogged(b));
         if (tdr.id && used.length && s.ttypes.find(t => t.id === tdr.id).days.length !== tdr.days.length) return setT({ err:'Running batches (' + used.length + ', e.g. ' + used.slice(0, 3).map(b => b.code).join(', ') + ') use this type, so its number of days can’t change. Create a new training type instead.' });
-        const rec = { id: tdr.id || 'tt' + Date.now(), name: nm, code: tdr.code, level: tdr.level, desc: (tdr.desc || '').trim(), passPct: tdr.passPct, lmsW: tdr.lmsW, ext: tdr.ext.map(e => ({ ...e, name: e.name.trim() })), days: tdr.days.map(d => ({ title: d.title.trim(), items: d.items })) };
-        this.setState({ ttypes: tdr.id ? s.ttypes.map(t => t.id === rec.id ? rec : t) : s.ttypes.concat([rec]), ttDraft:null, batches: tdr.id ? s.batches.map(b => { if (b.type !== rec.id || lastLogged(b)) return b; const d = trainDays(b.start, rec.days.length, holSetFor(s.holidays, b)); return { ...b, end: d[d.length - 1] || b.end }; }) : s.batches });
+        const rec = { id: tdr.id || 'tt' + Date.now(), name: nm, code: tdr.code, level: tdr.level, desc: (tdr.desc || '').trim(), passPct: pass, lmsW, ext: ext.map(e => ({ ...e, name: e.name.trim() })), days: tdr.days.map(d => ({ title: d.title.trim(), items: d.items })) };
+        this.setState({ ttypes: tdr.id ? s.ttypes.map(t => t.id === rec.id ? rec : t) : s.ttypes.concat([rec]), ttDraft:null, batches: tdr.id ? s.batches.map(b => { if (b.type !== rec.id || lastLogged(b)) return b; const d = batchDates(b, rec, holSetFor(s.holidays, b)); return { ...b, end: d[d.length - 1] || b.end }; }) : s.batches });
         this.toastMsg('“' + nm + '” saved' + (tdr.id ? ' · existing batches keep their IDs and certification rules' : '')); },
     };
   }
   const ttRows = s.ttypes.map(t => { const used = s.batches.filter(b => b.type === t.id), nLms = lmsCandidates(t).filter(c => c.label === 'LMS assessment').length;
-    return { ...t, idLabel: (t.code || '') + (t.level || '') + 'YY###', dayCount: t.days.length + (t.days.length === 1 ? ' day' : ' days'), passLabel: 'Pass ' + t.passPct + '%', wLabel: 'LMS ' + t.lmsW + '% · Ext ' + (100 - t.lmsW) + '%', asmLabel: nLms + ' LMS + ' + t.ext.length + ' external assessments', itemCount: t.days.reduce((n, d) => n + d.items.length, 0) + ' items', usedLabel: used.length ? 'Used by ' + used.length + (used.length === 1 ? ' batch' : ' batches') + ' · latest ' + used.slice().sort((x, y) => y.start.localeCompare(x.start)).slice(0, 3).map(b => b.code).join(', ') : 'Not used yet',
+    return { ...t, idLabel: (t.code || '') + (t.level || '') + 'YY###', dayCount: t.days.length + (t.days.length === 1 ? ' day' : ' days'), passLabel: 'Pass ' + pctL(t.passPct), wLabel: nz(t.lmsW) == null ? 'Weights not set' : 'LMS ' + t.lmsW + '% · Ext ' + (100 - t.lmsW) + '%', asmLabel: nLms + ' LMS + ' + t.ext.length + ' external assessments', itemCount: t.days.reduce((n, d) => n + d.items.length, 0) + ' items', usedLabel: used.length ? 'Used by ' + used.length + (used.length === 1 ? ' batch' : ' batches') + ' · latest ' + used.slice().sort((x, y) => y.start.localeCompare(x.start)).slice(0, 3).map(b => b.code).join(', ') : 'Not used yet',
       preview: t.days.map((d, i) => ({ n: i + 1, title: d.title || 'Day ' + (i + 1), count: d.items.length })),
-      edit: () => this.setState({ ttPick:{}, ttDraft: JSON.parse(JSON.stringify({ ...t, err:'' })) }),
+      edit: () => this.setState({ ttPick:{}, ttDraft: JSON.parse(JSON.stringify({ ...t, passPct: nz(t.passPct) == null ? '' : t.passPct, lmsW: nz(t.lmsW) == null ? '' : t.lmsW, err:'' })) }),
       del: () => { if (used.length) return this.toastMsg('Used by ' + used.length + ' batches, so it can’t be deleted.'); this.setState({ ttypes: s.ttypes.filter(x => x.id !== t.id) }); this.toastMsg('“' + t.name + '” deleted'); } }; });
 
   const bv = isAdmin ? s.bView : 'list', aggK = sumK(MS.map(x => x.m.k));
@@ -868,6 +904,6 @@ SkillforgeApp.prototype.batchVals = function (s, role) {
       .concat([{ l:'Throughput', v: pctLbl(aggK.throughput), sub:'(graduated + absorbed) ÷ joined', c:'#007A4D' }]),
     newBatch: openNew, exportBatches,
     ...holVals, ...statusVals, ...modalVals, ...detail, ...ttVals,
-    ttRows, newTtype: () => this.setState({ ttPick:{}, ttDraft: { id:null, name:'', code:'', level:'L1', desc:'', passPct:70, lmsW:50, ext:[], days:[{ title:'', items:[] }], err:'' } }),
+    ttRows, newTtype: () => this.setState({ ttPick:{}, ttDraft: { id:null, name:'', code:'', level:'L1', desc:'', passPct:'', lmsW:'', ext:[], days:[{ title:'', items:[] }], err:'' } }),
   };
 };

@@ -36,12 +36,18 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
     enrCount: Object.keys(enrMine).length + (Object.keys(enrMine).length === 1 ? ' course assigned' : ' courses assigned'),
     closeEnr: () => this.setState({ enrModal:null, enrPick:null }), openEnr: () => this.setState({ enrModal: { user:'', picking:true } }), canAssign };
   // gradebook
+  // v41.21: who a grader sees: admins and "Gradebook: all learners" (gradeAll) see everyone; others see the trainees of the
+  // batches they train (never themselves; a trainee in one batch can be the trainer of another: train-the-trainer).
+  const gbAllPeople = !!role.admin || (this._perms || new Set()).has('gradeAll');
+  const myTrainees = new Set((s.batches || []).filter(b => b.trainer === role.name).flatMap(b => b.trainees || []).filter(n => n !== role.name));
+  const myTraineeEmps = new Set([...myTrainees].map(n => (s.users.find(u => u.name === n) || {}).empId).filter(Boolean));
+  const gbSees = (name, emp) => gbAllPeople || myTrainees.has(name) || (!!emp && myTraineeEmps.has(emp));
   const gq = s.gbQuery.trim().toLowerCase();
   const cell = v => v === null ? { v:'—', bg:'#EAF1F6', fg:'#526B7A' } : { v, bg: v >= 85 ? '#E3F1EE' : v >= 70 ? '#E7F0F7' : '#FDECEC', fg: v >= 85 ? '#245E52' : v >= 70 ? '#7A4A06' : '#A63232' };
   // v36: real gradebook (it was a fixed sample table). One row per learner and course with assessments: assessments done,
   // best and lowest best-score, average, status. Trainers see the trainees of their batches; admins see everyone.
   // Built only on the Gradebook screen.
-  const gbAll = this._scrV !== 'gradebook' ? [] : (() => { const me = role.name, adm = !!role.admin;
+  const gbAll = this._scrV !== 'gradebook' ? [] : (() => { const me = role.name, adm = gbAllPeople;
     const names = adm ? [...new Set(Object.keys(s.itemQuiz || {}).concat(Object.keys(s.attemptsUsed || {})))] : [...new Set((s.batches || []).filter(b => b.trainer === me).flatMap(b => b.trainees || []))];
     const out = []; names.forEach(n => { const u = s.users.find(x => x.name === n); if (!u || u.status === 'Deactivated') return;
       Progress.myCourses(s, n).forEach(({ a, d }) => { const qi = a.items.map((it, i) => it.kind === 'quiz' ? i : -1).filter(i => i >= 0); if (!qi.length) return;
@@ -54,7 +60,7 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
   const gbRows = GBP.rows.map(r => ({ ...r, initials: ini(r.name), av: AV[Math.floor(Progress.hash(r.name) * 5) % 5], cells: [{ v: r.course, bg:'transparent', fg:'#16324F', cls:'gb-txt' }, { v: r.done, bg:'#EAF1F6', fg:'#334E68', cls:'' }, { ...cell(r.best), cls:'' }, { ...cell(r.low), cls:'' }], avg: r.avgN === null ? '—' : r.avgN }));
   // v41.11: assignment submissions — accept (completes the learner's step) or return with a comment
   const asgVals = () => { const INK = '#16324F', W = '#FFFFFF';
-    const all = (s.asgSub || []).slice().sort((x, y) => String(y.at).localeCompare(String(x.at))), tab = s.asgTab || 'pending';
+    const all = (s.asgSub || []).filter(x => gbSees(x.learner, x.learnerEmp)).slice().sort((x, y) => String(y.at).localeCompare(String(x.at))), tab = s.asgTab || 'pending';
     const list = tab === 'pending' ? all.filter(x => x.status === 'Submitted') : all.filter(x => x.status !== 'Submitted');
     const cTitle = id => ((s.adminCourses || []).find(c => c.id === id) || {}).title || 'a course';
     const decide = (x, accept) => { const comment = ((s.asgRv || {})[x.id] || '').trim();
@@ -77,7 +83,7 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
         ok: () => decide(x, true), ret: () => decide(x, false) })) }; };
   // written answers — trainer rates each one from 0 to the question's points
   const setRv = (id, patch) => this.setState(st => ({ rvDraft: { ...st.rvDraft, [id]: { ...(st.rvDraft[id] || {}), ...patch } } }));
-  const rvAll = s.reviews.map((r, i) => {
+  const rvAll = s.reviews.filter(r => gbSees(r.learner, r.learnerEmp)).map((r, i) => {
     // Connected, raters don't read the question bank (answer keys): the review row carries the question and points.
     const q = r.qText ? { text: r.qText, points: r.points || 0, guide: r.guide || '' } : s.qs.find(x => x.id === r.qid) || { text:'(question removed)', points:5, guide:'' };
     const dr = { rating: r.rating, feedback: r.feedback, ...(s.rvDraft[r.id] || {}) };
@@ -183,7 +189,7 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
     exportCsv: () => { if (!gbFilt.length) return this.toastMsg('Nothing to export: no gradebook rows match.');   // v36: writes the file (it only showed a message)
       csvDownload('gradebook-' + TODAY_KEY + '.csv', [['Learner', 'Department', 'Course', 'Assessments done', 'Best %', 'Lowest %', 'Average %', 'Status']].concat(gbFilt.map(r => [r.name, r.dept, r.course, r.done, r.best === null ? '' : r.best, r.low === null ? '' : r.low, r.avgN === null ? '' : r.avgN, r.status])));
       this.toastMsg(gbFilt.length.toLocaleString('en-US') + ' gradebook rows exported'); },
-    gbPager: GBP.pager, gbEmpty: !gbFilt.length, gbScope: role.admin ? 'Everyone with assessment results' : 'Trainees in your batches',
+    gbPager: GBP.pager, gbEmpty: !gbFilt.length, gbScope: gbAllPeople ? 'Everyone with assessment results' : 'Trainees in the batches you train',
     gbStats: (() => { const sc = gbAll.filter(r => r.avgN !== null); return [{ l:'Average score', v: sc.length ? Math.round(sc.reduce((a, r) => a + r.avgN, 0) / sc.length) + '%' : '—' }, { l:'Courses completed', v: gbAll.filter(r => r.status === 'Completed').length + ' of ' + gbAll.length }, { l:'Need support (average under 70%)', v: gbAll.filter(r => r.status === 'Needs support').length }]; })(),
     teamStats: [{ l:'Team members', v:TEAM.length, fg:'#16324F' }, { l:'On track', v:TEAM.filter(m => !m.overdue).length, fg:'#245E52' }, { l:'Needs attention', v:TEAM.filter(m => m.overdue === 1).length, fg:'#7A4A06' }, { l:'Overdue', v:TEAM.filter(m => m.overdue > 1).length, fg:'#A63232' }],
     teamRows: teamList,
@@ -211,6 +217,21 @@ SkillforgeApp.prototype.vmStaffTools = function (c) {
     areaD: lineD + ' L640 220 L0 220 Z',
     chartLabels: R.labels,
     chartCaption: R.cap,
+    // v41.21: "Where learners drop off" from real records: for one course (the picker, default the most-assigned course with
+    // 2+ steps), the share of active assigned learners who finished each step. It was a fixed sample chart.
+    ...(() => { if (scrNow !== 'analytics') return { dropHas:false };
+      const active = s.users.filter(u => u.status !== 'Deactivated' && !u._dir);
+      const cnt = a => active.filter(u => (s.enroll[u.name] || {})[a.id]).length;
+      const cands = (s.adminCourses || []).filter(a => (a.items || []).length >= 2).map(a => ({ a, n: cnt(a) })).filter(x => x.n > 0).sort((x, y) => y.n - x.n);
+      if (!cands.length) return { dropHas:false, dropEmpty:true };
+      const pick = cands.find(x => x.a.id === s.dropCourse) || cands[0], a = pick.a, people = active.filter(u => (s.enroll[u.name] || {})[a.id]);
+      const reach = a.items.map((it, i) => people.filter(u => { const d = Progress.detail(s, u.name, a); return d.mods[i] && d.mods[i].done; }).length);
+      const rows = a.items.map((it, i) => { const p = Math.round(reach[i] / people.length * 100), title = it.title || (it.moduleId && ((s.lcms || []).find(m => m.id === it.moduleId) || {}).title) || (it.kind === 'quiz' && ((s.quizzes || []).find(z => z.id === it.quizId) || {}).name) || 'Step ' + (i + 1);
+        return { label: (i + 1) + '. ' + title, pct: p + '%', w: Math.max(1, p) + '%', col: p >= 80 ? '#007A4D' : p >= 50 ? '#0066A1' : '#D64545' }; });
+      let worst = null; for (let i = 1; i < reach.length; i++) { const dpt = Math.round((reach[i - 1] - reach[i]) / people.length * 100); if (dpt > 0 && (!worst || dpt > worst.d)) worst = { i, d: dpt }; }
+      return { dropHas:true, dropEmpty:false, dropRows: rows, dropSub: a.title + ' · ' + people.length + (people.length === 1 ? ' person' : ' people') + ' assigned · share who finished each step',
+        dropNote: worst ? 'Biggest drop: step ' + worst.i + ' to step ' + (worst.i + 1) + ' (' + worst.d + ' points). Review the content there first.' : 'No drop between steps yet.',
+        dropOpts: cands.map(x => ({ v: x.a.id, l: x.a.title + ' (' + x.n + ')' })), dropSel: a.id, setDropCourse: e => this.setState({ dropCourse: e.target.value }) }; })(),
     // completion rate by department and the most-assigned courses (all time), from the same records
     depts: !needStats ? [] : (() => { const by = new Map(); s.users.forEach(u => { const p = LS.people.get(u.name); if (!p) return; const g = by.get(u.dept || 'Unassigned') || [0, 0]; g[0] += p.done; g[1] += p.asg; by.set(u.dept || 'Unassigned', g); });
       return [...by.entries()].map(([name, [d, a]]) => [name, a ? Math.round(d / a * 100) : 0]).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, v], i) => ({ name, pct: v + '%', color: ['#0066A1', '#0066A1', '#007A4D', '#007A4D', '#8C5A9E', '#D64545'][i] })); })(),

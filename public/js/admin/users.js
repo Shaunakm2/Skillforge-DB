@@ -82,7 +82,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
     newUser: () => this.setState({ userModal:true, ud:null }),
     importUsers: () => { const base = nextUserId(s.users) - 1; const add = [['Owen Hart', 'Sales'], ['Priya Nair', 'Engineering'], ['Lucas Moreau', 'Customer Success']].map(([n, dp], i) => ({ id: base + i + 1, name:n, email: n.toLowerCase().split(' ').join('.') + '@northwind.com', role:'Learner', dept:dp, manager:'Priya Raman', status:'Invited', lastLogin:'Never' })); this.setState({ users: s.users.concat(add) }); this.toastMsg('3 accounts imported from new_hires_oct.csv · invites sent'); },
     userModal: s.userModal,
-    closeUserModal: () => this.setState({ userModal:false }),
+    closeUserModal: () => this.setState({ userModal:false, ud:null }),   // v41.21: the draft goes too
     ud,
     setUdName: setUd('name'),
     setUdEmail: setUd('email'),

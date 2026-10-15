@@ -24,7 +24,8 @@ const MODULES = [
   ['builder', 'Course builder', 'content', ['builder']],
   ['batches', 'Batch management (batches they run)', 'delivery', ['batches', 'batch']],
   ['places', 'Training places', 'delivery', ['places']],
-  ['gradebook', 'Gradebook', 'delivery', ['gradebook']],
+  ['gradebook', 'Gradebook (the trainees of batches they train)', 'delivery', ['gradebook']],
+  ['gradeAll', 'Gradebook: all learners (not only their batch trainees), e.g. assessors and quality analysts', 'delivery', ['gradebook']],   // v41.21
   ['feedback', 'Training feedback (Kirkpatrick L1–L4)', 'delivery', ['feedback', 'reports']],   // v36: the analysis is in Reports
   ['announcements', 'Announcements', 'comms', ['announcements']],
   ['automations', 'Notifications & automations', 'comms', ['automations']],
@@ -45,7 +46,7 @@ const ROLES0 = [
   { id:'r_learner', name:'Learner', base:'Learner', builtin:true, desc:'Trainees: assigned courses, catalog, learning paths.', perms:{}, courses:[] },
   { id:'r_trainer', name:'Trainer', base:'Trainer', builtin:true, desc:'Runs batches, assigns courses, rates answers.', perms:{ assignments:true, batches:true, gradebook:true, reportsCompletion:true }, courses:[] },
   { id:'r_admin', name:'Admin', base:'Admin', builtin:true, desc:'Full access to every Settings module.', perms: ALL_PERMS, courses:[] },
-  { id:'r_qa', name:'Quality Analyst', base:'Learner', builtin:false, desc:'Learner who also rates written answers and reviews completion.', perms:{ gradebook:true, reportsCompletion:true }, courses:['feedback'] },
+  { id:'r_qa', name:'Quality Analyst', base:'Learner', builtin:false, desc:'Learner who also rates written answers and reviews completion.', perms:{ gradebook:true, gradeAll:true, reportsCompletion:true }, courses:['feedback'] },
 ];
 const Access = {
   roleFor: (s, u) => (s.roles || []).find(r => r.id === (u && u.roleId)) || (s.roles || []).find(r => r.base === (u && u.role) && r.builtin) || null,

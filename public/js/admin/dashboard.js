@@ -168,7 +168,7 @@ const Dash = (() => {
     const m = f.marks; for (let i = 1; i < m.length; i++) { const a = m[i]; if (!a) continue; r.dM[i]++; if (a === 'A') r.dA[i]++; else if (a === 'P') r.dP[i]++; else if (a === 'L') { r.dL[i]++; r.dP[i]++; } } }
   /* Training day 1…30 of each batch (weekends and holidays skipped), for the attendance fields. */
   function batchDays(s) { const out = new Map(), tt = new Map(s.ttypes.map(t => [t.id, t]));
-    s.batches.forEach(b => { const t = tt.get(b.type); out.set(b.id, { b, dates: t ? trainDays(b.start, Math.min(DAYS, t.days.length), holSetFor(s.holidays, b)) : [] }); }); return out; }
+    s.batches.forEach(b => { const t = tt.get(b.type); out.set(b.id, { b, dates: t ? batchDates(b, t, holSetFor(s.holidays, b)).slice(0, DAYS) : [] }); }); return out; }
   /* Training: one pass over the MIS rows. */
   function train(s, sl) {
     const ck = 'T|' + [sl.division, sl.sub, sl.training, sl.location, sl.from, sl.to].join('|'), recs = Mis.records(s), deps = [recs, s.holidays];
@@ -394,7 +394,7 @@ SkillforgeApp.prototype.amDashboard = function (c) {
       return { ...base, isMatrix:true, mxHead: cols.map(b => ({ t: b[0] })), mxRows: mRows, mxTot: cols.map(b => ({ t: tot[b[0]] || '' })), mxGrand: mRows.reduce((a, r) => a + r.total, 0), mxCols: 'minmax(150px,1.6fr) repeat(' + (cols.length + 1) + ', minmax(52px,.6fr))' }; }
     if (v.type === 'batches') {
       const by = new Map(); C.list.forEach(x => { let g = by.get(x.batchId); if (!g) by.set(x.batchId, g = { n:0, tr:0, ho:0, at:0, oth:0, ns:0 }); g.n++; if (x.group === 'training') g.tr++; else if (x.group === 'handover') g.ho++; else if (x.group === 'attrited') g.at++; else g.oth++; if (x.statusType === 'noshow') g.ns++; });
-      const stageOf = b => { const st = batchStatus(b); if (st === 'Ongoing') { const tt = s.ttypes.find(t => t.id === b.type), dts = tt ? trainDays(b.start, tt.days.length, holSetFor(s.holidays, b)) : []; return ['Classroom · day ' + Math.max(1, dts.filter(d => d <= TODAY_KEY).length) + ' of ' + dts.length, 1]; }
+      const stageOf = b => { const st = batchStatus(b); if (st === 'Ongoing') { const tt = s.ttypes.find(t => t.id === b.type), dts = tt ? batchDates(b, tt, holSetFor(s.holidays, b)) : []; return ['Classroom · day ' + Math.max(1, dts.filter(d => d <= TODAY_KEY).length) + ' of ' + dts.length, 1]; }
         if (st === 'Upcoming') return ['Starts ' + Fmt.short(b.start), 4]; if (st === 'Completed') return ['Completed', 5]; return TODAY_KEY < (b.handover || b.end) ? ['On the job training', 2] : ['Awaiting closure', 3]; };
       const STC = { 1:['#DBEAFE', '#1E40AF'], 2:['#EDE9FE', '#5B21B6'], 3:['#FEF3C7', '#92400E'], 4:['#EAF1F6', '#526B7A'], 5:['#DCFCE7', '#166534'] };
       let rows = s.batches.filter(b => by.has(b.id) || (batchStatus(b) === 'Upcoming' && (SL.training === 'All' || b.trainingName === SL.training))).map(b => { const g = by.get(b.id) || { n: b.trainees.length, tr: b.trainees.length, ho:0, at:0, oth:0, ns:0 }, [stage, ord] = stageOf(b), tt = s.ttypes.find(t => t.id === b.type) || {};

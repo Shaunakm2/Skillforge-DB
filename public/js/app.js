@@ -71,7 +71,7 @@ class SkillforgeApp extends Skillforge.Store {
     window.addEventListener('popstate', e => this.onBrowserBack(e));
     ['fullscreenchange', 'webkitfullscreenchange'].forEach(t => document.addEventListener(t, () => { if (!(document.fullscreenElement || document.webkitFullscreenElement) && this.state.scormFull) this.scormFullSet(false); }));
     // closing or reloading the tab with an editor open asks first (the browser shows its own message)
-    window.addEventListener('beforeunload', e => { if (this.state.authed && this.openEditor()) { e.preventDefault(); e.returnValue = ''; } });
+    window.addEventListener('beforeunload', e => { if (this.state.authed && this.dirtyEditor()) { e.preventDefault(); e.returnValue = ''; } });
     window.addEventListener('sf-toast', e => this.toastMsg(String(e.detail || '').slice(0, 200)));
     // v39: Escape closes the small toolbar menus (Users: Export, Create account)
     window.addEventListener('keydown', e => { if (e.key !== 'Escape') return;
@@ -89,7 +89,9 @@ class SkillforgeApp extends Skillforge.Store {
     this._idleCheck = () => { const st = this.state; if (!st.authed) return;
       // Watching a video, listening to audio or working in a SCORM package is activity even without clicks or keys.
       const media = [...document.querySelectorAll('video, audio')].some(m => !m.paused && !m.ended);
-      if (!document.hidden && (media || st.playing || (st.screen === 'item' && st.scormOn))) { this._lastAct = Date.now(); if (Backend.on) Backend.rememberTouch(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} return; }
+      // v41.21: an assessment in progress (on screen, not handed in) also counts, even without clicks or keys for a long time
+      const inQuiz = st.screen === 'quiz' && !st.qDone && (st.attempt && st.attempt.length || st.rAttemptId);
+      if (inQuiz || (!document.hidden && (media || st.playing || (st.screen === 'item' && st.scormOn)))) { this._lastAct = Date.now(); if (Backend.on) Backend.rememberTouch(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} return; }
       let mins = +(((st.platform || PLATFORM0).defaults || {}).idleMins ?? 30); if (!mins) return;
       if (Backend.on && Backend.remembered()) mins = Math.max(mins, Backend.KEEP_MIN);   // v41.20: Remember me keeps you signed in at least 45 minutes
       let other = 0; try { other = +localStorage.getItem('sf-act') || 0; } catch (e) {}
@@ -145,7 +147,14 @@ class SkillforgeApp extends Skillforge.Store {
     if (this.state.authed && !this._fromPop) { const nav = NavMemory.snap(this.state), t = JSON.stringify(nav);
       try { if (!before || !history.state || !history.state.sf) history.replaceState({ sf: nav }, ''); else if (t !== before) history.pushState({ sf: nav }, ''); } catch (e) {} } }
   /* v41.8: open editors that may hold unsaved work, and pop-ups that Back closes first. */
-  openEditor(s) { s = s || this.state; return s.mod ? 'module' : s.cDraft && s.screen === 'courseAdmin' ? 'course' : s.ud ? 'account' : s.docEd ? 'document' : s.kpiEd ? 'KPI' : s.roleDraft ? 'role' : ''; }
+  /* Which editor is open ('' = none). v41.21: the account editor counts only while its window is open (closing it left
+   * the draft behind, so Back asked about "unsaved changes" forever and never went back). */
+  openEditor(s) { s = s || this.state; return s.mod ? 'module' : s.cDraft && s.screen === 'courseAdmin' ? 'course' : s.ud && s.userModal ? 'account' : s.docEd ? 'document' : s.kpiEd ? 'KPI' : s.roleDraft ? 'role' : ''; }
+  /* v41.21: an open editor whose content changed since it was opened (a snapshot is taken on the first render after opening). */
+  edKey(s) { s = s || this.state; return { module:'mod', course:'cDraft', account:'ud', document:'docEd', KPI:'kpiEd', role:'roleDraft' }[this.openEditor(s)] || ''; }
+  edSnap(s) { const k = this.edKey(s); if (!k) { this._edSnap = null; return; } if (!this._edSnap || this._edSnap.k !== k) { try { this._edSnap = { k, j: JSON.stringify(s[k]) }; } catch (e) { this._edSnap = { k, j: '' }; } } }
+  dirtyEditor(s) { s = s || this.state; const k = this.edKey(s); if (!k) return ''; if (!this._edSnap || this._edSnap.k !== k) return '';
+    try { return JSON.stringify(s[k]) !== this._edSnap.j ? this.openEditor(s) : ''; } catch (e) { return this.openEditor(s); } }
   /* v41.20: SCORM full-screen view (see player.js). */
   scormFullSet(on) {
     const el = document.getElementById('sf-scorm-wrap'), fsEl = document.fullscreenElement || document.webkitFullscreenElement;
@@ -154,20 +163,23 @@ class SkillforgeApp extends Skillforge.Store {
     this.setState({ scormFull:false }); document.body.style.overflow = '';
     try { if (fsEl) (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} }
   /* v41.20: Skillforge logo -> the LMS home page (also from Settings). Unsaved editor changes are confirmed first. */
-  goHomePage() { const ed = this.openEditor();
+  goHomePage() { const ed = this.dirtyEditor();
     if (ed && !window.confirm('You have unsaved changes in this ' + ed + '. Leave without saving?')) return;
     if (this.state.screen === 'item' && Backend.on) try { Backend.scormLeave(); } catch (e) {}
     this.go('home', { ...this.closeOverlays(), adminView:false, roleMenu:false, notifOpen:false, searchOpen:false, scormOn:false, scormFull:false }); window.scrollTo(0, 0); }
-  closeOverlays() { return { mod:null, cDraft:null, ud:null, docEd:null, kpiEd:null, roleDraft:null, docView:null, modPreview:null, modDelete:null, uMenu:null, roleMenu:false, notifOpen:false }; }
+  closeOverlays() { return { mod:null, cDraft:null, ud:null, userModal:false, docEd:null, kpiEd:null, roleDraft:null, docView:null, modPreview:null, modDelete:null, uMenu:null, roleMenu:false, notifOpen:false }; }
   onBrowserBack(e) {
     const s = this.state;
     // v41.19: on the sign-in screens the browser Back button returns to Sign in (Reset password, Check your email, Set your password)
     if (!s.authed) { if (s.loginView && s.loginView !== 'signin') { if (s.loginView === 'newpw' && Backend.on) Backend.signOut().catch(() => {}); this.setState(st => ({ loginView:'signin', login: { ...st.login, busy:false, err:'', npw:'', npw2:'', recovery:false } })); } return; }
     const target = e.state && e.state.sf, here = NavMemory.snap(s);
-    const ed = this.openEditor(), popup = !!(s.docView || s.modPreview || s.modDelete);
+    const ed = this.dirtyEditor(), open = this.openEditor(), popup = !!(s.docView || s.modPreview || s.modDelete || s.userModal);
     const stay = () => { try { history.pushState({ sf: here }, ''); } catch (x) {} };
+    // v41.21: unsaved changes: Cancel = stay on the page with the editor open; OK = discard them AND go back (it used to stay put).
     if (ed && !window.confirm('You have unsaved changes in this ' + ed + '. Leave without saving?\n\nSelect Cancel to stay and save first.')) return stay();
-    if (ed || popup) { this.setState(this.closeOverlays()); return stay(); }   // Back closes the open pop-up first; you stay on the page
+    // No changes: Back just closes the open editor or pop-up; you stay on the page.
+    if (!ed && (open || popup)) { this.setState({ ...this.closeOverlays(), userModal:false }); return stay(); }
+    if (ed) this.setState({ ...this.closeOverlays(), userModal:false });
     if (!target || !target.screen) return;
     this._fromPop = true; try { const { screen, ...rest } = target; this.go(screen, { ...rest, ...this.closeOverlays() }); } finally { this._fromPop = false; }
   }
@@ -210,6 +222,7 @@ class SkillforgeApp extends Skillforge.Store {
 
   renderVals() {
     const s = this.state;
+    this.edSnap(s);   // v41.21
     Backend.observe(s);
     const role = this.roleOf(s);
     const activeNav = (['item', 'course', 'lesson', 'quiz'].includes(s.screen) && s.navFrom && !PARENT[s.navFrom] ? s.navFrom : PARENT[s.screen]) || s.screen;
