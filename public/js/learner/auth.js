@@ -3,19 +3,20 @@ SkillforgeApp.prototype.vmAuth = function (c) {
   const { navItems, role, s } = c;
   // sign in
   const RMAP = { 'Learner':'learner', 'Trainer':'instructor', 'Admin':'admin' };
-  const L0 = s.login, setL = patch => this.setState(st => ({ login: { ...st.login, err:'', ...patch } }));
+  const L0 = s.login, setL = patch => this.setState(st => ({ login: { ...st.login, err:'', info:'', ...patch } }));
   const signInAs = (u, opts) => {
     const rid = RMAP[u.role] || 'learner', r = ROLES.find(x => x.id === rid);
     const back = opts && opts.restore ? NavMemory.load(this.state, u.name) : null;
     if (!back) NavMemory.clear();
     try { if (L0.remember) localStorage.setItem('sf-remember', u.email); else localStorage.removeItem('sf-remember'); } catch (e) {}
-    this.setState(st => ({ users: st.users.map(x => x.id === u.id ? { ...x, lastLogin:'Just now', status: x.status === 'Invited' ? 'Active' : x.status } : x), login: { ...st.login, pw:'', err:'' } }));
+    this.setState(st => ({ users: st.users.map(x => x.id === u.id ? { ...x, lastLogin:'Just now', status: x.status === 'Invited' ? 'Active' : x.status } : x), login: { ...st.login, pw:'', err:'', info:'' }, lgCaps:false }));
     const base = { authed:true, role:rid, meName:u.name, meRole:rid, meTitle:u.designation || u.role, adminView:false, roleMenu:false, notifOpen:false };
     if (back) { const { screen, ...rest } = back; this.go(screen, { ...base, ...rest, essPopup:false }); return; }   // page refresh: same page, no welcome
     this.go(r.home, { ...base, essPopup:true });
     this.toastMsg('Welcome, ' + u.name.split(' ')[0]);
   };
   const doLogin = () => {
+    if (L0.busy) return;   // v41.22: already signing in
     // Username = work email or employee ID.
     const em = L0.email.trim().toLowerCase();
     if (!em) return setL({ err:'Enter your username.' });
@@ -37,13 +38,17 @@ SkillforgeApp.prototype.vmAuth = function (c) {
   };
   this._signInAs = signInAs;
   const loginVals = {
-    brandInitial: (s.brandName || 'S').trim().charAt(0).toUpperCase(), lg: L0, lgErr: !!L0.err, lgPwType: L0.show ? 'text' : 'password', lgShowLabel: L0.show ? 'Hide' : 'Show',
+    brandInitial: (s.brandName || 'S').trim().charAt(0).toUpperCase(), lg: L0, lgErr: !!L0.err, lgPwType: L0.show ? 'text' : 'password', lgShowLabel: L0.show ? 'Hide' : 'Show', lgPwShown: !!L0.show, lgPwHidden: !L0.show,
+    lgInfo: !!L0.info, lgCaps: !!s.lgCaps,   // v41.22: neutral notice (e.g. signed out after inactivity) and Caps Lock warning
     setLgEmail: e => setL({ email: e.target.value }), setLgPw: e => setL({ pw: e.target.value }), toggleLgShow: () => setL({ show: !L0.show }),
-    lgRemOn: !!L0.remember, lgRemHint: Backend.on ? 'Stay signed in for ' + Backend.KEEP_MIN + ' minutes, even if you close the browser. Don’t tick on a shared PC.' : 'Remembers your username on this device.', lgRemember: () => setL({ remember: !L0.remember }), lgDemoOpen: !!s.lgDemo, toggleLgDemo: () => this.setState({ lgDemo: !s.lgDemo }), lgKey: e => { if (e.key === 'Enter') doLogin(); }, doLogin,
-    lgSignin: s.loginView === 'signin', lgForgot: s.loginView === 'forgot', lgSent: s.loginView === 'sent', lgNewPw: s.loginView === 'newpw',
+    lgRemOn: !!L0.remember, lgRemHint: Backend.on ? 'Keeps you signed in for ' + Backend.KEEP_MIN + ' minutes after your last activity, even if you close the browser. Not for shared computers.' : 'Remembers your username on this device.', lgRemember: () => setL({ remember: !L0.remember }), lgDemoOpen: !!s.lgDemo, toggleLgDemo: () => this.setState({ lgDemo: !s.lgDemo }), lgKey: e => { if (e.key === 'Enter') { doLogin(); return; }
+      if (e.target && e.target.id === 'sf-pw' && e.getModifierState) { const on = !!e.getModifierState('CapsLock'); if (on !== !!this.state.lgCaps) this.setState({ lgCaps: on }); } },
+    lgKeyReset: e => { if (e.key === 'Enter') loginVals.sendReset(); }, lgKeyNew: e => { if (e.key === 'Enter') loginVals.saveNewPw(); },   // v41.22: Enter works on every sign-in screen
+    doLogin,
+    lgSignin: s.loginView === 'signin', lgForgot: s.loginView === 'forgot', lgSent: s.loginView === 'sent', lgNewPw: s.loginView === 'newpw', lgSaveLabel: L0.busy ? 'Saving…' : 'Save and continue',
     // First sign-in (or after an admin reset): the temporary password must be replaced.
     setLgNew: e => setL({ npw: e.target.value }), setLgNew2: e => setL({ npw2: e.target.value }),
-    saveNewPw: () => { const a = L0.npw || '', b = L0.npw2 || '';
+    saveNewPw: () => { if (L0.busy) return; const a = L0.npw || '', b = L0.npw2 || '';
       if (a.length < 10 || !/[a-z]/.test(a) || !/[A-Z]/.test(a) || !/\d/.test(a)) return setL({ err:'Use at least 10 characters with upper- and lower-case letters and a number.' });
       if (a !== b) return setL({ err:'The two passwords don’t match.' });
       if (a === DEFAULT_PASSWORD || a === 'Pass@123') return setL({ err:'Choose a password different from the default first password.' });
@@ -54,7 +59,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     lgNewPwMsg: L0.recovery ? 'You opened a password reset link. Choose a new password: at least 10 characters with upper- and lower-case letters and a number.' : 'You signed in with your first (default) password. Choose your own to continue: at least 10 characters with upper- and lower-case letters and a number.',
     cancelNewPw: () => { const back = () => this.setState(st => ({ loginView:'signin', login: { ...st.login, busy:false, npw:'', npw2:'', pw:'', err:'', recovery:false } }));
       if (Backend.on) { Backend.signOut().catch(() => {}).finally(back); return; } back(); },
-    goForgot: () => { try { history.pushState({ sfLogin:'forgot' }, ''); } catch (e) {} this.setState({ loginView:'forgot', login: { ...L0, err:'' } }); }, goSignin: () => this.setState({ loginView:'signin', login: { ...L0, err:'' } }),
+    goForgot: () => { try { history.pushState({ sfLogin:'forgot' }, ''); } catch (e) {} this.setState({ loginView:'forgot', login: { ...L0, err:'', info:'' } }); }, goSignin: () => this.setState({ loginView:'signin', login: { ...L0, err:'', info:'' }, lgCaps:false }),
     sendReset: () => { if (!L0.email.trim()) return setL({ err:'Enter your username.' });
       // v41.18: before sign-in the app has no user list, so an employee ID can't be turned into an e-mail here (it used to
       // be sent to Supabase as if it were an e-mail, fail silently, and still say the link was sent).
@@ -69,9 +74,6 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     // Connected mode configured but the Supabase client file is missing: say so instead of failing silently.
     lgSetupErr: Backend.configured && !Backend.on ? 'Setup is incomplete: js/config.js points to Supabase but vendor/supabase.js is missing. Run scripts/vendor-supabase.sh (see SETUP-SUPABASE.md).' : '',
     demoPw: DEMO_PASSWORD, lgShowDemo: !Backend.on, lgBusy: !!L0.busy, lgBtnLabel: L0.busy ? 'Signing in…' : 'Login',
-    // Login background: decorative shapes drift slightly with the pointer (direct style update, no re-render).
-    lgParallax: e => { const el = e.currentTarget, r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
-      el.querySelectorAll('.lgx-i').forEach(n => { const d = +n.dataset.d || 0; n.style.translate = (x * d).toFixed(1) + 'px ' + (y * d).toFixed(1) + 'px'; }); },
     signOut: () => { NavMemory.clear(); if (Backend.on) { Backend.signOut().finally(() => location.reload()); return; } this.setState({ authed:false, roleMenu:false, notifOpen:false, meName:null, meRole:null, loginView:'signin', gq:'', userModal:false, qModal:false, annModal:false, enrModal:null, attModal:null, cDraft:null, mod:null, modPreview:null, bDraft:null, ttDraft:null, sm:null, caM:null, am:null }); window.scrollTo(0, 0); },
   };
   const meUser = s.users.find(u => u.name === role.name) || {};

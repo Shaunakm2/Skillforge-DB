@@ -81,25 +81,36 @@ class SkillforgeApp extends Skillforge.Store {
       // v41.18: Escape closes the top-most pop-up exactly like clicking outside it (it only worked for two pop-ups)
       const ov = [...document.querySelectorAll('.ovl-1')].filter(el => { const r = el.getBoundingClientRect(); return r.width && r.height; }).pop();
       if (ov) ov.dispatchEvent(new MouseEvent('click', { bubbles: false, cancelable: true })); });
-    try { const im = sessionStorage.getItem('sf-idle'); if (im) { sessionStorage.removeItem('sf-idle'); this.setState(s2 => ({ login: { ...s2.login, err: 'You were signed out after ' + (+im || 30) + ' minutes without activity.' } })); } } catch (e) {}
+    try { const im = sessionStorage.getItem('sf-idle'); if (im) { sessionStorage.removeItem('sf-idle'); this.setState(s2 => ({ login: { ...s2.login, info: 'You were signed out after ' + (+im || 45) + ' minutes without activity.' } })); } } catch (e) {}
     // Idle sign-out (App settings › Sign out after inactivity, default 30 minutes): shared PCs are common in training rooms.
     // Activity in any tab counts (localStorage), so a second open tab doesn't sign someone out while they work in the first.
-    this._lastAct = Date.now(); const mark = () => { this._lastAct = Date.now(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} if (Backend.on && this.state.authed) Backend.rememberTouch(); };
-    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(t => window.addEventListener(t, mark, { passive: true, capture: true }));
+    // v41.22: the sign-in lasts as long as the person keeps working. It ends after 45 minutes WITHOUT activity (tab open or closed).
+    // Mouse movement, scrolling, switching back to the tab and typing all count, so reading a long page is not "idle".
+    this._lastAct = Date.now(); this._actWrite = 0; this._frameSince = 0;
+    const mark = () => { const now = Date.now(); this._lastAct = now; this._frameSince = 0;
+      if (!this.state.authed || now - this._actWrite < 1000) return; this._actWrite = now;   // (nothing is stored while the sign-in page is showing)   // storage is written at most once a second, however often the mouse moves
+      try { localStorage.setItem('sf-act', String(now)); } catch (e) {} if (Backend.on && this.state.authed) Backend.rememberTouch(); };
+    ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'touchstart'].forEach(t => window.addEventListener(t, mark, { passive: true, capture: true }));
+    window.addEventListener('focus', mark); document.addEventListener('visibilitychange', () => { if (!document.hidden) mark(); });
     this._idleCheck = () => { const st = this.state; if (!st.authed) return;
       // Watching a video, listening to audio or working in a SCORM package is activity even without clicks or keys.
       const media = [...document.querySelectorAll('video, audio')].some(m => !m.paused && !m.ended);
       // v41.21: an assessment in progress (on screen, not handed in) also counts, even without clicks or keys for a long time
       const inQuiz = st.screen === 'quiz' && !st.qDone && (st.attempt && st.attempt.length || st.rAttemptId);
-      if (inQuiz || (!document.hidden && (media || st.playing || (st.screen === 'item' && st.scormOn)))) { this._lastAct = Date.now(); if (Backend.on) Backend.rememberTouch(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} return; }
+      // v41.22: clicks and scrolling inside a document, PDF or embedded video are not seen by this page. While such a frame has focus in a
+      // visible, focused window the person is reading or watching, so that counts as activity (for at most 90 minutes at a time).
+      const ae = document.activeElement, inFrame = !!(ae && ae.tagName === 'IFRAME' && !document.hidden && document.hasFocus());
+      if (inFrame) { if (!this._frameSince) this._frameSince = Date.now(); } else this._frameSince = 0;
+      const reading = inFrame && Date.now() - this._frameSince < 90 * 60000;
+      if (inQuiz || reading || (!document.hidden && (media || st.playing || (st.screen === 'item' && st.scormOn)))) { this._lastAct = Date.now(); if (Backend.on) Backend.rememberTouch(); try { localStorage.setItem('sf-act', String(this._lastAct)); } catch (e) {} return; }
       let mins = +(((st.platform || PLATFORM0).defaults || {}).idleMins ?? 30); if (!mins) return;
-      if (Backend.on && Backend.remembered()) mins = Math.max(mins, Backend.KEEP_MIN);   // v41.20: Remember me keeps you signed in at least 45 minutes
+      if (Backend.on) mins = Math.max(mins, Backend.KEEP_MIN);   // v41.22: connected, nobody is signed out before 45 minutes without activity (App settings can only make it longer)
       let other = 0; try { other = +localStorage.getItem('sf-act') || 0; } catch (e) {}
       if (Date.now() - Math.max(this._lastAct, other) < mins * 60000) return;
       // Connected: sign out and reload, so nothing the previous person could read stays in this tab's memory (shared PCs).
       if (Backend.on) { try { sessionStorage.setItem('sf-idle', String(mins)); } catch (e) {} Backend.signOut().catch(() => {}).finally(() => location.reload()); return; }
       this.setState(s2 => ({ authed:false, loginView:'signin', adminView:false, screen:'home', roleMenu:false, notifOpen:false, dbDrill:null, docEd:null, kpiEd:null,
-        login: { ...s2.login, pw:'', busy:false, err:'You were signed out after ' + mins + ' minutes without activity.' } })); };
+        login: { ...s2.login, pw:'', busy:false, err:'', info:'You were signed out after ' + mins + ' minutes without activity.' } })); };
     this.idleTimer = setInterval(this._idleCheck, 20000);
     // Supabase (when configured in js/config.js): restore the session and load data from the database.
     Backend.start(this).catch(e => { console.error(e); this.setState({ beStatus: { text: 'Could not reach the database: ' + e.message, ok:false } }); });

@@ -21,21 +21,7 @@
 <sf-if value="{{ booting }}"><div class="sf-boot" role="status" aria-live="polite"><span class="sf-boot-logo">S</span><span class="sf-boot-txt">Loading Skillforge…</span></div></sf-if>
 
 <sf-if value="{{ notAuthed }}">
-<div class="sf-l2" data-screen-label="Sign in" on-pointermove="{{ lgParallax }}">
-  <div class="lgx" aria-hidden="true">
-    <span class="lgx-i lgx-ring1" data-d="18"></span>
-    <span class="lgx-i lgx-ring2" data-d="-26"></span>
-    <span class="lgx-i lgx-blob" data-d="12"></span>
-    <span class="lgx-i lgx-sq" data-d="-34"></span>
-    <span class="lgx-i lgx-tri" data-d="30"></span>
-    <span class="lgx-i lgx-dot1" data-d="-40"></span>
-    <span class="lgx-i lgx-dot2" data-d="46"></span>
-    <span class="lgx-i lgx-star s1" data-d="22">✦</span>
-    <span class="lgx-i lgx-star s2" data-d="-18">✦</span>
-    <span class="lgx-i lgx-star s3" data-d="36">✧</span>
-    <span class="lgx-i lgx-star s4" data-d="-30">✦</span>
-    <span class="lgx-i lgx-star s5" data-d="14">✧</span>
-  </div>
+<div class="sf-l2" data-screen-label="Sign in">
   <div class="sf-l2-brand">
     <div class="sf-l2-logo" style="background:{{ brandAccent }}">{{ brandInitial }}</div>
     <div class="sf-l2-name">{{ brandName }}</div>
@@ -44,41 +30,59 @@
   <div class="sf-l2-side">
     <div class="sf-l2-card">
       <sf-if value="{{ lgSignin }}">
-        <h1 class="sf-l2-h">Sign in</h1>
-        <sf-if value="{{ brandMsg }}"><p class="sf-l2-msg">{{ brandMsg }}</p></sf-if>
+        <div class="sf-l2-head">
+          <h1 class="sf-l2-h">Sign in</h1>
+          <sf-if value="{{ brandMsg }}"><p class="sf-l2-msg">{{ brandMsg }}</p></sf-if>
+        </div>
         <sf-if value="{{ lgSetupErr }}"><div class="sf-login-err" role="alert">{{ lgSetupErr }}</div></sf-if>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-user">Username</label><input maxlength="254" id="sf-user" class="sf-in" autocomplete="username" value="{{ lg.email }}" on-input="{{ setLgEmail }}" on-keydown="{{ lgKey }}" placeholder="name@company.com" type="email" autocomplete="email"></div>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-pw">Password</label>
-          <span class="sf-pw"><input id="sf-pw" class="sf-in" type="{{ lgPwType }}" autocomplete="current-password" value="{{ lg.pw }}" on-input="{{ setLgPw }}" on-keydown="{{ lgKey }}" placeholder="Password"><button class="sf-pw-eye" on-click="{{ toggleLgShow }}" aria-label="{{ lgShowLabel }} password">{{ lgShowLabel }}</button></span></div>
-        <button class="sf-check" role="checkbox" aria-checked="{{ lgRemOn }}" on-click="{{ lgRemember }}"><span class="sf-check-box"><sf-if value="{{ lgRemOn }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="4"><path d="M5 12l5 5 9-10"></path></svg></sf-if></span>Remember me</button>
-        <div class="ui-6 sf-rem-hint">{{ lgRemHint }}</div>
-        <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert">{{ lg.err }}</div></sf-if>
-        <button class="sf-login-btn" on-click="{{ doLogin }}" disabled="{{ lgBusy }}" style="background:{{ brandAccent }}">{{ lgBtnLabel }}</button>
-        <button class="sf-link sf-center" on-click="{{ goForgot }}">Forgot password?</button>
+        <sf-if value="{{ lgInfo }}"><div class="sf-login-info" role="status"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg><span>{{ lg.info }}</span></div></sf-if>
+        <div class="sf-field">
+          <label class="sf-l2-label" for="sf-user">Username</label>
+          <span class="sf-fld"><svg class="sf-fld-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><input maxlength="254" id="sf-user" class="sf-in" type="text" inputmode="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" value="{{ lg.email }}" on-input="{{ setLgEmail }}" on-keydown="{{ lgKey }}" placeholder="Work email or employee ID"></span>
+        </div>
+        <div class="sf-field">
+          <label class="sf-l2-label" for="sf-pw">Password</label>
+          <span class="sf-fld"><svg class="sf-fld-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><input id="sf-pw" class="sf-in sf-in-pw" type="{{ lgPwType }}" autocomplete="current-password" value="{{ lg.pw }}" on-input="{{ setLgPw }}" on-keydown="{{ lgKey }}" placeholder="Password"><button class="sf-pw-eye" type="button" on-click="{{ toggleLgShow }}" aria-pressed="{{ lgPwShown }}" aria-label="{{ lgShowLabel }} password" title="{{ lgShowLabel }} password"><sf-if value="{{ lgPwHidden }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></sf-if><sf-if value="{{ lgPwShown }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.4 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><path d="M1 1l22 22"></path></svg></sf-if></button></span>
+          <sf-if value="{{ lgCaps }}"><div class="sf-caps" role="status">Caps Lock is on</div></sf-if>
+        </div>
+        <div class="sf-l2-row">
+          <button class="sf-check" role="checkbox" aria-checked="{{ lgRemOn }}" aria-describedby="sf-rem-hint" title="{{ lgRemHint }}" on-click="{{ lgRemember }}"><span class="sf-check-box"><sf-if value="{{ lgRemOn }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="4"><path d="M5 12l5 5 9-10"></path></svg></sf-if></span>Remember me</button>
+          <span class="sf-sr" id="sf-rem-hint">{{ lgRemHint }}</span>
+          <button class="sf-link sf-forgot" on-click="{{ goForgot }}">Forgot password?</button>
+        </div>
+        <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span>{{ lg.err }}</span></div></sf-if>
+        <button class="sf-login-btn" on-click="{{ doLogin }}" disabled="{{ lgBusy }}" aria-busy="{{ lgBusy }}" style="background:{{ brandAccent }}"><sf-if value="{{ lgBusy }}"><span class="sf-spin" aria-hidden="true"></span></sf-if>{{ lgBtnLabel }}</button>
         <sf-if value="{{ lgShowDemo }}"><div class="sf-demo2"><span class="sf-demo2-l">Try a demo account <i>password {{ demoPw }}</i></span>
           <div class="sf-demo2-row"><sf-for list="{{ demoAccounts }}" as="d"><button class="sf-demo2-b" on-click="{{ d.pick }}" title="{{ d.name }}" style="border-color:{{ d.bd }};background:{{ d.bg }}"><b class="sf-demo2-r" style="color:{{ d.fg }}">{{ d.role }}</b><i class="sf-demo2-n">{{ d.first }}</i></button></sf-for></div></div></sf-if>
       </sf-if>
       <sf-if value="{{ lgNewPw }}">
-        <button class="sf-link sf-back" on-click="{{ cancelNewPw }}">← Back to sign in</button>
-        <h1 class="sf-l2-h">{{ lgNewPwTitle }}</h1>
-        <p class="sf-login-msg">{{ lgNewPwMsg }}</p>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-np1">New password</label><input id="sf-np1" class="sf-in" type="password" maxlength="72" autocomplete="new-password" value="{{ lg.npw }}" on-input="{{ setLgNew }}"></div>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-np2">Repeat it</label><input id="sf-np2" class="sf-in" type="password" maxlength="72" autocomplete="new-password" value="{{ lg.npw2 }}" on-input="{{ setLgNew2 }}"></div>
-        <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert">{{ lg.err }}</div></sf-if>
-        <button class="sf-login-btn" on-click="{{ saveNewPw }}" disabled="{{ lgBusy }}" style="background:{{ brandAccent }}">Save and continue</button>
+        <button class="sf-link sf-back" on-click="{{ cancelNewPw }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>Back to sign in</button>
+        <div class="sf-l2-head">
+          <h1 class="sf-l2-h">{{ lgNewPwTitle }}</h1>
+          <p class="sf-l2-msg">{{ lgNewPwMsg }}</p>
+        </div>
+        <div class="sf-field"><label class="sf-l2-label" for="sf-np1">New password</label><span class="sf-fld"><svg class="sf-fld-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><input id="sf-np1" class="sf-in" type="password" maxlength="72" autocomplete="new-password" value="{{ lg.npw }}" on-input="{{ setLgNew }}" on-keydown="{{ lgKeyNew }}"></span></div>
+        <div class="sf-field"><label class="sf-l2-label" for="sf-np2">Repeat it</label><span class="sf-fld"><svg class="sf-fld-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><input id="sf-np2" class="sf-in" type="password" maxlength="72" autocomplete="new-password" value="{{ lg.npw2 }}" on-input="{{ setLgNew2 }}" on-keydown="{{ lgKeyNew }}"></span></div>
+        <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span>{{ lg.err }}</span></div></sf-if>
+        <button class="sf-login-btn" on-click="{{ saveNewPw }}" disabled="{{ lgBusy }}" aria-busy="{{ lgBusy }}" style="background:{{ brandAccent }}"><sf-if value="{{ lgBusy }}"><span class="sf-spin" aria-hidden="true"></span></sf-if>{{ lgSaveLabel }}</button>
       </sf-if>
       <sf-if value="{{ lgForgot }}">
-        <button class="sf-link sf-back" on-click="{{ goSignin }}">← Back to sign in</button>
-        <h1 class="sf-l2-h">Reset password</h1>
-        <p class="sf-login-msg">Enter your work email and we’ll email you a reset link.</p>
-        <div class="ui-61"><label class="sf-l2-label" for="sf-user2">Work email</label><input maxlength="254" id="sf-user2" class="sf-in" value="{{ lg.email }}" on-input="{{ setLgEmail }}" placeholder="name@company.com" type="email"></div>
-        <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert">{{ lg.err }}</div></sf-if>
+        <button class="sf-link sf-back" on-click="{{ goSignin }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>Back to sign in</button>
+        <div class="sf-l2-head">
+          <h1 class="sf-l2-h">Reset password</h1>
+          <p class="sf-l2-msg">Enter your work email and we’ll email you a reset link.</p>
+        </div>
+        <div class="sf-field"><label class="sf-l2-label" for="sf-user2">Work email</label><span class="sf-fld"><svg class="sf-fld-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></svg><input maxlength="254" id="sf-user2" class="sf-in" value="{{ lg.email }}" on-input="{{ setLgEmail }}" on-keydown="{{ lgKeyReset }}" placeholder="name@company.com" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false"></span></div>
+        <sf-if value="{{ lgErr }}"><div class="sf-login-err" role="alert"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span>{{ lg.err }}</span></div></sf-if>
         <button class="sf-login-btn" on-click="{{ sendReset }}" style="background:{{ brandAccent }}">Send reset link</button>
       </sf-if>
       <sf-if value="{{ lgSent }}">
-        <button class="sf-link sf-back" on-click="{{ goSignin }}">← Back to sign in</button>
-        <h1 class="sf-l2-h">Check your email</h1>
-        <p class="sf-login-msg">If an account exists for {{ lg.email }}, a reset link is on its way. It expires in 30 minutes.</p>
+        <button class="sf-link sf-back" on-click="{{ goSignin }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>Back to sign in</button>
+        <div class="sf-sent-ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></svg></div>
+        <div class="sf-l2-head">
+          <h1 class="sf-l2-h">Check your email</h1>
+          <p class="sf-l2-msg">If an account exists for <b>{{ lg.email }}</b>, a reset link is on its way. It only works for a short time, so use it soon. Nothing arrived? Check your spam folder, or ask your L&amp;D administrator to reset your password.</p>
+        </div>
         <button class="sf-login-btn" on-click="{{ goSignin }}" style="background:{{ brandAccent }}">Back to sign in</button>
       </sf-if>
     </div>
@@ -2227,7 +2231,7 @@
         <label class="ui-61"><span class="ui-5">Password for new accounts and admin resets</span><input class="ovl-21" maxlength="40" value="{{ pfD.password }}" on-input="{{ setPfPw }}"></label>
         <label class="ui-61"><span class="ui-5">Due date for new assignments and approved requests (days from today)</span><input class="ovl-21" type="number" min="1" max="365" value="{{ pfD.dueDays }}" on-input="{{ setPfDue }}"></label>
         <label class="ui-61"><span class="ui-5">Essential training for new joiners (working days, default for new courses)</span><input class="ovl-21" type="number" min="1" max="365" value="{{ pfD.essDays }}" on-input="{{ setPfEss }}"></label>
-        <label class="ui-61"><span class="ui-5">Sign people out after inactivity (minutes; 0 = never; default 30)</span><input class="ovl-21" type="number" min="0" max="480" value="{{ pfIdle }}" on-input="{{ setPfIdle }}"></label>
+        <label class="ui-61"><span class="ui-5">Sign people out after inactivity (minutes; 0 = never; never less than 45 when connected)</span><input class="ovl-21" type="number" min="0" max="480" value="{{ pfIdle }}" on-input="{{ setPfIdle }}"></label>
         <sf-if value="{{ pfDirty }}"><div class="ui-87"><button class="ui-60" on-click="{{ pfDiscard }}">Discard</button><button class="ui-91" on-click="{{ pfSave }}">Save defaults</button></div></sf-if></div>
       <div class="ui-70 bt-pad bt-col"><div class="ui-8">Everything else you can customise</div>
         <sf-for list="{{ pfWhere }}" as="w"><button class="pf-where" on-click="{{ w.go }}"><span class="ui-12"><span class="ui-95">{{ w.t }}</span><span class="ui-6">{{ w.d }}</span></span><span class="set-go">→</span></button></sf-for></div>
