@@ -1,5 +1,5 @@
 /* Skillforge LMS — Users › Bulk upload (fallback when the ZingHR API is down, or for urgent accounts).
- * Columns follow the Northwind UserMaster template. Only UserId, EmailId, UserName and MobileNumber are required;
+ * Columns follow the UserMaster template. Only UserId, EmailId, UserName and MobileNumber are required;
  * every other column is optional and stored on the profile. Rows whose UserId already exists update that account
  * (only the columns given), new UserIds create accounts with the default password.
  * Result: created / updated / rejected, with a downloadable rejected-rows file (reason per row).
@@ -87,8 +87,8 @@ SkillforgeApp.prototype.amUserImport = function (c) {
     uiOpenModal: () => this.setState({ uImp: {} }), uiClose: () => this.setState({ uImp:null }), uiReset: () => this.setState({ uImp: {} }),
     uiRequired: UM_COLS.filter(x => x[2]).map(x => x[0]).join(', '), uiOptCount: UM_COLS.filter(x => !x[2]).length,
     uiTemplate: () => { csvDownload('UserMaster-template.csv', [UM_COLS.map(([h, , req]) => h + (req ? '*' : '')),
-        ['NW-2101', 'riya.shah@northwind.com', 'Riya Shah', '+91 98250 11223', 'Associate', 'Voice', 'Full-time', 'Ahmedabad', 'Lena Fischer', 'Customer Success', 'Priya Raman', 'Tier 1 support', 'Northwind', 'Northwind Pvt Ltd', 'Northwind Care', 'NWC', 'Priya Raman', 'English', 'INR', '1999-04-12', '2026-10-05', '', 'Female', 'Priya Raman', 'Learner', 'Learner', 'Customer Support Associate', '2026-10-05', 'Aisha Khan', 'Jonas Berg', 'Hugo Laurent', 'India'],
-        ['NW-2102', 'kabir.mehta@northwind.com', 'Kabir Mehta', '9876543210'].concat(Array(UM_COLS.length - 4).fill(''))]);
+        ['EMP-2101', 'riya.shah@example.com', 'Riya Shah', '+91 98250 11223', 'Associate', 'Voice', 'Full-time', 'Ahmedabad', 'Lena Fischer', 'Customer Success', 'Priya Raman', 'Tier 1 support', 'Sample Client', 'Sample Company Pvt Ltd', 'Sample Brand', 'SB', 'Priya Raman', 'English', 'INR', '1999-04-12', '2026-10-05', '', 'Female', 'Priya Raman', 'Learner', 'Learner', 'Customer Support Associate', '2026-10-05', 'Aisha Khan', 'Jonas Berg', 'Hugo Laurent', 'India'],
+        ['EMP-2102', 'kabir.mehta@example.com', 'Kabir Mehta', '9876543210'].concat(Array(UM_COLS.length - 4).fill(''))]);
       this.toastMsg('UserMaster template downloaded'); },
     uiPick: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (!/\.csv$/i.test(f.name)) { e.target.value = ''; return setM({ name:'', text:'', msg:'Upload a .csv file. In Excel, use File › Save As › CSV (UTF-8).' }); } f.text().then(t => setM({ name: f.name, text: t, msg:'', result:null })); },
     uiImport: run,

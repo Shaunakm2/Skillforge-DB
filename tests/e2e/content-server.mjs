@@ -15,7 +15,7 @@ function contentFn(body) {
 }
 globalThis.fetch = async (url, init) => {
   url = String(url); if (url === 'https://x.supabase.co/functions/v1/content') return contentFn(init.body);
-  const m = url.match(/\/object\/sign\/lms-scorm\/northwind\/scorm\/pk1\/([^?]+)\?token=/); const f = m && path.join(PKG, decodeURIComponent(m[1]));
+  const m = url.match(/\/object\/sign\/lms-scorm\/testorg\/scorm\/pk1\/([^?]+)\?token=/); const f = m && path.join(PKG, decodeURIComponent(m[1]));
   return f && f.startsWith(PKG) && fs.existsSync(f) ? new Response(fs.readFileSync(f)) : new Response('no', { status: 404 }); };
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'https://content.test');

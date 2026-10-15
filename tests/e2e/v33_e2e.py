@@ -65,7 +65,7 @@ async def main():
         # ---- bulk upload ----
         await login('Admin'); await E("window.__app.go('users', { adminView:true })"); await W(300)
         u = await E("(() => { const u = window.__app.state.users.find(x => x.name === 'Jonas Berg'); const m = window.__app.state.users.find(x => x.name === 'Lena Fischer'); return { emp: u.empId, mail: u.email, des: u.designation, mgr: m.empId }; })()")
-        csv = 'UserId,EmailId,UserName,MobileNumber,Designation,Division,Reporting Manager\\n' + u['emp'] + ',' + u['mail'] + ',Someone Else,+91 9000011111,CHANGED TITLE,Finance Services,\\nNW-7777,new.person@northwind.com,New Person,+91 9000022222,Analyst,Finance Services,' + u['mgr']
+        csv = 'UserId,EmailId,UserName,MobileNumber,Designation,Division,Reporting Manager\\n' + u['emp'] + ',' + u['mail'] + ',Someone Else,+91 9000011111,CHANGED TITLE,Finance Services,\\nNW-7777,new.person@example.com,New Person,+91 9000022222,Analyst,Finance Services,' + u['mgr']
         await E(f"window.__app.setState({{ uImp: {{ text: '{csv}', name: 'x.csv' }} }})"); await E("window.__app.renderVals().uiImport()"); await W(400)
         ok('a rejected upload row changes nothing', await E(f"window.__app.state.users.find(x => x.empId === '{u['emp']}').designation") == u['des'])
         np = await E("(() => { const x = window.__app.state.users.find(x => x.empId === 'NW-7777'); return x && [x.dept, x.division, x.manager]; })()")

@@ -12,11 +12,11 @@ from playwright.async_api import async_playwright
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXE = os.environ.get('CHROME') or (lambda d: d if os.path.exists(d) else None)('/opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell')
 WEB = os.environ.get('SF_WEB', 'public')
-CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'northwind', STORAGE_BUCKET:'lms-files' };"
+CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'testorg', STORAGE_BUCKET:'lms-files' };"
 HOOK = "(function(){let sf;Object.defineProperty(window,'Skillforge',{configurable:true,get(){return sf},set(v){const m=v.mount;v.mount=(app,...a)=>{window.__app=app;return m(app,...a)};sf=v;}});})();"
 SEED = """window.__sb.addMember({ user_id:'u-admin', email:'admin@ims.test', emp_id:'IMS-001', app_name:'Shaunak Admin', role:'Admin', password:'Admin-pass-2026' });
  window.__sb.addMember({ user_id:'u-new', email:'new@ims.test', emp_id:'IMS-002', app_name:'New Joiner', role:'Learner', password:'Pass@123', must_change:true });
- const R = window.__sb.rows, put = (c, k, d) => R.set('northwind|' + c + '|' + k, { coll: c, key: k, data: d, version: 1 });
+ const R = window.__sb.rows, put = (c, k, d) => R.set('testorg|' + c + '|' + k, { coll: c, key: k, data: d, version: 1 });
  put('users', '1', { id: 1, name: 'Shaunak Admin', email: 'admin@ims.test', empId: 'IMS-001', role: 'Admin', roleId: 'r_admin', status: 'Active', dept: 'L&D', manager: 'None' });
  put('users', '2', { id: 2, name: 'New Joiner', email: 'new@ims.test', empId: 'IMS-002', role: 'Learner', roleId: 'r_learner', status: 'Active', dept: 'Ops', manager: 'None' });
  put('adminCourses', 'c-posh', { id: 'c-posh', code: 'CRS-1', title: 'POSH Awareness', cat: 'Compliance', status: 'Published', active: true, aud: 'Everyone', items: [], features: {}, color: '#0066A1' });

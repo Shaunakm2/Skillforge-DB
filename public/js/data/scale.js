@@ -23,7 +23,7 @@ const ScaleData = (() => {
       const fn = FIRST[Math.floor(h('f' + i) * FIRST.length)], ln = LAST[Math.floor(h('l' + i) * LAST.length)], name = fn + ' ' + ln + ' ' + (1000 + i);
       const dept = DEPTS[Math.floor(h('d' + i) * DEPTS.length)], isMgr = i % 25 === 0, isTr = i % 180 === 7;
       const joined = '20' + (18 + Math.floor(h('j' + i) * 9)) + '-' + String(1 + Math.floor(h('jm' + i) * 12)).padStart(2, '0') + '-' + String(1 + Math.floor(h('jd' + i) * 27)).padStart(2, '0');
-      const u = { id: 10000 + i, name, email: (fn + '.' + ln + (1000 + i)).toLowerCase() + '@northwind.com', role: isTr ? 'Trainer' : 'Learner', roleId: isTr ? 'r_trainer' : 'r_learner',
+      const u = { id: 10000 + i, name, email: (fn + '.' + ln + (1000 + i)).toLowerCase() + '@example.com', role: isTr ? 'Trainer' : 'Learner', roleId: isTr ? 'r_trainer' : 'r_learner',
         dept, status: h('s' + i) < 0.04 ? 'Deactivated' : 'Active', lastLogin: h('ll' + i) < 0.5 ? 'Today' : 'This week', manager: managers.length ? managers[i % managers.length] : 'Priya Raman',
         empId: 'ZH' + String(200000 + i), phone: '+91 9' + String(800000000 + Math.floor(h('p' + i) * 199999999)).slice(0, 9), gender: h('g' + i) < 0.5 ? 'Female' : 'Male', terms: true,
         designation: isMgr ? 'Team Manager' : isTr ? 'Trainer' : 'Associate', joined: joined > TODAY_KEY ? TODAY_KEY : joined,
@@ -42,7 +42,7 @@ const ScaleData = (() => {
       let ttl = subj + ' ' + w + ' ' + (Math.floor(i / SUBJ.length) + 1), tn = Math.floor(i / SUBJ.length) + 1; while (seenT.has(ttl.toLowerCase())) ttl = subj + ' ' + w + ' ' + (++tn); seenT.add(ttl.toLowerCase());
       courses.push({ id:'sc' + i, code:'CRS-' + (1001 + i), title: ttl, cat: t[0], catId: t[1], subId: '', subsubId: '', color: VIVIDS[i % 7], status: h('st' + i) < 0.06 ? 'Draft' : 'Published',
         enrolled: 0, desc:'', items, features: { ...blankFeatures(), linear: i % 3 !== 0, cert: h('ct' + i) < 0.4 }, reports:{ learning:true, completion:true, progress:true, login:false, coursewise:true }, depts:{}, due:'2026-12-31', enroll:'Manual', recert:'Never', lang:'English',
-        active:true, availFrom:'', availUntil:'', icon:null, banner:null, author:'Northwind L&D', director:'', about:'', aud:'Assign later', groups:{}, people:{}, autoNew:false, essential:false, essentialDays:30, essentialFrom:'' });
+        active:true, availFrom:'', availUntil:'', icon:null, banner:null, author:'L&D team', director:'', about:'', aud:'Assign later', groups:{}, people:{}, autoNew:false, essential:false, essentialDays:30, essentialFrom:'' });
     }
     // Assignments: 25–50 courses per person at any time (out of the same 1,000-course catalogue) (a stride through the catalogue, so no duplicates),
     // due dates spread over the last 3 months and next 4 months. Dates are precomputed once (no Date maths per row).

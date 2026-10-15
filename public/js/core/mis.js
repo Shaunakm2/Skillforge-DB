@@ -1,5 +1,5 @@
 /* Skillforge LMS — the MIS: one row per trainee per batch, built from live batch, user, status and
- * certification records. Column names and order match the Northwind "Book1" MIS workbook exactly.
+ * certification records. Column names and order match the "Book1" MIS workbook exactly.
  * Used by Reports › MIS report (download .xlsx / .csv) and the MIS dashboard.
  */
 const MIS_HEAD = ['Sr. No.', 'Year', 'Month', 'Brand', 'Training Segment', 'Type of Trainee', 'Training Name', 'Batch No', 'Trainer Assigned', 'Employee ID', 'Name', 'Division', 'Sub Divison',

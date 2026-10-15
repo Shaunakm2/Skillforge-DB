@@ -7,7 +7,7 @@ from playwright.async_api import async_playwright
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXE = os.environ.get('CHROME') or (lambda d: d if os.path.exists(d) else None)('/opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell')
 WEB = os.environ.get('SF_WEB', 'public')
-CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'northwind', STORAGE_BUCKET:'lms-files' };"
+CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'testorg', STORAGE_BUCKET:'lms-files' };"
 HOOK = "(function(){let sf;Object.defineProperty(window,'Skillforge',{configurable:true,get(){return sf},set(v){const m=v.mount;v.mount=(app,...a)=>{window.__app=app;return m(app,...a)};sf=v;}});})();"
 RES = []
 def ok(n, c, x=''): RES.append((n, bool(c))); print(('PASS ' if c else 'FAIL ') + n, '' if c else str(x)[:400], flush=True)
@@ -165,12 +165,12 @@ async def connected(b):
     await ctx.route('**/vendor/supabase.js', lambda r: r.fulfill(body='/* mocked */', content_type='application/javascript'))
     await ctx.add_init_script(path=os.path.join(ROOT, 'tests/e2e/mock-supabase.js')); await ctx.add_init_script(script=HOOK)
     await ctx.add_init_script(script="""window.__sb.addMember({ user_id:'u-admin', email:'admin@ims.test', emp_id:'IMS-001', app_name:'Shaunak Admin', role:'Admin', password:'Admin-pass-2026' });
-      const R = window.__sb.rows, put = (c, k, d) => R.set('northwind|' + c + '|' + k, { coll: c, key: k, data: d, version: 1 });
+      const R = window.__sb.rows, put = (c, k, d) => R.set('testorg|' + c + '|' + k, { coll: c, key: k, data: d, version: 1 });
       put('users', '1', { id: 1, name: 'Shaunak Admin', email: 'admin@ims.test', empId: 'IMS-001', role: 'Admin', roleId: 'r_admin', status: 'Active', dept: 'L&D', manager: 'None' });
-      put('lcms', 'm1', { id:'m1', code:'MOD-001', type:'Document', title:'POSH policy', mins:1, file:{ path:'northwind/lcms/p.pdf', name:'posh.pdf' } });
+      put('lcms', 'm1', { id:'m1', code:'MOD-001', type:'Document', title:'POSH policy', mins:1, file:{ path:'testorg/lcms/p.pdf', name:'posh.pdf' } });
       put('lcms', 'm2', { id:'m2', code:'MOD-002', type:'Acknowledgment', title:'I agree', mins:1, text:'I have read the POSH policy' });
       put('adminCourses', 'c-posh', { id: 'c-posh', code: 'CRS-1', title: 'POSH Awareness', cat: 'Compliance', status: 'Published', active: true, aud: 'Everyone', features: { linear:false }, color: '#0066A1',
-        items: [{ kind:'pdf', moduleId:'m1', title:'POSH policy', mins:1, file:{ path:'northwind/lcms/p.pdf', name:'posh.pdf' } }, { kind:'ack', moduleId:'m2', title:'I agree', mins:1, text:'I have read the POSH policy' }] });
+        items: [{ kind:'pdf', moduleId:'m1', title:'POSH policy', mins:1, file:{ path:'testorg/lcms/p.pdf', name:'posh.pdf' } }, { kind:'ack', moduleId:'m2', title:'I agree', mins:1, text:'I have read the POSH policy' }] });
       put('enroll', 'IMS-001', { 'c-posh': '2026-12-31' });""")
     errs = []; pg = await ctx.new_page(); pg.on('pageerror', lambda e: errs.append(str(e)))
     await pg.goto('file://' + ROOT + '/' + WEB + '/index.html'); await pg.wait_for_selector('#sf-user')

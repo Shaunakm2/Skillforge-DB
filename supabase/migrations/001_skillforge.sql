@@ -581,4 +581,4 @@ grant execute on function public.sf_ping() to anon;
 -- 1. Authentication › Users › Add user (your email + a password, Auto confirm).
 -- 2. Run (your email, employee ID, name):
 --    insert into public.sf_member (org_id, user_id, email, emp_id, app_name, role)
---    select 'northwind', id, email, 'NW-1007', 'Lena Fischer', 'Admin' from auth.users where email = 'you@company.com';
+--    select 'your-org-id', id, email, 'EMP-0001', 'Your Name', 'Admin' from auth.users where email = 'you@company.com';   -- use the same ORG_ID as in js/config.js

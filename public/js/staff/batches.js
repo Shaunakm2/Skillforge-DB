@@ -77,7 +77,7 @@ const codePrefix = (tt, start) => (tt.code || 'BAT') + (tt.level || '') + (start
 const nextBatchCode = (tt, start, batches, exceptId) => { const p = codePrefix(tt, start); let n = 0; batches.forEach(b => { if (b.id !== exceptId && b.code.startsWith(p) && /^\d{3}$/.test(b.code.slice(p.length))) n = Math.max(n, parseInt(b.code.slice(p.length), 10)); }); return p + String(n + 1).padStart(3, '0'); };
 
 const HOLIDAYS0 = [
-  { id:'h1', date:'2026-10-14', name:'Northwind Foundation Day' },
+  { id:'h1', date:'2026-10-14', name:'Company Foundation Day' },
   { id:'h2', date:'2026-11-09', name:'Diwali (observed)' },
   { id:'h3', date:'2026-12-25', name:'Christmas Day' },
 ];

@@ -98,10 +98,10 @@ async def main():
 
         # ---------- schedules: only the organisation's own domains ----------
         await pg.evaluate("window.__app.renderVals().dbSchedOpenFn()"); await W(); await pg.evaluate("window.__app.renderVals().dbSchedNew()"); await W()
-        await pg.evaluate("window.__app.setState(st => ({ dbSched: { form: { ...st.dbSched.form, to: 'boss@northwind.com, leak@gmail.com' } } }))"); await pg.evaluate("window.__app.renderVals().dbSFSave()"); await W()
+        await pg.evaluate("window.__app.setState(st => ({ dbSched: { form: { ...st.dbSched.form, to: 'boss@example.com, leak@gmail.com' } } }))"); await pg.evaluate("window.__app.renderVals().dbSFSave()"); await W()
         ok('schedule to an outside domain refused', 'outside your organisation' in (await S("s.dbSched.form.err")))
-        await pg.evaluate("window.__app.setState(st => ({ dbSched: { form: { ...st.dbSched.form, to: 'boss@northwind.com', err:'' } } }))"); await pg.evaluate("window.__app.renderVals().dbSFSave()"); await W()
-        ok('internal schedule saved', await S("(s.dash.schedules || []).some(x => x.to.includes('boss@northwind.com') && x.board === 'b1')"))
+        await pg.evaluate("window.__app.setState(st => ({ dbSched: { form: { ...st.dbSched.form, to: 'boss@example.com', err:'' } } }))"); await pg.evaluate("window.__app.renderVals().dbSFSave()"); await W()
+        ok('internal schedule saved', await S("(s.dash.schedules || []).some(x => x.to.includes('boss@example.com') && x.board === 'b1')"))
         text = await dl("window.__app.renderVals().dbSchedList[0].run()")
         ok('Run now downloads the dashboard data', text.startswith('Visual,Source'), text[:60])
         await pg.evaluate("window.__app.setState({ dbSched:null })")

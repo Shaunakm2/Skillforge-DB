@@ -13,7 +13,7 @@ const ZH_FIELDS = [
   ['ReportingManagerCode', 'Manager', 'manager', false], ['DateOfJoining', 'Date of joining', 'joined', true], ['Location', 'Site', 'site', false],
   ['Grade', 'Grade', 'grade', false], ['Gender', 'Gender', 'gender', false], ['EmploymentStatus', 'Status (Active / Inactive)', 'status', true],
 ];
-const ZH0 = { baseUrl:'https://northwind.zinghr.com/api/v2', clientId:'skillforge-lms', secretSet:true, schedule:'Nightly 02:00 IST', on:true,
+const ZH0 = { baseUrl:'https://yourcompany.zinghr.com/api/v2', clientId:'skillforge-lms', secretSet:true, schedule:'Nightly 02:00 IST', on:true,
   rules:{ create:true, deactivate:true, update:true, essentials:true, roleByDesig:true }, desigRoles:[['Trainer', 'r_trainer'], ['Team Manager', 'r_learner'], ['L&D Administrator', 'r_admin']],
   runs:[{ id:'zr1', at:'2026-10-03T02:00', by:'Schedule', read:3, created:0, updated:2, deactivated:0, failed:1, ms:4200 }, { id:'zr2', at:'2026-10-02T02:00', by:'Schedule', read:5, created:1, updated:3, deactivated:0, failed:1, ms:4600 }] };
 
@@ -32,7 +32,7 @@ SkillforgeApp.prototype.amZingHR = function (c) {
       const v = pick('p'); if (v) { const ph = '+91 98' + String(Math.floor(Progress.hash(now + 'ph') * 1e8)).padStart(8, '0'); users[users.indexOf(v)] = { ...v, phone: ph }; add('Phone change', v, 'Phone', v.phone, ph, 'Applied'); } }
     let created = 0, enroll = s.enroll, assignedOn = s.assignedOn;
     if (Z.rules.create) { const id = nextUserId(users), nm = 'Tanya Bhatt ' + (id % 1000);
-      const nu = { id, name: Identity.uniqueName(users, nm, 'ZH' + (300000 + id)), email: nm.toLowerCase().replace(/ /g, '.') + '@northwind.com', role:'Learner', roleId:'r_learner', dept:'Customer Success', status:'Active', lastLogin:'Never', manager:'Priya Raman', empId:'ZH' + (300000 + id), phone:'', gender:'Female', terms:false, designation:'Associate', joined: TODAY_KEY, source:'ZingHR' };
+      const nu = { id, name: Identity.uniqueName(users, nm, 'ZH' + (300000 + id)), email: nm.toLowerCase().replace(/ /g, '.') + '@example.com', role:'Learner', roleId:'r_learner', dept:'Customer Success', status:'Active', lastLogin:'Never', manager:'Priya Raman', empId:'ZH' + (300000 + id), phone:'', gender:'Female', terms:false, designation:'Associate', joined: TODAY_KEY, source:'ZingHR' };
       users.push(nu); created = 1; add('New hire', nu, 'Employee record', '', 'Created · Customer Success · Associate', 'Applied');
       if (Z.rules.essentials) { const e = Essentials.apply(enroll, s.adminCourses, [nu], s.holidays, assignedOn); enroll = e.enroll; assignedOn = e.assignedOn; } }
     const bad = { empId:'ZH-UNKNOWN', name:'(no match)' }; add('Manager change', bad, 'Manager', '', 'EMP99999', 'Failed', 'Reporting manager code not found in Skillforge');

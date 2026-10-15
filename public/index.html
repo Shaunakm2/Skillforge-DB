@@ -265,7 +265,7 @@
                 <div class="ui-13">{{ c.instructor }} · {{ c.hours }}</div>
                 <div class="learner-dashboard-45">
                   <span class="learner-dashboard-46 f-game">+{{ c.xp }} XP</span>
-                  <span class="ui-13">★ {{ c.rating }}</span>
+                  <sf-if value="{{ c.hasStats }}"><span class="ui-13">★ {{ c.rating }}</span></sf-if>
                 </div>
               </div>
             </button>
@@ -350,7 +350,7 @@
   <div class="course-catalog-5">
     <span class="course-catalog-6">Show:</span>
     <sf-for list="{{ relChips }}" as="ch"><button class="course-catalog-7" on-click="{{ ch.pick }}" style="border:1px solid {{ ch.border }};background:{{ ch.bg }};color:{{ ch.fg }}">{{ ch.label }}</button></sf-for>
-    <sf-select class="ui-31" value="{{ catLvl }}" on-change="{{ setCatLvl }}"><sf-for list="{{ lvlOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
+    <sf-if value="{{ catHasLevels }}"><sf-select class="ui-31" value="{{ catLvl }}" on-change="{{ setCatLvl }}"><sf-for list="{{ lvlOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></sf-if>
     <sf-select class="ui-31" value="{{ catSt }}" on-change="{{ setCatSt }}"><sf-for list="{{ stOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select>
   </div>
   <div class="course-catalog-8">
@@ -363,7 +363,7 @@
         </div>
         <div class="course-catalog-12">
           <div class="course-catalog-13">{{ c.title }}</div>
-          <div class="ui-13">{{ c.instructor }} · {{ c.hours }} · {{ c.level }}</div>
+          <div class="ui-13">{{ c.instructor }} · {{ c.hours }}<sf-if value="{{ c.hasLevel }}"> · {{ c.level }}</sf-if></div>
           <sf-if value="{{ c.showProg }}"><div class="course-catalog-14">
             <span class="ui-15"><span class="ui-16" style="width:{{ c.pctStr }};background:{{ c.color }}"></span></span>
             <span class="course-catalog-15" style="color:{{ c.statusFg }}">{{ c.status }}</span>
@@ -404,17 +404,17 @@
   <button class="course-overview-1" on-click="{{ goBackFromCourse }}">← Back</button>
   <div class="course-overview-2" style="background:{{ course.heroBg }}">
     <div class="course-overview-3">
-      <div class="ui-32"><span class="course-overview-4">{{ course.cat }}</span><span class="course-overview-4">{{ course.level }}</span></div>
+      <div class="ui-32"><span class="course-overview-4">{{ course.cat }}</span><sf-if value="{{ course.hasLevel }}"><span class="course-overview-4">{{ course.level }}</span></sf-if></div>
       <h1 class="course-overview-5">{{ course.title }}</h1>
       <p class="course-overview-6">{{ course.desc }}</p>
       <div class="course-overview-7">
-        <span>{{ course.instructor }}</span><span>{{ course.hours }}</span><span>{{ totalLessons }} {{ unitLabel }}</span><span>★ {{ course.rating }} ({{ course.learnersFmt }} learners)</span>
+        <span>{{ course.instructor }}</span><span>{{ course.hours }}</span><span>{{ totalLessons }} {{ unitLabel }}</span><sf-if value="{{ course.hasStats }}"><span>★ {{ course.rating }} ({{ course.learnersFmt }} learners)</span></sf-if>
       </div>
     </div>
     <div class="course-overview-8">
       <div class="course-overview-9"><span class="ui-2">Your progress</span><span class="course-overview-10">{{ course.pctStr }}</span></div>
       <div class="course-overview-11"><div class="course-overview-12" style="width:{{ course.pctStr }};background:{{ course.color }}"></div></div>
-      <div class="ui-10">{{ course.doneCount }} of {{ totalLessons }} {{ unitLabel }} · earn <strong class="ui-33">+{{ course.xp }} XP</strong> and a certificate</div>
+      <div class="ui-10">{{ course.doneCount }} of {{ totalLessons }} {{ unitLabel }} · earn <strong class="ui-33">+{{ course.xp }} XP</strong><sf-if value="{{ course.hasCert }}"> and a certificate</sf-if></div>
       <button class="course-overview-13 hover-8" on-click="{{ startCourse }}">{{ course.cta }}</button>
     </div>
   </div>
@@ -471,13 +471,13 @@
         <span class="course-overview-31">{{ course.instructorInitials }}</span>
         <div><div class="ui-2">{{ course.instructor }}</div><div class="ui-10">{{ instructorRole }}</div></div>
       </div>
-      <div class="course-overview-27">
+      <sf-if value="{{ teamHas }}"><div class="course-overview-27">
         <div class="course-overview-32">From your team</div>
         <div class="course-overview-33">
-          <sf-for list="{{ teamFaces }}" as="f"><span class="course-overview-34" style="background:{{ f.av }}">{{ f.initials }}</span></sf-for>
-          <span class="course-overview-35">4 teammates are taking this</span>
+          <sf-for list="{{ teamFaces }}" as="f"><span class="course-overview-34" title="{{ f.name }}" style="background:{{ f.av }}">{{ f.initials }}</span></sf-for>
+          <span class="course-overview-35">{{ teamLine }}</span>
         </div>
-      </div>
+      </div></sf-if>
     </aside>
   </div>
 </div>
@@ -1855,7 +1855,7 @@
   <div class="ui-65"><div><h1 class="ui-66">Certificates</h1><div class="ui-29">Upload a background, then drag the fields into place. Name, course, date and score fill in automatically when a learner downloads their certificate.</div></div><button class="ui-82" on-click="{{ ctSample }}">Download sample</button></div>
   <div class="ct-grid">
     <div class="ui-12">
-      <div class="ct-canvas" on-dragover="{{ ctDragOverFn }}" on-drop="{{ ctDrop }}" on-pointermove="{{ ctMove }}" on-pointerup="{{ ctUp }}" on-pointerleave="{{ ctUp }}" on-click="{{ ctPlace }}">
+      <div class="ct-canvas" style="aspect-ratio:{{ ctAspect }};width:{{ ctWidth }};margin:0 auto" on-dragover="{{ ctDragOverFn }}" on-drop="{{ ctDrop }}" on-pointermove="{{ ctMove }}" on-pointerup="{{ ctUp }}" on-pointerleave="{{ ctUp }}" on-click="{{ ctPlace }}">
         <sf-if value="{{ ctHasBg }}"><img class="ct-bg" src="{{ ctBg }}" alt="" draggable="false"></sf-if>
         <sf-for list="{{ ctFields }}" as="f"><sf-if value="{{ f.show }}"><span class="ct-f" on-pointerdown="{{ f.down }}" on-click="{{ f.pick }}" style="left:{{ f.x }};top:{{ f.y }};font-size:{{ f.size }};color:{{ f.color }};font-weight:{{ f.weight }};outline:{{ f.ring }}">{{ f.text }}</span></sf-if></sf-for>
       </div>
@@ -1863,7 +1863,7 @@
     </div>
     <div class="ui-70 bt-pad bt-col">
       <div class="ui-8">Background</div>
-      <label class="lm-drop" data-over="{{ ctDragOver }}" on-dragover="{{ ctDragOverFn }}" on-dragleave="{{ ctDragLeave }}" on-drop="{{ ctDrop }}"><span class="lm-drop-ic" aria-hidden="true">⬆</span><span class="lm-drop-t">Upload your certificate design</span><span class="ui-6">Drag a PNG, JPG, SVG or PDF here, or <u>browse</u>. A4 landscape works best.</span><input class="asm-file" type="file" accept="image/png,image/jpeg,image/svg+xml,application/pdf,.png,.jpg,.jpeg,.svg,.pdf" on-change="{{ ctPick }}"></label><sf-if value="{{ ctBusy }}"><div class="ui-6">{{ ctBusyMsg }}</div></sf-if><div class="ui-87"><button class="sf-link" on-click="{{ ctDefaultBg }}">Use default</button></div>
+      <label class="lm-drop" data-over="{{ ctDragOver }}" on-dragover="{{ ctDragOverFn }}" on-dragleave="{{ ctDragLeave }}" on-drop="{{ ctDrop }}"><span class="lm-drop-ic" aria-hidden="true">⬆</span><span class="lm-drop-t">Upload your certificate design</span><span class="ui-6">Drag a PNG, JPG, SVG or PDF here, or <u>browse</u>. Any size works: A4 landscape, A4 portrait or your own.</span><input class="asm-file" type="file" accept="image/png,image/jpeg,image/svg+xml,application/pdf,.png,.jpg,.jpeg,.svg,.pdf" on-change="{{ ctPick }}"></label><sf-if value="{{ ctBusy }}"><div class="ui-6">{{ ctBusyMsg }}</div></sf-if><div class="ui-87"><button class="sf-link" on-click="{{ ctDefaultBg }}">Use default</button></div>
       <div class="ui-6">{{ ctBgName }}</div>
       <div class="ui-8 bt-mt">Fields</div>
       <sf-for list="{{ ctFields }}" as="f"><div class="ct-row" style="background:{{ f.rowBg }};border-color:{{ f.rowBd }}"><button class="ct-name" on-click="{{ f.choose }}">{{ f.label }}</button><button class="ui-93" role="switch" aria-checked="{{ f.on }}" on-click="{{ f.toggle }}" style="background:{{ f.track }}" aria-label="{{ f.label }}"><span class="ui-94" style="left:{{ f.knob }}"></span></button></div></sf-for>
@@ -3807,7 +3807,7 @@
         <label class="ui-61"><span class="ui-8">Work email</span><input maxlength="254" class="ovl-29" value="{{ ud.email }}" on-input="{{ setUdEmail }}" placeholder="name@company.com"></label>
       </div>
       <div class="ovl-23">
-        <label class="ui-61"><span class="ui-8">Employee ID</span><input maxlength="40" class="ovl-29" value="{{ ud.empId }}" on-input="{{ setUdEmp }}" placeholder="e.g. NW-1015"></label>
+        <label class="ui-61"><span class="ui-8">Employee ID</span><input maxlength="40" class="ovl-29" value="{{ ud.empId }}" on-input="{{ setUdEmp }}" placeholder="e.g. EMP-1015"></label>
         <label class="ui-61"><span class="ui-8">Phone number</span><input maxlength="15" class="ovl-29" type="tel" value="{{ ud.phone }}" on-input="{{ setUdPhone }}" placeholder="+1 555 0100"></label>
       </div>
       <div class="ovl-23">

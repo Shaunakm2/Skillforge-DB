@@ -22,7 +22,7 @@ const MASTERS0 = {
   segments: ['Functional Training', 'Communication Training', 'Leadership Training', 'Soft Skills Training', 'Core Elements', 'Essential Training', 'Special Request Training'],
   traineeTypes: ['New Hire', 'Existing'],
   departments: ['Customer Success', 'Sales', 'Engineering', 'Operations', 'Marketing', 'Finance', 'Learning & Development', 'IT'],
-  // Sample values only (fictional Northwind data). Replace with your own lists in Settings › Master data.
+  // Sample values only (fictional data). Replace with your own lists in Settings › Master data.
   trainingNames: ['New Hire Induction', 'Customer Support Basics', 'Customer Support Advanced', 'Customer Support – Fast track', 'Inside Sales Programme', 'Field Sales Programme',
     'Finance Services Programme', 'Payables Process Training', 'Service Desk Programme', 'Process Refresher', 'Product Knowledge Update', 'Compliance Essentials', 'Data Privacy Essentials',
     'Information Security Essentials', 'Fire Safety Training', 'Core Elements', 'Communication Skills L1', 'Communication Skills L2', 'Communication Skills L3', 'Communication Refresher',
@@ -31,7 +31,7 @@ const MASTERS0 = {
   subDivisions: ['Customer Ops – North', 'Customer Ops – South', 'Customer Ops – Digital', 'Sales – Inside', 'Sales – Field', 'Finance – Payables', 'Tech – Service Desk', 'Learning and Development'],
   divisionHeads: ['Rakesh Iyer', 'Sonal Mehta', 'Arvind Pillai', 'Neeta Shah', 'Lena Fischer'],
   locations: ['Ahmedabad', 'Pune', 'Bengaluru'],
-  brands: ['Northwind Care', 'Northwind Finance', 'Northwind Digital', 'Northwind Analytics', 'Northwind Labs', 'Northwind Talent'],
+  brands: ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E', 'Brand F'],
   workModes: ['WFO', 'WFH', 'Hybrid'],
   attritionCats: ['Voluntary', 'Involuntary'],
   attritionResp: ['HR', 'Recruitment', 'Operations', 'Training'],

@@ -1,19 +1,18 @@
-/* Skillforge LMS — certificate download as an A4 landscape PDF (v41.22).
+/* Skillforge LMS — certificate download as a PDF (v41.22; any shape since v41.23).
  * Loaded right after js/admin/certificates.js. It replaces only Certificate.download():
- *   - the certificate is drawn on a fixed 3508 x 2480 px canvas (A4 landscape at 300 DPI), whatever size the background image is
+ *   - the certificate is drawn by Certificate.render() on a canvas of the design's own shape (longest side 3508 px = A4 at 300 DPI)
  *   - the canvas is saved as one full-page picture inside a PDF built here (no outside library, so the Content-Security-Policy is unchanged)
+ *   - the PDF page has the same shape: A4 landscape, A4 portrait or the size of the design (300 DPI)
  *   - the file name ends in .pdf (callers still pass .png names; the extension is swapped)
  * The learner name, course, date, score and certificate ID are printed into the picture, so they are not selectable text. */
 (function () {
-  const PW = 841.89, PH = 595.28;                    // A4 landscape in PDF points
-  const CW = 3508, CH = Math.round(CW * 1131 / 1600);  // same shape as the 1600 x 1131 template, 300 DPI
-
   const enc = s => new TextEncoder().encode(s);
   const cat = parts => { let n = 0; parts.forEach(p => { n += p.length; }); const out = new Uint8Array(n); let o = 0; parts.forEach(p => { out.set(p, o); o += p.length; }); return out; };
   const ascii = s => String(s || '').replace(/[^\x20-\x7E]/g, '?').replace(/[()\\]/g, ' ').slice(0, 120);
 
-  /* One page, one JPEG picture. Returns the PDF as bytes. */
+  /* One page, one JPEG picture. w x h = pixels of the picture; the page has the same shape. Returns the PDF as bytes. */
   function pdfFromJpeg(jpeg, w, h, title) {
+    const [PW, PH] = Certificate.pageSize(w, h);
     const objs = [];                                  // each item = array of byte chunks for "N 0 obj ... endobj"
     const add = chunks => { objs.push(chunks); return objs.length; };
     add([enc('<< /Type /Catalog /Pages 2 0 R >>')]);
@@ -42,23 +41,9 @@
 
   Certificate.download = function (tpl, vals, file) {
     const name = String(file || 'certificate.pdf').replace(/\.(png|jpe?g|pdf)$/i, '') + '.pdf';
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    const draw = ok => {
-      const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH;
-      const g = cv.getContext('2d'); g.fillStyle = '#FBFDFF'; g.fillRect(0, 0, CW, CH);
-      if (ok) { try { g.drawImage(img, 0, 0, CW, CH); } catch (e) { /* unreadable background: keep the plain page */ } }
-      CERT_FIELDS.forEach(([k]) => { const f = tpl.fields[k]; if (!f || !f.on || !vals[k]) return;
-        g.fillStyle = f.color; g.textAlign = 'center'; g.textBaseline = 'middle';
-        g.font = (f.bold ? '700 ' : '500 ') + Math.round(f.size / 100 * CW) + 'px Poppins, Arial, sans-serif';
-        g.fillText(vals[k], f.x / 100 * CW, f.y / 100 * CH, CW * 0.9); });   // long names shrink to fit
-      if (vals.id) { g.fillStyle = '#526B7A'; g.textAlign = 'right'; g.font = '500 ' + Math.round(CW * 0.011) + 'px Poppins, Arial, sans-serif'; g.fillText('Certificate ID ' + vals.id, CW * 0.97, CH * 0.97); }
-      cv.toBlob(b => {
-        if (!b) return;
-        b.arrayBuffer().then(buf => save(new Blob([pdfFromJpeg(new Uint8Array(buf), CW, CH, (vals.course || 'Certificate'))], { type: 'application/pdf' }), name));
-      }, 'image/jpeg', 0.92);
-    };
-    const go = () => { img.onload = () => draw(true); img.onerror = () => draw(false); if (tpl.bg && tpl.bg.src) img.src = tpl.bg.src; else draw(false); };
-    // make sure the certificate font is ready before drawing, but never wait long
-    if (document.fonts && document.fonts.load) Promise.race([Promise.all([document.fonts.load('700 40px Poppins'), document.fonts.load('500 40px Poppins')]), new Promise(r => setTimeout(r, 1500))]).then(go, go); else go();
+    Certificate.render(tpl, vals, (cv, S) => cv.toBlob(b => {
+      if (!b) return;
+      b.arrayBuffer().then(buf => save(new Blob([pdfFromJpeg(new Uint8Array(buf), S.W, S.H, vals.course || 'Certificate')], { type: 'application/pdf' }), name));
+    }, 'image/jpeg', 0.92));
   };
 })();

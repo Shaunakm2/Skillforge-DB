@@ -4,7 +4,7 @@
  * (supabase/functions/_shared/learning-core.js). The SQL itself is not executed here.
  */
 (function () {
-  const ORG = 'northwind';
+  const ORG = 'testorg';
   const rows = new Map(), K = (c, k) => ORG + '|' + c + '|' + k;
   const members = [];      // { user_id, email, emp_id, app_name, role, active, password, must_change }
   const storage = new Map();

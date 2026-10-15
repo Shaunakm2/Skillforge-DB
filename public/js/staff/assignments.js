@@ -36,7 +36,7 @@ const pickCourse = (app, s, key, courses) => {
     rows: hits.map(c => ({ main: c.title, sub: c.code + ' · ' + c.cat + ' · ' + availability(c), pick: () => set({ cq: label(c), course: c.id, quiz:null }) })),
     none: !!q && !chosen && !hits.length, noneText: 'No matching course', clear: () => set({ cq:'', course:null, quiz:null }) };
 };
-/* Bulk file follows the Northwind CourseApplicability template: CourseCode, UserId, AssignmentType.
+/* Bulk file follows the CourseApplicability template: CourseCode, UserId, AssignmentType.
    AssignmentType = Assign or Unassign (blank = Assign). Optional DueDate column (YYYY-MM-DD or DD-MM-YYYY). */
 const BULK_HEAD = ['CourseCode', 'UserId', 'AssignmentType', 'DueDate'];
 SkillforgeApp.prototype.assignVals = function (s, role) {

@@ -8,7 +8,7 @@ from playwright.async_api import async_playwright
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXE = os.environ.get('CHROME') or (lambda d: d if os.path.exists(d) else None)('/opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell')   # None: Playwright's own Chromium (CI)
 WEB = os.environ.get('SF_WEB', 'public')   # 'dist' tests the bundled build (npm run build)
-CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'northwind', STORAGE_BUCKET:'lms-files' };"
+CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'testorg', STORAGE_BUCKET:'lms-files' };"
 HOOK = "(function(){let sf;Object.defineProperty(window,'Skillforge',{configurable:true,get(){return sf},set(v){const m=v.mount;v.mount=(app,...a)=>{window.__app=app;return m(app,...a)};sf=v;}});})();"
 RES = []
 def ok(n, c, x=''): RES.append((n, bool(c))); print(('PASS ' if c else 'FAIL ') + n, '' if c else str(x)[:400], flush=True)
@@ -42,7 +42,7 @@ async def main():
             await ctx.route('https://content.test/**', content_route)
             pg = await ctx.new_page()
             await pg.add_init_script(path=os.path.join(ROOT, 'tests/e2e/mock-supabase.js')); await pg.add_init_script(script=HOOK)
-            await pg.add_init_script(script="if (location.origin === 'https://app.test') { window.__sb.contentOrigin = 'https://content.test'; window.__sb.signKey = 'k'; window.__sb.addMember({ user_id:'u-admin', email:'lena.fischer@northwind.com', emp_id:'NW-1007', app_name:'Lena Fischer', role:'Admin', password:'Admin-pass-2026' }); localStorage.setItem('sb-mock-auth-token', 'SECRET-SESSION'); }")
+            await pg.add_init_script(script="if (location.origin === 'https://app.test') { window.__sb.contentOrigin = 'https://content.test'; window.__sb.signKey = 'k'; window.__sb.addMember({ user_id:'u-admin', email:'lena.fischer@example.com', emp_id:'NW-1007', app_name:'Lena Fischer', role:'Admin', password:'Admin-pass-2026' }); localStorage.setItem('sb-mock-auth-token', 'SECRET-SESSION'); }")
             errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
             await pg.goto('https://app.test/index.html'); await pg.wait_for_selector('#sf-user')
             await pg.add_script_tag(url='https://app.test/__test/learning-core.js')
@@ -52,18 +52,18 @@ async def main():
             async def login(u, pw):
                 await pg.evaluate("window.__app.setState({ authed:false, loginView:'signin' })"); await W()
                 await pg.locator('#sf-user').fill(u); await pg.locator('#sf-pw').fill(pw); await pg.get_by_role('button', name='Login', exact=True).click(); await W(1000)
-            await login('lena.fischer@northwind.com', 'Admin-pass-2026')
+            await login('lena.fischer@example.com', 'Admin-pass-2026')
             await pg.evaluate("window.__app.setState(Object.fromEntries(Object.entries(window.__demo).filter(([k]) => ['users','adminCourses','lcms','qs','quizzes','enroll','itemDone','assignedOn','bookmarks'].includes(k))))"); await W()
             await pg.evaluate("window.__app.go('database', { adminView:true })"); await W()
             await pg.locator('button').filter(has_text='Start with an empty organisation').click(); await W(2500)
             # a SCORM module in the content store, as step 0 of the safety course (not linear), Maya enrolled
             await pg.evaluate("""(() => { const sb = window.__sb, c = sb.get('adminCourses', 'safety');
-              sb.serverWrite('lcms', 'mscorm', { id:'mscorm', code:'MOD-900', type:'SCORM', title:'Fire drill', file:{ name:'fire.zip', path:'northwind/scorm/pk1/', launch:'index.html', src:'' } });
-              sb.serverWrite('adminCourses', 'safety', { ...c, features: { ...c.features, linear:false }, items: [{ kind:'scorm', moduleId:'mscorm', title:'Fire drill', file:{ name:'fire.zip', path:'northwind/scorm/pk1/', launch:'index.html' } }].concat(c.items) });
+              sb.serverWrite('lcms', 'mscorm', { id:'mscorm', code:'MOD-900', type:'SCORM', title:'Fire drill', file:{ name:'fire.zip', path:'testorg/scorm/pk1/', launch:'index.html', src:'' } });
+              sb.serverWrite('adminCourses', 'safety', { ...c, features: { ...c.features, linear:false }, items: [{ kind:'scorm', moduleId:'mscorm', title:'Fire drill', file:{ name:'fire.zip', path:'testorg/scorm/pk1/', launch:'index.html' } }].concat(c.items) });
               sb.serverWrite('enroll', 'NW-1001', { ...(sb.get('enroll', 'NW-1001') || {}), safety:'2026-12-31' });
               sb.serverWrite('bookmarks', 'NW-1001', { safety: { item:0, location:'page 1', suspend:'S1' } });
-              sb.addMember({ user_id:'u-maya', email:'maya.okafor@northwind.com', emp_id:'NW-1001', app_name:'Maya Okafor', role:'Learner', password:'Maya-pass-2026x' }); })()""")
-            await pg.evaluate("Backend.signOut()"); await login('maya.okafor@northwind.com', 'Maya-pass-2026x')
+              sb.addMember({ user_id:'u-maya', email:'maya.okafor@example.com', emp_id:'NW-1001', app_name:'Maya Okafor', role:'Learner', password:'Maya-pass-2026x' }); })()""")
+            await pg.evaluate("Backend.signOut()"); await login('maya.okafor@example.com', 'Maya-pass-2026x')
             ok('learner signed in', await S("s.authed && s.meName === 'Maya Okafor'"))
             await pg.evaluate("window.__app.go('item', { courseId:'safety', itemIdx:0, scormOn:false })"); await W(500)
             calls0 = await pg.evaluate("window.__sb.calls.length")
@@ -104,7 +104,7 @@ async def main():
             ok('relaunching revokes the previous link', src2 != src and status(src.split('#')[0]) == 403 and status(src2.split('#')[0]) == 200)
             await pg.evaluate("window.__app.go('home')"); await W(800); await push_sess()
             ok('leaving the step ends the session (link refused)', status(src2.split('#')[0]) == 403, await pg.evaluate("window.__sb.calls.slice(-4)"))
-            ok('encoded-slash traversal is refused', status(src.split('#')[0].rsplit('/', 1)[0] + '/..%2F..%2F..%2F..%2Flms-files%2Fnorthwind%2Fx.pdf') in (403, 404))
+            ok('encoded-slash traversal is refused', status(src.split('#')[0].rsplit('/', 1)[0] + '/..%2F..%2F..%2F..%2Flms-files%2Ftestorg%2Fx.pdf') in (403, 404))
             st = status('https://content.test/c/bad.token/index.html')
             ok('content site refuses a bad token', st == 403, st)
             st = status(src.split('#')[0].rsplit('/', 1)[0] + '/%2e%2e/%2e%2e/secret')

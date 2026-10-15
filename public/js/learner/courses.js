@@ -7,13 +7,13 @@ SkillforgeApp.prototype.vmCourses = function (c) {
   const itemStates = (a, user) => Progress.itemStates(s, a, user);
   // Progress for every course comes from the person's learning records (Progress.detail).
   const prog = c => { const a = Progress.courseOf(s, c.id); if (!a) return { doneCount:0, pct:0 }; const d = Progress.detail(s, role.name, a); return { doneCount: d.doneN, pct: d.pct, d }; };
-  const decorate = c => { const p = prog(c); return { ...c, ...p, pctStr: p.pct + '%', open: () => this.openCourse(c.id), status: p.pct === 100 ? '✓ Completed' : p.d && p.d.overdue ? '! Overdue · ' + p.pct + '%' : p.pct > 0 ? '● ' + p.pct + '%' : '○ Not started', statusFg: p.pct === 100 ? '#245E52' : p.d && p.d.overdue ? '#A63232' : p.pct > 0 ? '#2F4A7A' : '#526B7A', learnersFmt: fmt(c.learners), instructorInitials: ini(c.instructor), cta: p.pct === 100 ? 'Review course' : p.pct > 0 ? 'Resume course' : 'Start course' }; };
+  const decorate = c => { const p = prog(c); return { ...c, ...p, pctStr: p.pct + '%', open: () => this.openCourse(c.id), status: p.pct === 100 ? '✓ Completed' : p.d && p.d.overdue ? '! Overdue · ' + p.pct + '%' : p.pct > 0 ? '● ' + p.pct + '%' : '○ Not started', statusFg: p.pct === 100 ? '#245E52' : p.d && p.d.overdue ? '#A63232' : p.pct > 0 ? '#2F4A7A' : '#526B7A', learnersFmt: fmt(c.learners || 0), hasStats: !c.adminOnly && !!c.rating, hasLevel: !!c.level, hasCert: Progress.hasCert(Progress.courseOf(s, c.id)), instructorInitials: ini(c.instructor), cta: p.pct === 100 ? 'Review course' : p.pct > 0 ? 'Resume course' : 'Start course' }; };
   const myEnroll = s.enroll[role.name] || {};
   const acOf = id => Progress.courseOf(s, id);
   const isLive = c => { const a = acOf(c.id); return !a || ((!c.adminOnly || a.status === 'Published') && availability(a) === 'Active'); };
   // Courses created in the admin console join the learner catalog once published (drafts stay admin-only).
   const tintOf = hex => { const n = parseInt((hex || '#0066A1').slice(1), 16), mix = v => Math.round(v + (255 - v) * 0.85); return 'rgb(' + mix(n >> 16 & 255) + ',' + mix(n >> 8 & 255) + ',' + mix(n & 255) + ')'; };
-  const fromAdmin = a => { const mins = a.items.reduce((t, it) => t + (it.mins || 15), 0) || 15; return { id:a.id, title:a.title, cat:a.cat, instructor:a.author || 'L&D team', hours: (mins >= 60 ? Math.floor(mins / 60) + 'h ' : '') + (mins % 60 ? (mins % 60) + 'm' : '').trim(), progress:0, color:a.color, tint:tintOf(a.color), rating:'New', learners:a.enrolled || 0, xp: Math.max(1, a.items.length) * 100, level:'Foundational', desc:a.desc || '', adminOnly:true }; };
+  const fromAdmin = a => { const mins = a.items.reduce((t, it) => t + (it.mins || 15), 0) || 15; return { id:a.id, title:a.title, cat:a.cat, instructor:a.author || 'L&D team', hours: (mins >= 60 ? Math.floor(mins / 60) + 'h ' : '') + (mins % 60 ? (mins % 60) + 'm' : '').trim(), progress:0, color:a.color, tint:tintOf(a.color), rating:'', learners:0, xp: Math.max(1, a.items.length) * 100, level:'',   /* v41.23: courses from the database have no rating, learner count or level of their own, so none is invented */ desc:a.desc || '', adminOnly:true }; };
   // v41.20: connected, the catalog is ONLY the courses in the database (the built-in demo courses were always added on top)
   const DEMO = Backend.on ? [] : COURSES, legacyIds = new Set(DEMO.map(c => c.id)), baseCourses = DEMO.concat(s.adminCourses.filter(a => !legacyIds.has(a.id)).map(fromAdmin));
   const all = baseCourses.map(c => { const a = acOf(c.id) || {}; const d = decorate(c); const banner = a.banner && a.banner.src; const p = a.catId ? catPath(s.cats, a) : null;
@@ -47,7 +47,7 @@ SkillforgeApp.prototype.vmCourses = function (c) {
       open: () => { if (st.locked) return this.toastMsg('Finish the previous step first. This course is linear.'); this.go('item', { itemIdx:i, scormOn:false }); } }; }) : [];
   Object.assign(c, { IK, all, course, firstOpenItem, icA, icIsItem, icSt, itemRows, liveAll, markItem, myEnroll });
   return {
-    isItem: scrV === 'item' && icIsItem,
+    isItem: scrV === 'item' && icIsItem, catHasLevels: all.some(x => !!x.level),
     itProgressAll: icIsItem ? icSt.filter(x => x.done).length + ' of ' + icA.items.length + ' done' : '',
   };
 };

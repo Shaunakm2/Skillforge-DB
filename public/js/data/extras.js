@@ -25,9 +25,9 @@ const BOOKMARKS0 = {
 const BOOKMARK_LOG0 = [{ id:'bl1', at:'2026-09-28T10:12', by:'Lena Fischer', user:'Aisha Khan', course:'CRS-1001 · Workplace Safety Essentials', resetDone:false, reason:'Package stuck on a blank screen after resume.' }];
 
 /* ---------- Certificate template (Settings › Certificates) ---------- */
-const CERT_FIELDS = [['name', 'Learner name', 'Maya Okafor'], ['course', 'Course name', 'Workplace Safety Essentials'], ['date', 'Completion date', 'October 3, 2026'], ['score', 'Score %', 'Score 92%']];
-const CERT_TPL0 = { version:2, bg:{ src:'assets/certificate-default.svg', name:'certificate-default.svg' }, updatedBy:'Lena Fischer', updatedAt:'2026-09-12T14:30',
-  fields: { name:{ x:50, y:46, size:5.2, color:'#16324F', bold:true, on:true }, course:{ x:50, y:60, size:2.8, color:'#334E68', bold:true, on:true }, date:{ x:27, y:80, size:1.9, color:'#334E68', bold:false, on:true }, score:{ x:73, y:80, size:1.9, color:'#334E68', bold:false, on:true } },
+const CERT_FIELDS = [['name', 'Learner name', 'Maya Okafor'], ['course', 'Course name', 'Workplace Safety Essentials'], ['date', 'Completion date', 'October 3, 2026'], ['score', 'Score %', 'Score 92%'], ['id', 'Certificate ID', 'Certificate ID SF-48213']];   // v41.23: the ID is a field like the others (move, resize, hide)
+const CERT_TPL0 = { version:2, bg:{ src:'assets/certificate-default.svg', name:'certificate-default.svg', w:1600, h:1131 }, updatedBy:'Lena Fischer', updatedAt:'2026-09-12T14:30',
+  fields: { name:{ x:50, y:46, size:5.2, color:'#16324F', bold:true, on:true }, course:{ x:50, y:60, size:2.8, color:'#334E68', bold:true, on:true }, date:{ x:27, y:80, size:1.9, color:'#334E68', bold:false, on:true }, score:{ x:73, y:80, size:1.9, color:'#334E68', bold:false, on:true }, id:{ x:50, y:91.5, size:1.2, color:'#526B7A', bold:false, on:true } },
   history:[{ version:1, at:'2026-07-01T10:00', by:'Arjun Mehta', note:'First template' }, { version:2, at:'2026-09-12T14:30', by:'Lena Fischer', note:'Moved the score next to the date' }] };
 
 /* ---------- Kirkpatrick feedback (L1–L4) ---------- */

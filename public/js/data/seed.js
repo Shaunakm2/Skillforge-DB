@@ -305,14 +305,14 @@ const LCMS0 = [
   { id:'m7', type:'Audio', title:'Pushback in a 1:1', desc:'A team member responds to a change.', mins:1, file:{ src:MEDIA_DIR + 'pushback-clip.mp3', name:'pushback-clip.mp3', size:73812 } },
   { id:'m8', type:'Image', title:'The change curve', desc:'How morale moves during a change.', mins:2, file:{ src:MEDIA_DIR + 'change-curve.svg', name:'change-curve.svg', size:1257 } },
   { id:'m9', type:'Video', title:'Acknowledging loss', desc:'A manager names what the team is giving up.', mins:2, file:{ src:MEDIA_DIR + 'acknowledging-loss.mp4', name:'acknowledging-loss.mp4', size:114828 } },
-  { id:'m10', type:'Web link', title:'Northwind safety policy (intranet)', desc:'', mins:5, url:'https://example.com/northwind/safety-policy' },
-  { id:'m11', type:'Acknowledgment', title:'Code of conduct acknowledgment', desc:'', mins:1, text:'I have read and will follow the Northwind code of conduct.' },
+  { id:'m10', type:'Web link', title:'Company safety policy (intranet)', desc:'', mins:5, url:'https://example.com/safety-policy' },
+  { id:'m11', type:'Acknowledgment', title:'Code of conduct acknowledgment', desc:'', mins:1, text:'I have read and will follow the company code of conduct.' },
 ].map((m, i) => ({ code:'MOD-' + String(i + 1).padStart(3, '0'), by:'Lena Fischer', updated:'2026-09-' + String(10 + i).padStart(2, '0'), ...m }));
 const modById = id => LCMS0.find(m => m.id === id);
 
 ADMIN_COURSES0.unshift({ id:'safety', title:'Workplace Safety Essentials', cat:'Compliance', catId:'c5', subId:'c5a', subsubId:'c5a1', color:'#F59E0B', status:'Published', enrolled:3,
   desc:'Spot hazards, report them and know what to do in an emergency.',
-  about:'A short compliance course for everyone at Northwind. Read the handbook, watch the briefing, work through two interactive scenarios, then pass the safety check to complete the course.',
+  about:'A short compliance course for everyone at the company. Read the handbook, watch the briefing, work through two interactive scenarios, then pass the safety check to complete the course.',
   author:'Lena Fischer', director:'Arjun Mehta',
   items:['m1', 'm2', 'm3', 'm4'].map(id => itemFromModule(modById(id))),
   features:{ ...blankFeatures(), linear:true, mandatory:true, cert:true }, reports:{ learning:true, completion:true, progress:true, login:false, coursewise:true },
@@ -363,7 +363,7 @@ const USER_JOINED = ['2022-03-14','2021-07-01','2023-01-09','2019-11-18','2020-0
 /* Recent joiners (essential-training rule applies from Jul 1, 2026). */
 const JOIN_OVERRIDE = { 'Ishaan Kapoor':'2026-08-03', 'Meera Nair':'2026-08-10', 'Karan Malhotra':'2026-09-21', 'Ananya Rao':'2026-09-14' };
 const USERS0 = [['Maya Okafor','Learner','Customer Success','Active','Today 08:12'],['Jonas Berg','Learner','Customer Success','Active','Today 09:30'],['Aisha Khan','Learner','Customer Success','Active','Yesterday'],['Priya Raman','Manager','Customer Success','Active','Today 07:55'],['Daniel Reyes','Instructor','Learning & Development','Active','Today 10:02'],['Kofi Mensah','Instructor','Learning & Development','Active','2 days ago'],['Lena Fischer','Admin','Learning & Development','Active','Today 08:40'],['Arjun Mehta','Super admin','IT','Active','Today 08:05'],['Sana Iqbal','Learner','Sales','Active','Today 11:14'],['Marco Bianchi','Learner','Engineering','Active','3 days ago'],['Grace Liu','Learner','Operations','Active','Yesterday'],['Hugo Laurent','Manager','Marketing','Active','Today 09:02'],['Felix Wong','Learner','Finance','Deactivated','Aug 14'],['Nia Brooks','Learner','Sales','Invited','Never'],['Ishaan Kapoor','Learner','Customer Success','Active','Today 08:47'],['Meera Nair','Learner','Customer Success','Active','Yesterday'],['Rohan Desai','Learner','Sales','Active','Today 09:15'],['Fatima Sheikh','Learner','Operations','Active','2 days ago'],['Karan Malhotra','Learner','Sales','Active','Today 10:20'],['Ananya Rao','Learner','Operations','Active','Yesterday']]
-  .map((r, i) => ({ id:i + 1, name:r[0], email: r[0].toLowerCase().split(' ').join('.') + '@northwind.com', role:USER_TYPE[r[1]], dept:r[2], status: r[3] === 'Invited' ? 'Active' : r[3], lastLogin:r[4], manager: r[1] === 'Learner' ? 'Priya Raman' : r[1] === 'Manager' ? 'Lena Fischer' : 'None',
+  .map((r, i) => ({ id:i + 1, name:r[0], email: r[0].toLowerCase().split(' ').join('.') + '@example.com', role:USER_TYPE[r[1]], dept:r[2], status: r[3] === 'Invited' ? 'Active' : r[3], lastLogin:r[4], manager: r[1] === 'Learner' ? 'Priya Raman' : r[1] === 'Manager' ? 'Lena Fischer' : 'None',
     empId:'NW-' + (1001 + i), phone:'+1 555 01' + String(20 + i * 7).padStart(2, '0'), gender: USER_GENDER[i] || 'Prefer not to say', terms: r[3] !== 'Invited', designation: USER_TITLE[r[1]], joined: JOIN_OVERRIDE[r[0]] || USER_JOINED[i % USER_JOINED.length] }));
 const AUTOS0 = [
   { id:'due', label:'Due-date reminders', desc:'Email and in-app reminder 7 days and 1 day before a due date.', on:true },

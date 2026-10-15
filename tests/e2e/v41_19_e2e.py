@@ -9,7 +9,7 @@ from playwright.async_api import async_playwright
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXE = os.environ.get('CHROME') or (lambda d: d if os.path.exists(d) else None)('/opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell')
 WEB = os.environ.get('SF_WEB', 'public')
-CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'northwind', STORAGE_BUCKET:'lms-files' };"
+CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'testorg', STORAGE_BUCKET:'lms-files' };"
 HOOK = "(function(){let sf;Object.defineProperty(window,'Skillforge',{configurable:true,get(){return sf},set(v){const m=v.mount;v.mount=(app,...a)=>{window.__app=app;return m(app,...a)};sf=v;}});})();"
 RES = []
 def ok(n, c, x=''): RES.append((n, bool(c))); print(('PASS ' if c else 'FAIL ') + n, '' if c else str(x)[:400], flush=True)
@@ -58,8 +58,8 @@ async def main():
 
         # ---------- 4. sample data that is already in a database is found and deleted ----------
         # the database of an earlier version: the sample organisation was saved into it (as "Save the data shown" did)
-        await pg.evaluate("""(() => { for (const r of window.__demoRows) { const id = 'northwind|' + r.coll + '|' + r.key; if (!window.__sb.rows.has(id)) window.__sb.rows.set(id, { coll: r.coll, key: r.key, data: JSON.parse(JSON.stringify(r.data)), version: 1 }); }
-          window.__sb.rows.set('northwind|lcms|m1', { coll: 'lcms', key: 'm1', data: { id: 'm1', code: 'MOD-001', type: 'SCORM / xAPI', title: 'POSH Awareness Scorm', mins: 10 }, version: 1 }); })()""")
+        await pg.evaluate("""(() => { for (const r of window.__demoRows) { const id = 'testorg|' + r.coll + '|' + r.key; if (!window.__sb.rows.has(id)) window.__sb.rows.set(id, { coll: r.coll, key: r.key, data: JSON.parse(JSON.stringify(r.data)), version: 1 }); }
+          window.__sb.rows.set('testorg|lcms|m1', { coll: 'lcms', key: 'm1', data: { id: 'm1', code: 'MOD-001', type: 'SCORM / xAPI', title: 'POSH Awareness Scorm', mins: 10 }, version: 1 }); })()""")
         await pg.evaluate("Backend.afterSignIn().then(r => window.__app.onBackendSignedIn(r, { restore: true }))"); await W(1500)
         ok('4 (older database) sample data visible before clean-up', await S("s.adminCourses.length > 3 && s.users.length > 10"), await S("[s.adminCourses.length, s.users.length]"))
         before = await S("[s.adminCourses.length, s.lcms.length, s.qs.length]")
@@ -79,7 +79,7 @@ async def main():
         await pg.evaluate("window.__app.go('users', { adminView:true })"); await W()
         await B('+ Create account').click(); await pg.get_by_role('menuitem', name='Single account').click(); await W(); um = pg.locator('.ovl-28').last
         await um.locator('input').nth(0).fill('Gagan Sharma'); await um.locator('input').nth(1).fill('gagan@ims.test')
-        await um.locator('input[placeholder="e.g. NW-1015"]').fill('IMS-002'); await W(100)
+        await um.locator('input[placeholder="e.g. EMP-1015"]').fill('IMS-002'); await W(100)
         await B('Create account').click(); await W(900)
         g = await S("s.users.find(u => u.name === 'Gagan Sharma') || null")
         ok('6 new account is Active (no Invited status)', g and g['status'] == 'Active', g)

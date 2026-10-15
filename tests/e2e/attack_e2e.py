@@ -80,7 +80,7 @@ async def main():
         # ---------- 2. prototype pollution ----------
         await E("window.__app.go('users', { adminView:true })"); await W(400)
         await pg.get_by_role('button', name='+ Create account').click(); await pg.get_by_role('menuitem', name='Single account').click(); await W(300); um = pg.locator('.ovl-28').last
-        ins = um.locator('input'); await ins.nth(0).fill('__proto__'); await ins.nth(1).fill('proto.test@northwind.com'); await ins.nth(2).fill('NW-9901')
+        ins = um.locator('input'); await ins.nth(0).fill('__proto__'); await ins.nth(1).fill('proto.test@example.com'); await ins.nth(2).fill('NW-9901')
         n0 = await E("window.__app.state.users.length")
         await pg.evaluate("(() => { const v = window.__app.renderVals(); (v.saveUser || v.udSave || (() => {}))(); })()"); await W(400)
         added = await E("window.__app.state.users.slice(-1)[0].name")

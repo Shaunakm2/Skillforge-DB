@@ -14,7 +14,7 @@ const TrainingGen = (() => {
     const sub = u.subDivision || pick(MASTERS0.subDivisions, [24, 20, 14, 14, 10, 8, 7, 3]);
     const div = u.division || SUBDIV_OF[sub];
     return { ...u, subDivision: sub, division: div, divisionHead: u.divisionHead || HEAD_OF[div], site: MASTERS0.locations.includes(u.site) ? u.site : pick(MASTERS0.locations, [70, 20, 10]),
-      brand: u.brand || (div === 'Finance Services' ? 'Northwind Finance' : pick(MASTERS0.brands, [40, 12, 18, 12, 8, 10])),
+      brand: u.brand || (div === 'Finance Services' ? 'Brand B' : pick(MASTERS0.brands, [40, 12, 18, 12, 8, 10])),
       wfo: u.wfo || pick(['WFO', 'WFH', 'Hybrid'], [86, 6, 8]), education: u.education || pick(MASTERS0.education, [3, 10, 12, 10, 14, 10, 8, 3, 4, 3, 18, 3, 2]),
       expMonths: u.expMonths != null ? u.expMonths : (rnd() < 0.42 ? 0 : 3 + Math.floor(rnd() * 120)), account: u.account || '' };
   }

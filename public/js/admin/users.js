@@ -80,7 +80,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
       this.toastMsg(userAll.length.toLocaleString('en-US') + ' teammates exported'); },
     userStats: (() => { const n = { Active:0, Deactivated:0, Admin:0 }; s.users.forEach(u => { if (u.status === 'Deactivated') n.Deactivated++; else n.Active++; if (u.role === 'Admin') n.Admin++; }); return [['Active', n.Active, '#166534'], ['Deactivated', n.Deactivated, '#526B7A'], ['Admins', n.Admin, '#5B21B6']].map(([l, v, fg]) => ({ l, v: v.toLocaleString('en-US'), fg })); })(),
     newUser: () => this.setState({ userModal:true, ud:null }),
-    importUsers: () => { const base = nextUserId(s.users) - 1; const add = [['Owen Hart', 'Sales'], ['Priya Nair', 'Engineering'], ['Lucas Moreau', 'Customer Success']].map(([n, dp], i) => ({ id: base + i + 1, name:n, email: n.toLowerCase().split(' ').join('.') + '@northwind.com', role:'Learner', dept:dp, manager:'Priya Raman', status:'Invited', lastLogin:'Never' })); this.setState({ users: s.users.concat(add) }); this.toastMsg('3 accounts imported from new_hires_oct.csv · invites sent'); },
+    importUsers: () => { const base = nextUserId(s.users) - 1; const add = [['Owen Hart', 'Sales'], ['Priya Nair', 'Engineering'], ['Lucas Moreau', 'Customer Success']].map(([n, dp], i) => ({ id: base + i + 1, name:n, email: n.toLowerCase().split(' ').join('.') + '@example.com', role:'Learner', dept:dp, manager:'Priya Raman', status:'Invited', lastLogin:'Never' })); this.setState({ users: s.users.concat(add) }); this.toastMsg('3 accounts imported from new_hires_oct.csv · invites sent'); },
     userModal: s.userModal,
     closeUserModal: () => this.setState({ userModal:false, ud:null }),   // v41.21: the draft goes too
     ud,

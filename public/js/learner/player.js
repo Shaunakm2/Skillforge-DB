@@ -253,6 +253,24 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
   const qzNow = s.quizzes.find(x => x.id === s.attemptQuiz) || crsQuiz, qPassed = qsc.final && qsc.pct >= qzNow.pass;
   const tabsL = [['overview', 'Overview'], ['notes', 'Notes'], ['transcript', 'Transcript'], ['resources', 'Resources']].map(([id, label]) => ({ label, bg: s.tab === id ? '#E7F0F7' : 'transparent', fg: s.tab === id ? '#7A4A06' : '#526B7A', pick: () => this.setState({ tab:id }) }));
   Object.assign(c, { qsc });
+  // v41.23: "From your team" shows real people only: teammates (same manager, or same department when I have no manager) who have THIS course
+  // assigned. It used to be fixed text ("4 teammates are taking this") with four demo faces. Learners can read only their own assignments from the
+  // database, so for them the panel stays hidden; admins and trainers with report access see it. People who switched the leaderboard off in
+  // Preferences are counted but their initials are not shown.
+  const teamBlock = (() => {
+    const none = { teamHas:false, teamFaces:[], teamLine:'' };
+    if (c.scrV !== 'course' || !course || course.none) return none;
+    const meU = s.users.find(u => u.name === role.name) || {}, mgr = meU.manager && meU.manager !== 'None' ? meU.manager : '', a = Progress.courseOf(s, course.id);
+    if (!a) return none;
+    const rows = s.users.filter(u => u.name !== role.name && u.status !== 'Deactivated' && (mgr ? u.manager === mgr : !!meU.dept && u.dept === meU.dept) && (s.enroll[u.name] || {})[course.id])
+      .map(u => ({ u, done: Progress.detail(s, u.name, a).status === 'Completed' }));
+    if (!rows.length) return none;
+    const taking = rows.filter(r => !r.done).length, fin = rows.length - taking, pl = n => n === 1 ? '' : 's';
+    const line = taking ? taking + ' teammate' + pl(taking) + (taking === 1 ? ' is' : ' are') + ' taking this' + (fin ? ' · ' + fin + ' finished' : '') : fin + ' teammate' + pl(fin) + (fin === 1 ? ' has' : ' have') + ' finished this';
+    const faces = rows.filter(r => ((s.prefs || {})[r.u.name] || {}).leaderboard !== false).sort((x, y) => x.done - y.done).slice(0, 4)
+      .map((r, i) => { const n = Identity.plain(r.u.name); return { initials: ini(n), name: n, av: AV[i % 5] }; });
+    return { teamHas:true, teamFaces:faces, teamLine:line };
+  })();
   return {
     crsInfo: icIsItem ? (() => { const z = icA.items.filter(x => x.kind === 'quiz').map(x => s.quizzes.find(q => q.id === x.quizId)).filter(Boolean)[0]; return [{ l:'Course author', v: icA.author || '—' }, { l:'Course director', v: icA.director || '—' }, { l:'Learning approach', v: icA.features.linear ? 'Linear · steps unlock in order' : 'Non-linear · any order' }, { l:'Due date', v: myEnroll[course.id] ? shortDate(myEnroll[course.id]) : 'No due date' }, { l:'Completion', v: (() => { const zs = icA.items.filter(x => x.kind === 'quiz').length; return zs > 1 ? 'Finish every step and pass all ' + zs + ' assessments' : z ? 'Finish every step and pass “' + z.name + '” (' + z.pass + '%)' : 'Finish every step'; })() }, { l:'Certificate', v: icA.features.cert ? 'Issued on completion' + (icA.recert !== 'Never' ? ', valid ' + icA.recert : '') : 'None' }]; })() : (() => { const D = Object.fromEntries(Object.entries({ ...DUE_DATES, ...myEnroll }).map(([id, k]) => [id, shortDate(k)])), req = !!myEnroll[course.id] || course.id === 'change'; return [{ l:'Level', v:course.level }, { l:'Required / optional', v: req ? 'Required' : 'Optional' }, { l:'Due date', v: D[course.id] || 'No due date' }, { l:'Passing score', v:'80% on the final assessment' }, { l:'Certificate', v:'Issued on completion, valid 12 months' }, { l:'Prerequisites', v:'None' }]; })(),
     isItemCourse: icIsItem,
@@ -267,7 +285,7 @@ SkillforgeApp.prototype.vmPlayer = function (c) {
     totalLessons: icIsItem ? icA.items.length : FLAT.length,
     curriculum,
     outcomes: icIsItem ? [] : ['Explain the reason for a change in two minutes or less', 'Spot passive and active resistance early', 'Respond to pushback without getting defensive', 'Measure whether a change has actually stuck'],
-    teamFaces: TEAM.slice(1, 5).map((m, i) => ({ initials: ini(m.name), av: AV[i % 5] })),
+    ...teamBlock,
     goBackFromCourse: () => this.go(s.from === 'course' || s.from === 'lesson' || s.from === 'quiz' ? 'catalog' : s.from || 'catalog'),
     startCourse: () => icIsItem ? this.go('item', { itemIdx: firstOpenItem(), scormOn:false }) : this.openLesson(this.firstOpen(s.courseId)),
     openCourse: () => this.go('course'),

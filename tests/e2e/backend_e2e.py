@@ -6,7 +6,7 @@ from playwright.async_api import async_playwright
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXE = os.environ.get('CHROME') or (lambda d: d if os.path.exists(d) else None)('/opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell')   # None: Playwright's own Chromium (CI)
 WEB = os.environ.get('SF_WEB', 'public')   # 'dist' tests the bundled build (npm run build)
-CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'northwind', STORAGE_BUCKET:'lms-files' };"
+CFG = "window.SKILLFORGE_CONFIG = { SUPABASE_URL:'https://mock.supabase.co', SUPABASE_ANON_KEY:'anon', ORG_ID:'testorg', STORAGE_BUCKET:'lms-files' };"
 HOOK = "(function(){let sf;Object.defineProperty(window,'Skillforge',{configurable:true,get(){return sf},set(v){const m=v.mount;v.mount=(app,...a)=>{window.__app=app;return m(app,...a)};sf=v;}});})();"
 RES = []
 def ok(n, c, x=''): RES.append((n, bool(c))); print(('PASS ' if c else 'FAIL ') + n, '' if c else str(x)[:400], flush=True)
@@ -19,7 +19,7 @@ async def main():
         await ctx.route('**/vendor/supabase.js', lambda r: r.fulfill(body='/* mocked */', content_type='application/javascript'))
         pg = await ctx.new_page()
         await pg.add_init_script(path=os.path.join(ROOT, 'tests/e2e/mock-supabase.js')); await pg.add_init_script(script=HOOK)
-        await pg.add_init_script(script="window.__sb.addMember({ user_id:'u-admin', email:'lena.fischer@northwind.com', emp_id:'NW-1007', app_name:'Lena Fischer', role:'Admin', password:'Admin-pass-2026' })")
+        await pg.add_init_script(script="window.__sb.addMember({ user_id:'u-admin', email:'lena.fischer@example.com', emp_id:'NW-1007', app_name:'Lena Fischer', role:'Admin', password:'Admin-pass-2026' })")
         errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
         await pg.goto('file://' + ROOT + '/' + WEB + '/index.html'); await pg.wait_for_selector('#sf-user')
         await pg.add_script_tag(path=os.path.join(ROOT, 'supabase/functions/_shared/learning-core.js'))
@@ -32,7 +32,7 @@ async def main():
 
         await pg.evaluate("window.__demo = { ...window.__app.state }")
         ok('no sample organisation generated when Supabase is configured', await S("s.users.length") < 50)
-        await login('lena.fischer@northwind.com', 'Admin-pass-2026')
+        await login('lena.fischer@example.com', 'Admin-pass-2026')
         ok('admin signed in on an empty database', await S("s.authed && s.meName === 'Lena Fischer' && s.role === 'admin' && s.beEmpty"))
         # v41.19: the app no longer offers the sample organisation; this test loads it on purpose (snapshot taken before sign-in)
         await pg.evaluate("window.__app.setState(Object.fromEntries(Object.entries(window.__demo).filter(([k]) => ['users','adminCourses','lcms','qs','quizzes','batches','threads','enroll','itemDone','assignedOn','attemptRecs','reviews','docs','accessReqs','fbLog','places','groups','paths','anns','attemptsUsed','extraAttempts','bookmarks','docAck','loginLog','syncLog','extHistory','attemptLog','bmLog','asgSub','prefs','itemQuiz','surveyResp'].includes(k))))"); await W()
@@ -47,7 +47,7 @@ async def main():
           const fake = new File([new Uint8Array([0x4D, 0x5A, 0x90, 0])], 'report.pdf', { type:'application/pdf' }), real = new File([new TextEncoder().encode('%PDF-1.4 x')], 'r.pdf', { type:'application/pdf' });
           const pkg = await Backend.Files.scorm(f); return { pkg, fake: await Backend._sniff(fake), real: await Backend._sniff(real), stored: [...window.__sb.storage.keys()].filter(k => k.startsWith('lms-scorm/')).length }; }""", zb64)
         ok('renamed executable rejected, real PDF accepted', r['fake'] is False and r['real'] is True, r)
-        ok('SCORM zip extracted to the private SCORM bucket (launched later through the content site)', r['stored'] == 4 and r['pkg']['launch'] == 'content/index.html' and r['pkg']['path'].startswith('northwind/scorm/') and r['pkg']['src'] == '', r)
+        ok('SCORM zip extracted to the private SCORM bucket (launched later through the content site)', r['stored'] == 4 and r['pkg']['launch'] == 'content/index.html' and r['pkg']['path'].startswith('testorg/scorm/') and r['pkg']['src'] == '', r)
         # logins for everyone
         await pg.locator('button').filter(has_text='Create missing logins').click(); await W(1500)
         n = await pg.evaluate("window.__sb.members.length")
@@ -76,10 +76,10 @@ async def main():
         await pg.evaluate("window.__app.setState(st => ({ itemDone: { ...st.itemDone, 'Maya Okafor': { ...(st.itemDone['Maya Okafor'] || {}), safety: { 0:'x', 1:'x', 2:'x', 3:'x' } } } }))"); await W(1200)
         sent = await pg.evaluate(f"window.__sb.calls.slice({before}).filter(c => c[0] === 'sf_save')")
         ok('local result edits are not sent', not any('itemDone' in k for c in sent for k in c[1]), sent)
-        r = await pg.evaluate("Backend.client().rpc('sf_save', { p_org:'northwind', p_rows:[{ coll:'itemDone', key:'NW-1001', data:{ safety:{ 0:'x' } }, version:null }] }).then(x => x.data[0].status)")
+        r = await pg.evaluate("Backend.client().rpc('sf_save', { p_org:'testorg', p_rows:[{ coll:'itemDone', key:'NW-1001', data:{ safety:{ 0:'x' } }, version:null }] }).then(x => x.data[0].status)")
         ok('direct write of results is refused by the database policy', r in ('denied', 'conflict'), r)
         # ---- v30 attacks as a learner, straight at the database and the server (no app screens involved) ----
-        atk = await pg.evaluate("""(async () => { const sb = Backend.client(), save = (coll, key, data) => sb.rpc('sf_save', { p_org:'northwind', p_rows:[{ coll, key, data, version:null }] }).then(x => x.data[0].status);
+        atk = await pg.evaluate("""(async () => { const sb = Backend.client(), save = (coll, key, data) => sb.rpc('sf_save', { p_org:'testorg', p_rows:[{ coll, key, data, version:null }] }).then(x => x.data[0].status);
           const out = {};
           out.roles = await save('roles', 'r_learner', { id:'r_learner', name:'Learner', base:'Learner', perms: Object.fromEntries(['users','roles','reports','dashboard','documents','masters'].map(k => [k, true])) });
           try { await sb.from('sf_member').update({ role:'Admin' }).eq('emp_id', 'NW-1001'); } catch (e) {}   // no update rule exists for sf_member
@@ -91,8 +91,8 @@ async def main():
           out.loginLog = await save('loginLog', 'NW-1001', { n: 9999 });
           out.docs = await save('docs', 'evil', { status:'Published', audience:['All'], title:'Phish' });
           out.users = await save('users', '1', { name:'x', role:'Admin' });
-          out.readLog = (await sb.from('sf_doc').select('key').eq('org_id', 'northwind').eq('coll', 'loginLog')).data.filter(r => r.key !== 'NW-1001').length;
-          out.readKpi = (await sb.from('sf_doc').select('key').eq('org_id', 'northwind').eq('coll', 'dashKpi')).data.length;
+          out.readLog = (await sb.from('sf_doc').select('key').eq('org_id', 'testorg').eq('coll', 'loginLog')).data.filter(r => r.key !== 'NW-1001').length;
+          out.readKpi = (await sb.from('sf_doc').select('key').eq('org_id', 'testorg').eq('coll', 'dashKpi')).data.length;
           const err = async f => { try { await f; return 'accepted'; } catch (e) { return e.message; } };
           out.ctor = await err(Backend.call('constructor', {})); out.tostr = await err(Backend.call('toString', {}));
           out.proto = await err(Backend.call('docSeen', { docId: '__proto__' }));
@@ -131,7 +131,7 @@ async def main():
         ok('step completion still enforces the server rules', sc.get('skip') or bool(sc['err']), sc)
         # back to admin: conflict merge, refusals, deletes, optimistic UI
         await pg.evaluate("Backend.signOut()"); await pg.evaluate("window.__app.setState({ authed:false, loginView:'signin' })"); await W()
-        await login('lena.fischer@northwind.com', 'Admin-pass-2026'); await W(800)
+        await login('lena.fischer@example.com', 'Admin-pass-2026'); await W(800)
         ok('admin back', await S("s.role === 'admin'"))
         # ---- v29: dashboards stored one row per board / KPI / schedule; filters and edit mode never saved ----
         await pg.evaluate("window.__app.setState(st => ({ dash: { ...st.dash, slicers: { ...st.dash.slicers, division: 'Finance Services' } } }))"); await W(1500)
@@ -141,9 +141,9 @@ async def main():
         ok('one person’s filters are never saved for everyone', not rowsD['slicerSaved'])
         # schedule recipients are checked by the database too (not only on screen)
         await pg.evaluate("window.__app.setState(st => ({ dash: { ...st.dash, schedules: [{ id:'scx', board:'b1', freq:'Daily', day:'', time:'09:00', to:['leak@gmail.com'], fmt:'CSV', on:true }] } }))"); await W(1800)
-        ok('schedule to an outside domain refused by the database and reverted', not await pg.evaluate("window.__sb.rows.has('northwind|dashSched|scx')") and not await S("(s.dash.schedules || []).some(x => x.id === 'scx')"))
-        await pg.evaluate("window.__app.setState(st => ({ dash: { ...st.dash, schedules: [{ id:'scy', board:'b1', freq:'Daily', day:'', time:'09:00', to:['boss@northwind.com'], fmt:'CSV', on:true }] } }))"); await W(1500)
-        ok('internal schedule saved', await pg.evaluate("window.__sb.rows.has('northwind|dashSched|scy')"))
+        ok('schedule to an outside domain refused by the database and reverted', not await pg.evaluate("window.__sb.rows.has('testorg|dashSched|scx')") and not await S("(s.dash.schedules || []).some(x => x.id === 'scx')"))
+        await pg.evaluate("window.__app.setState(st => ({ dash: { ...st.dash, schedules: [{ id:'scy', board:'b1', freq:'Daily', day:'', time:'09:00', to:['boss@example.com'], fmt:'CSV', on:true }] } }))"); await W(1500)
+        ok('internal schedule saved', await pg.evaluate("window.__sb.rows.has('testorg|dashSched|scy')"))
         # publish a snapshot of b1 for viewers, restrict b2 to admins, and make the Trainer role a viewer
         await pg.evaluate("window.__app.go('dashboard', { adminView:true, dbBoard:'b1' })"); await W(600); await pg.evaluate("window.__app.renderVals().dbPublish()"); await W(300)
         await pg.evaluate("window.__app.setState(st => ({ dash: { ...st.dash, boards: st.dash.boards.map(b => b.id === 'b2' ? { ...b, audience: ['r_admin'] } : b) }, roles: st.roles.map(r => r.id === 'r_trainer' ? { ...r, perms: { ...r.perms, dashView: true } } : r) }))"); await W(1800)
@@ -156,7 +156,7 @@ async def main():
         ok('published snapshot stored on the board row (numbers, no records)', await pg.evaluate("(() => { const d = window.__sb.get('dashBoard', 'b1'); return !!(d && d.snap && d.snap.visuals.length) && !JSON.stringify(d.snap).includes('courseOpts'); })()"))
         # someone else edits Jonas's phone; I edit his designation at the same time -> merged
         await pg.evaluate("""(() => { const sb = window.__sb, k = [...sb.rows.values()].find(r => r.coll === 'users' && r.data.name === 'Jonas Berg').key; window.__jk = k;
-          sb.rows.get('northwind|users|' + k).version += 0; const d = sb.get('users', k); sb.rows.set('northwind|users|' + k, { coll:'users', key:k, data:{ ...d, phone:'+91 90000 11111' }, version: sb.rows.get('northwind|users|' + k).version + 1 }); })()""")
+          sb.rows.get('testorg|users|' + k).version += 0; const d = sb.get('users', k); sb.rows.set('testorg|users|' + k, { coll:'users', key:k, data:{ ...d, phone:'+91 90000 11111' }, version: sb.rows.get('testorg|users|' + k).version + 1 }); })()""")
         await pg.evaluate("window.__app.setState(st => ({ users: st.users.map(u => u.name === 'Jonas Berg' ? { ...u, designation:'Team Lead' } : u) }))"); await W(2000)
         d = await pg.evaluate("window.__sb.get('users', window.__jk)")
         ok('concurrent edits merged (no lost update)', d['phone'] == '+91 90000 11111' and d['designation'] == 'Team Lead', d)
@@ -165,9 +165,9 @@ async def main():
         await pg.evaluate("window.__sb.serverWrite('holidays', 'hx', { id:'hx', date:'2026-12-25', name:'Christmas' })"); await W(500)
         ok('other people’s changes appear live', await S("s.holidays.some(h => h.id === 'hx')"))
         # deletes are not dropped when another row in the same save is refused
-        await pg.evaluate("window.__sb.rows.set('northwind|attempt|zz', { coll:'attempt', key:'zz', data:{}, version:1 })")
+        await pg.evaluate("window.__sb.rows.set('testorg|attempt|zz', { coll:'attempt', key:'zz', data:{}, version:1 })")
         await pg.evaluate("window.__app.setState(st => ({ holidays: st.holidays.filter(h => h.id !== 'hx'), anns: st.anns.slice(1) }))"); await W(2000)
-        ok('deletes saved', not await pg.evaluate("window.__sb.rows.has('northwind|holidays|hx')"))
+        ok('deletes saved', not await pg.evaluate("window.__sb.rows.has('testorg|holidays|hx')"))
         # optimistic UI: a failing deactivation leaves the person active
         await pg.evaluate("window.__sb.failAdmin = 'Supabase unreachable'")
         await pg.evaluate("window.__app.go('users', { adminView:true, userStatus:'All' })"); await W(400)
@@ -181,7 +181,7 @@ async def main():
         ok('rename does not orphan history in the database', await pg.evaluate("!!window.__sb.get('enroll', 'NW-1002') && window.__sb.members.find(m => m.emp_id === 'NW-1002').app_name === 'Jonas Bergström'"))
         # v41.20: duplicate names are allowed (same visible name, kept apart internally)
         await B('+ Create account').click(); await pg.get_by_role('menuitem', name='Single account').click(); await W(); um = pg.locator('.ovl-28').last
-        await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@company.com').fill('maya.o2@northwind.com'); await um.get_by_placeholder('e.g. NW-1015').fill('NW-3999')
+        await um.locator('input').nth(0).fill('Maya Okafor'); await um.get_by_placeholder('name@company.com').fill('maya.o2@example.com'); await um.get_by_placeholder('e.g. EMP-1015').fill('NW-3999')
         await B('Create account').click(); await W(1500)
         ok('duplicate name allowed (same name, no employee ID added), first password shown once', await S("s.users.some(u => u.empId === 'NW-3999' && u.name !== 'Maya Okafor' && Identity.plain(u.name) === 'Maya Okafor')") and await pg.locator('.tp-pw').count() == 1)
         # trainer scope: can't change another trainer's batch; refused change is reverted and reported
@@ -195,7 +195,7 @@ async def main():
         ok('viewer sees the published numbers, not an empty live calculation', vv['snap'] and vv['n'] > 3 and vv['kv'] not in (None, '', '0', '—') and not vv['exp'] and not vv['sl'], vv)
         ok('trainer sees only their own batches', await S("s.batches.length > 0 && s.batches.every(b => b.trainer === 'Daniel Reyes')"))
         other = await pg.evaluate("[...window.__sb.rows.values()].find(r => r.coll === 'batches' && r.data.trainer !== 'Daniel Reyes').key")
-        r = await pg.evaluate(f"Backend.client().rpc('sf_save', {{ p_org:'northwind', p_rows:[{{ coll:'batches', key:'{other}', data:{{ name:'Hijacked', trainerEmp:'x' }}, version:1 }}] }}).then(x => x.data[0].status)")
+        r = await pg.evaluate(f"Backend.client().rpc('sf_save', {{ p_org:'testorg', p_rows:[{{ coll:'batches', key:'{other}', data:{{ name:'Hijacked', trainerEmp:'x' }}, version:1 }}] }}).then(x => x.data[0].status)")
         ok('another trainer’s batch cannot be written', r in ('denied', 'gone', 'conflict') and await pg.evaluate(f"window.__sb.get('batches', '{other}').name") != 'Hijacked', r)
         own = await pg.evaluate("(() => window.__app.state.batches[0].id)()")
         n0 = await pg.evaluate(f"window.__sb.get('batches', '{own}').traineeEmps.length")
@@ -219,7 +219,7 @@ async def main():
         dk = await pg.evaluate("(() => { const r = [...window.__sb.rows.values()].find(r => r.coll === 'users' && r.data.name === 'Daniel Reyes'); return r && r.key; })()")
         await pg.evaluate(f"(() => {{ const d = window.__sb.get('users', '{dk}'); window.__sb.serverWrite('users', '{dk}', {{ ...d, expires: '2026-01-01' }}); }})()"); await W(300)
         ex = await pg.evaluate("Backend.call('me', {}).then(() => 'allowed', e => e.message)")
-        rd = await pg.evaluate("(async () => { const r = await Backend.client().from('sf_doc').select('key').eq('org_id', 'northwind').eq('coll', 'batches'); return ((r && r.data) || []).length; })()")
+        rd = await pg.evaluate("(async () => { const r = await Backend.client().from('sf_doc').select('key').eq('org_id', 'testorg').eq('coll', 'batches'); return ((r && r.data) || []).length; })()")
         ok('connected: an account past its expiry date is refused by the server and reads nothing', ex != 'allowed' and rd == 0, (ex, rd))
         await pg.evaluate(f"(() => {{ const d = window.__sb.get('users', '{dk}'); window.__sb.serverWrite('users', '{dk}', {{ ...d, expires: '' }}); }})()"); await W(200)
         # v31: idle sign-out when connected reloads the tab, so nothing the previous person could read stays in memory

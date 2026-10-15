@@ -31,7 +31,7 @@
    - Then run:
      ```sql
      insert into public.sf_member (org_id, user_id, email, emp_id, app_name, role)
-     select 'northwind', id, email, 'NW-1007', 'Lena Fischer', 'Admin' from auth.users where email = 'you@company.com';
+     select 'your-org-id', id, email, 'EMP-0001', 'Your Name', 'Admin' from auth.users where email = 'you@company.com';   -- use the same ORG_ID as in js/config.js
      ```
 4. **Apply the Auth security settings (required).** They are in `supabase/config.toml`; push them with `supabase link --project-ref <ref>` then `supabase config push`. Or set them by hand in the dashboard (Authentication › Sign In / Providers › Email, and Authentication › Sessions):
    - sign-ups **off** (`enable_signup = false`);
