@@ -181,11 +181,16 @@
   }
 
   /* After a trainer rates a written answer, the attempt is re-scored here (never in the browser). */
+  /* v41.21: a grader may rate / review only the trainees of the batches they train (a person can be a trainer in one batch
+   * and a trainee in another, e.g. train-the-trainer), unless their role has "Gradebook: all learners" (gradeAll). Admins: everyone. */
+  const gradeScope = (ctx, learnerEmp) => { if (ctx.role === 'Admin' || (ctx.perms || []).includes('gradeAll')) return;
+    if (!(ctx.trainees || []).includes(String(learnerEmp || ''))) fail(403, 'You can grade only the trainees of the batches you train'); };
   async function rescore(db, ctx, b) {
     if (!can(ctx, 'gradebook')) fail(403, 'Rating answers needs the Gradebook permission');
     const rv = await db.get('reviews', String(b.reviewId)); if (!rv) fail(404, 'Answer not found');
     // v41.18: nobody rates their own answer (an admin included: another rater must do it)
     if (rv.data.learnerEmp === ctx.emp) fail(403, 'You cannot rate your own answer');
+    gradeScope(ctx, rv.data.learnerEmp);
     const q = (await db.get('qs', String(rv.data.qid))).data, rating = Number(b.rating);
     if (!Number.isInteger(rating) || rating < 0 || rating > (q.points || 0)) fail(400, 'Rating must be 0 to ' + q.points);
     // v41.18: the rater's note to the learner was dropped when connected; it is now stored with the rating
@@ -264,6 +269,7 @@
     const cur = await db.get('asgSub', String(b.id || '')); if (!cur) fail(404, 'Submission not found');
     if (cur.data.status !== 'Submitted') fail(409, 'This submission was already reviewed');
     if (cur.data.learnerEmp === ctx.emp) fail(403, 'You cannot review your own assignment');
+    gradeScope(ctx, cur.data.learnerEmp);
     const accept = b.decision === 'accept', comment = str(b.comment, 1000, 'Comment');
     if (!accept && !comment) fail(400, 'Say what to change when you return an assignment');
     const d = cur.data;

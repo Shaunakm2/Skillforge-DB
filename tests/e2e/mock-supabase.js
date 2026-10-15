@@ -39,7 +39,8 @@
     if (PERSON.includes(r.coll)) return k === c.emp || any(c, ['reports','analytics','dashboard']) || (any(c, ['batches','assignments','attempts','gradebook']) && tr(k));
     if (r.coll === 'users') return d.empId === c.emp || any(c, ['users','reports']) || (P('batches') && tr(d.empId));
     if (['attemptRecs','extHistory'].includes(r.coll)) return d.empId === c.emp || P('reports') || (any(c, ['batches','attempts','gradebook']) && tr(d.empId));
-    if (r.coll === 'reviews') return d.learnerEmp === c.emp || any(c, ['gradebook','reports']) || (any(c, ['batches','attempts']) && tr(d.learnerEmp));
+    // v41.21 (migration 009): graders read their batch trainees' answers; all learners only with gradeAll or reports
+    if (r.coll === 'reviews' || r.coll === 'asgSub') return d.learnerEmp === c.emp || any(c, ['reports','gradeAll']) || (any(c, ['gradebook','batches','attempts']) && tr(d.learnerEmp));
     if (r.coll === 'fbLog') return k.split('|')[3] === c.emp || any(c, ['feedback','reports']);
     if (r.coll === 'accessReqs') return d.empId === c.emp || d.managerKey === c.ukey || P('assignments');
     if (r.coll === 'adminCourses') return d.status === 'Published' || any(c, ['courseAdmin','builder','assignments','lcms']);
@@ -138,7 +139,7 @@
     if (m.must_change) return { error: 'Set a new password first' };
     if (b.action === 'sign') { const out = {}; (b.paths || []).forEach(p => { out[p] = 'https://files.test/' + p; }); return { urls: out }; }
     const urow = [...rows.values()].find(r => r.coll === 'users' && r.data.empId === m.emp_id);
-    try { return await LearningCore.handle(sdb, { org: ORG, emp: m.emp_id, role: m.role, perms: c0.perms, name: m.app_name, userKey: urow && urow.key, now: new Date(Date.now() + (T.clockSkew || 0)), contentOrigin: T.contentOrigin || 'https://content.test', signKey: T.signKey || 'k' }, b.action, b); }
+    try { return await LearningCore.handle(sdb, { org: ORG, emp: m.emp_id, role: m.role, perms: c0.perms, trainees: c0.trainees, name: m.app_name, userKey: urow && urow.key, now: new Date(Date.now() + (T.clockSkew || 0)), contentOrigin: T.contentOrigin || 'https://content.test', signKey: T.signKey || 'k' }, b.action, b); }
     catch (e) { return { error: e.message }; }
   }
   async function adminUsers(b) {

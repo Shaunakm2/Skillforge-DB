@@ -32,7 +32,9 @@ test('assignment: learner submits, only Gradebook can review, accept completes t
   await assert.rejects(L.handle(db, ctx(), 'submitAssignment', { courseId: 'k', step: 1, text: 'again' }), /Already submitted/);
   const id = 'E1|k|1';
   await assert.rejects(L.handle(db, ctx(), 'reviewAssignment', { id, decision: 'accept' }), /Gradebook/);
-  const tr = ctx({ emp: 'T1', role: 'Trainer', perms: ['gradebook'] });
+  const other = ctx({ emp: 'T5', role: 'Trainer', perms: ['gradebook'], trainees: ['E9'] });
+  await assert.rejects(L.handle(db, other, 'reviewAssignment', { id, decision: 'accept' }), /trainees of the batches you train/);   // v41.21: not their trainee
+  const tr = ctx({ emp: 'T1', role: 'Trainer', perms: ['gradebook'], trainees: ['E1'] });
   await assert.rejects(L.handle(db, tr, 'reviewAssignment', { id, decision: 'return', comment: '' }), /what to change/);
   await L.handle(db, tr, 'reviewAssignment', { id, decision: 'return', comment: 'Add a closing line' });
   assert.strictEqual(db.peek('asgSub', id).status, 'Returned'); assert.ok(!done(db, 1));

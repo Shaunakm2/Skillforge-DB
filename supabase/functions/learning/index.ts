@@ -80,7 +80,10 @@ Deno.serve(async (req) => {
       const pw = String(body.password || "");
       if (!strongEnough(pw)) return json({ error: "Use at least 10 characters with upper- and lower-case letters and a number." }, 400);
       // v41.19: the organisation's default first password (DEFAULT_PASSWORD, default Pass@123) can't be kept as the new one
-      { const d = (Deno.env.get("DEFAULT_PASSWORD") || "Pass@123").trim(); if (d && pw === d) return json({ error: "Choose a password different from the default first password." }, 400); }
+      { const d = (Deno.env.get("DEFAULT_PASSWORD") || "Pass@123").trim();
+        const { data: pf } = await admin.from("sf_doc").select("data").eq("org_id", String(body.org || "")).eq("coll", "platform").eq("key", "value").maybeSingle();
+        const o = String((((pf || {}).data || {}).defaults || {}).password || "").trim();   // v41.21: App settings › Default password too
+        if ((d && pw === d) || (o && pw === o)) return json({ error: "Choose a password different from the default first password." }, 400); }
       const { error } = await admin.auth.admin.updateUserById(c.sub, { password: pw, app_metadata: { ...(c.app_metadata || {}), must_change: false } });
       if (error) return json({ error: error.message }, 400);
       // v34: a new password ends every OTHER session of this person (this one carries on)
@@ -129,7 +132,12 @@ Deno.serve(async (req) => {
       const { data } = await admin.storage.from(BUCKET).createSignedUrls(allowed, Math.max(60, Math.min(900, Number(Deno.env.get("SIGNED_URL_TTL_SECONDS") || 600))));
       return json({ urls: Object.fromEntries((data || []).filter((x: any) => x.signedUrl).map((x: any) => [x.path, x.signedUrl])) });
     }
-    const ctx = { tz: Deno.env.get("ORG_TIMEZONE") || "Asia/Kolkata", org, emp: mem.emp_id, role: mem.role, perms: mem.role === "Admin" ? [] : perms, name: mem.app_name, userKey, now: new Date(),
+    // v41.21: the trainees of the batches this person trains (kept by the database from batches: sf_trainee), for grading scope
+    let trainees: string[] = [];
+    if (mem.role !== "Admin" && perms.includes("gradebook") && ["rescore", "reviewAssignment"].includes(String(body.action))) {
+      const { data: tr } = await admin.from("sf_trainee").select("trainee_emp").eq("org_id", org).eq("trainer_emp", mem.emp_id);
+      trainees = (tr || []).map((x: any) => String(x.trainee_emp)).filter((e: string) => e !== mem.emp_id); }
+    const ctx = { tz: Deno.env.get("ORG_TIMEZONE") || "Asia/Kolkata", org, emp: mem.emp_id, role: mem.role, perms: mem.role === "Admin" ? [] : perms, trainees, name: mem.app_name, userKey, now: new Date(),
       contentOrigin: Deno.env.get("CONTENT_ORIGIN") || "", signKey: Deno.env.get("CONTENT_SIGNING_KEY") || "",
       scormIdleMin: Number(Deno.env.get("SCORM_IDLE_MINUTES") || 30), scormMaxHours: Number(Deno.env.get("SCORM_MAX_HOURS") || 8) };
     const out = await L.handle(db, ctx, String(body.action || ""), body);

@@ -34,7 +34,7 @@ async function load(fnName, T, env) {
   return (body, { token, origin } = {}) => handler(new Request('https://fn/' + fnName, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}), ...(origin ? { origin } : {}) }, body: JSON.stringify(body) }));
 }
 const jwt = (claims) => 'x.' + Buffer.from(JSON.stringify({ role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 600, ...claims })).toString('base64url') + '.sig';
-const world = () => ({ updates: [], revoked: [], deadSessions: [], authUsers: [{ id: 'U-L', email: 'l@x' }],
+const world = () => ({ updates: [], revoked: [], deadSessions: [], sf_trainee: [], authUsers: [{ id: 'U-L', email: 'l@x' }],
   sf_member: [{ org_id: 'o', user_id: 'U-A', email: 'a@x', emp_id: 'A1', role: 'Admin', active: true, app_name: 'Ann' },
               { org_id: 'o', user_id: 'U-T', email: 't@x', emp_id: 'T1', role: 'Trainer', role_id: 'r_lite', active: true, app_name: 'Tom', user_key: 'uT' },
               { org_id: 'o', user_id: 'U-L', email: 'l@x', emp_id: 'L1', role: 'Learner', active: true, app_name: 'Lia', user_key: 'uL' }],
@@ -160,4 +160,16 @@ test('v41.19: default first password Pass@123 (or random), member found by emplo
   const learning = await load('learning', world(), ENV);
   const keep = await learning({ action: 'changePassword', password: 'Pass@123' }, { token: jwt({ sub: 'U-L' }) }); assert.strictEqual(keep.status, 400);
   assert.strictEqual((await learning({ action: 'changePassword', password: 'Strong-pass-2026' }, { token: jwt({ sub: 'U-L' }) })).status, 200);
+});
+
+// v41.21: Settings › Master data › App settings › Default password is the first password when connected
+test('v41.21: the App settings default password is used for new logins and resets, and cannot be kept', async () => {
+  const T = world(); T.sf_doc.push({ org_id: 'o', coll: 'platform', key: 'value', data: { defaults: { password: 'Welcome@2026' } }, version: 1 });
+  const call = await load('admin-users', T, ENV), tok = jwt({ sub: 'U-A' });
+  assert.strictEqual((await (await call({ action: 'create', org: 'o', email: 'n@x.co', empId: 'N1', name: 'New' }, { token: tok })).json()).tempPassword, 'Welcome@2026');
+  assert.strictEqual((await (await call({ action: 'resetPassword', org: 'o', email: 'l@x' }, { token: tok })).json()).tempPassword, 'Welcome@2026');
+  const learning = await load('learning', T, ENV);
+  assert.strictEqual((await learning({ action: 'changePassword', org: 'o', password: 'Welcome@2026' }, { token: jwt({ sub: 'U-L' }) })).status, 400);
+  const T2 = world(), c2 = await load('admin-users', T2, ENV);
+  assert.strictEqual((await (await c2({ action: 'create', org: 'o', email: 'm@x.co', empId: 'M1', name: 'M' }, { token: tok })).json()).tempPassword, 'Pass@123', 'no App setting: Pass@123');
 });

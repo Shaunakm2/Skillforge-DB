@@ -32,7 +32,9 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMP = /^[A-Z0-9][A-Z0-9_\-/]{1,29}$/;
 
 const DEFAULT_PW = (Deno.env.get("DEFAULT_PASSWORD") || "Pass@123").trim();
-function firstPassword() { return DEFAULT_PW && DEFAULT_PW.toLowerCase() !== "random" ? DEFAULT_PW : tempPassword(); }
+// v41.21: Settings › Master data › App settings › Default password wins (orgPw); then the DEFAULT_PASSWORD secret; then Pass@123.
+let orgPw = "";
+function firstPassword() { const d = orgPw || DEFAULT_PW; return d && d.toLowerCase() !== "random" ? d : tempPassword(); }
 function tempPassword() {   // 14 characters, upper + lower + digit + symbol, from crypto
   const sets = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!@#$%*?"], all = sets.join("");
   const b = new Uint32Array(14); crypto.getRandomValues(b);
@@ -57,6 +59,8 @@ Deno.serve(async (req) => {
     const { data: mem } = await admin.from("sf_member").select("role,active").eq("org_id", org).eq("user_id", me.user.id).maybeSingle();
     if (!mem || !mem.active || mem.role !== "Admin") return json({ error: "Only admins can manage accounts" }, 403);
     if ((me.user.app_metadata || {}).must_change) return json({ error: "Set a new password first" }, 403);
+    { const { data: pf } = await admin.from("sf_doc").select("data").eq("org_id", org).eq("coll", "platform").eq("key", "value").maybeSingle();
+      const p = String((((pf || {}).data || {}).defaults || {}).password || "").trim(); orgPw = p.length >= 8 ? p : ""; }
 
     // End every session of a login. A failure is an error for the caller (they must know the person is still signed in).
     const revoke = async (userId: string) => { const r = await admin.rpc("sf_revoke_sessions", { p_user: userId, p_keep: null }); if (r.error) throw new Error("Could not end the person's sessions: " + r.error.message); };

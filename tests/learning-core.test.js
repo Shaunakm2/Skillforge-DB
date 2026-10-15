@@ -99,7 +99,7 @@ test('written answers wait for a trainer; rescore passes the step', async () => 
   const rid = [...db.rows.entries()].find(([k]) => k.startsWith('reviews'))[1].data.id;
   await assert.rejects(L.handle(db, ctx(), 'rescore', { reviewId: rid, rating: 10 }), /Gradebook/);
   await assert.rejects(L.handle(db, ctx({ emp: 'T9', role: 'Trainer', perms: ['batches'] }), 'rescore', { reviewId: rid, rating: 8 }), /Gradebook/);
-  const rs = await L.handle(db, ctx({ emp: 'Q1', role: 'Learner', perms: ['gradebook'] }), 'rescore', { reviewId: rid, rating: 8 });
+  const rs = await L.handle(db, ctx({ emp: 'Q1', role: 'Learner', perms: ['gradebook', 'gradeAll'] }), 'rescore', { reviewId: rid, rating: 8 });
   assert.strictEqual(rs.passed, true); assert.ok(db.peek('itemDone', 'E1').w[0]);
 });
 
@@ -261,7 +261,9 @@ test('raters cannot grade themselves, and their feedback is stored', async () =>
   await L.handle(db, T, 'submit', { attemptId: r.attemptId });
   const rid = Object.values(db.peek('attempt', r.attemptId).answers).map(a => a && a.reviewId).find(Boolean);
   await assert.rejects(L.handle(db, T, 'rescore', { reviewId: rid, rating: 10 }), /own answer/);
-  await L.handle(db, ctx({ emp: 'T2', role: 'Trainer', perms: ['gradebook'] }), 'rescore', { reviewId: rid, rating: 7, feedback: 'Good start' });
+  // v41.21: T2 trains T1 (train-the-trainer: T1 is a trainer elsewhere and a trainee here). T3 does not: refused.
+  await assert.rejects(L.handle(db, ctx({ emp: 'T3', role: 'Trainer', perms: ['gradebook'], trainees: ['E7'] }), 'rescore', { reviewId: rid, rating: 7 }), /trainees of the batches you train/);
+  await L.handle(db, ctx({ emp: 'T2', role: 'Trainer', perms: ['gradebook'], trainees: ['T1'] }), 'rescore', { reviewId: rid, rating: 7, feedback: 'Good start' });
   assert.strictEqual(db.peek('reviews', rid).feedback, 'Good start'); assert.strictEqual(db.peek('reviews', rid).rating, 7);
   db.seed('asgSub', 'T1|w|0', { id: 'T1|w|0', learnerEmp: 'T1', courseId: 'w', step: 0, status: 'Submitted', text: 'x' });
   await assert.rejects(L.handle(db, T, 'reviewAssignment', { id: 'T1|w|0', decision: 'accept' }), /own assignment/);

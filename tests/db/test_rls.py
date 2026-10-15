@@ -65,7 +65,7 @@ for name, (emp, base, rid) in PEOPLE.items():
                  (ORG, uid, name + '@acme.test', emp, 'u-' + name, name.title(), base, rid, name != 'gone'))
 def doc(coll, key, data): conn.execute('insert into sf_doc (org_id, coll, key, data) values (%s,%s,%s,%s)', (ORG, coll, key, json.dumps(data)))
 doc('roles', 'r_learner', {'perms': {}}); doc('roles', 'r_trainer', {'perms': {'assignments': True, 'attempts': True, 'batches': True, 'gradebook': True, 'reportsCompletion': True, 'lcmsForms': True}})
-doc('roles', 'r_lite', {'perms': {'batches': True}}); doc('roles', 'r_qa', {'perms': {'gradebook': True, 'reportsCompletion': True}})
+doc('roles', 'r_lite', {'perms': {'batches': True}}); doc('roles', 'r_qa', {'perms': {'gradebook': True, 'gradeAll': True, 'reportsCompletion': True}})   # v41.21: gradeAll = all learners
 for name, (emp, base, rid) in PEOPLE.items():
     doc('users', 'u-' + name, {'name': name.title(), 'empId': emp, 'email': name + '@acme.test', 'phone': '+91 9' + emp[-2:] * 4, 'role': base, 'status': 'Deactivated' if name == 'gone' else 'Active', 'managerKey': 'u-trainer'})
 doc('batches', 'b1', {'name': 'B1', 'trainerEmp': 'NW-2', 'traineeEmps': ['NW-10']})
@@ -131,6 +131,7 @@ T = 'trainer'
 ok('trainer: own batch only (no dashboard permission)', readable(T, 'batches') == ['b1'])
 ok('trainer: trainee’s records, not others', readable(T, 'enroll') == ['NW-10'] and readable(T, 'attemptRecs') == ['ar10'], [readable(T, 'enroll'), readable(T, 'attemptRecs'), readable(T, 'reviews')])
 ok('trainer with gradebook does NOT read the question bank (answer keys)', readable(T, 'qs') == [])
+ok('v41.21: trainer with gradebook reads written answers of their batch trainees only', readable(T, 'reviews') == ['rv10'], readable(T, 'reviews'))
 ok('trainer reads users: own + trainees only (no users permission)', sorted(readable(T, 'users')) == ['u-learner', 'u-trainer'])
 LI = 'lite'
 ok('custom role without gradebook/users: no question bank', readable(LI, 'qs') == [])

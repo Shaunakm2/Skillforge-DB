@@ -46,7 +46,7 @@ async def main():
         await pg.evaluate("window.__app.setState(st => ({ dash: { ...st.dash, edit:false } }))"); await pg.evaluate("window.__app.go('account', { adminView:false, acctTab:'prefs' })"); await W(400)
         sw = await pg.evaluate("[...document.querySelectorAll('button[role=switch]')].map(b => [b.getAttribute('role'), b.getAttribute('aria-checked')])")
         ok('toggles have role=switch and aria-checked true/false', len(sw) > 0 and all(x[0]=='switch' and x[1] in ('true','false') for x in sw), sw[:4])
-        ok('toast is a live region', await pg.evaluate("document.querySelector('.ovl-33') ? document.querySelector('.ovl-33').getAttribute('aria-live') === 'polite' : true"))
+        ok('toast is a live region', await pg.evaluate("(() => { const r = document.querySelector('.sf-sr[role=status]'); return !!r && r.getAttribute('aria-live') === 'polite'; })()"))   # v36+: messages are announced by the permanent live region (the visible toast is aria-hidden)
         ok('NO JS ERRORS', not errs, errs[:3])
         await b.close()
     print('SUMMARY', sum(c for _,c in RES), '/', len(RES))

@@ -120,7 +120,7 @@ async def connected(b):
     await pg.evaluate("window.__app.setState({ searchOpen:true, gq:'change' })"); await pg.wait_for_timeout(300)
     ok('2 search finds no demo lessons', 'Leading Through Change' not in (await pg.evaluate("document.body.innerText")))
     await pg.evaluate("window.__app.go('analytics', { adminView:true, searchOpen:false, gq:'' })"); await pg.wait_for_timeout(500)
-    ok('2 no demo "Where learners drop off" panel', await pg.locator('text=Where learners drop off').count() == 0)
+    ok('2 no demo "Where learners drop off" panel (v41.21: the real one shows instead)', 'Leading Through Change, share of enrolled' not in (await pg.evaluate("document.body.innerText")))
 
     # close the tab, open a new one: still signed in
     await pg.close(); pg = await page()

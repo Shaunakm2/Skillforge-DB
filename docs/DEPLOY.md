@@ -30,7 +30,7 @@ export ORG_TIMEZONE=Asia/Kolkata
 bash scripts/deploy-supabase.sh
 ```
 The script:
-- runs every migration (**001 → 008**) in order, stopping at the first error;
+- runs every migration (**001 → 009**) in order, stopping at the first error;
 - sets the organisation time zone;
 - pushes the Auth rules: sign-ups off, 10-character passwords with lower, upper and digit, 30-minute tokens;
 - deploys `learning`, `admin-users` and `content` (`content` with `--no-verify-jwt`, on purpose);
