@@ -7,7 +7,7 @@ const Certificate = {
   /* Draw the certificate onto a canvas and download it as PNG. */
   download(tpl, vals, file) {
     const img = new Image(); img.crossOrigin = 'anonymous';
-    const draw = ok => { const W = ok ? img.naturalWidth || 1600 : 1600, H = ok ? img.naturalHeight || 1131 : 1131, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const draw = ok => { const W = 2400, H = Math.round(W * 1131 / 1600), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       const g = cv.getContext('2d'); g.fillStyle = '#FBFDFF'; g.fillRect(0, 0, W, H); if (ok) g.drawImage(img, 0, 0, W, H);
       CERT_FIELDS.forEach(([k]) => { const f = tpl.fields[k]; if (!f || !f.on || !vals[k]) return; g.fillStyle = f.color; g.textAlign = 'center'; g.textBaseline = 'middle';
         g.font = (f.bold ? '700 ' : '500 ') + Math.round(f.size / 100 * W) + 'px Poppins, Arial, sans-serif'; g.fillText(vals[k], f.x / 100 * W, f.y / 100 * H, W * 0.9); });   // long names and titles shrink to fit instead of running off the page
