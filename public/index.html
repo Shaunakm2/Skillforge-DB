@@ -278,9 +278,9 @@
             <div class="learner-dashboard-51"><div><div class="learner-dashboard-52">{{ level }}</div><div class="learner-dashboard-53">LEVEL</div></div></div>
           </div>
           <div>
-            <div class="learner-dashboard-54">Rising Leader</div>
+            <div class="learner-dashboard-54">{{ levelName }}</div>
             <div class="ui-10">{{ xpFmt }} / {{ nextLevelXpFmt }} XP</div>
-            <div class="learner-dashboard-55">#{{ teamRank }} on your team</div>
+            <sf-if value="{{ hasTeamRank }}"><div class="learner-dashboard-55">#{{ teamRank }} on your team</div></sf-if>
           </div>
         </div>
         <div class="learner-dashboard-56">
@@ -803,7 +803,7 @@
   <div class="progress-and-certificates-1">
     <div class="progress-and-certificates-2 f-game">
       <div class="progress-and-certificates-3"></div>
-      <div class="progress-and-certificates-4">LEVEL {{ level }} · RISING LEADER</div>
+      <div class="progress-and-certificates-4">LEVEL {{ level }} · {{ levelNameUp }}</div>
       <div class="progress-and-certificates-5">{{ xpFmt }} <span class="progress-and-certificates-6">XP</span></div>
       <div class="progress-and-certificates-7"><div class="progress-and-certificates-8" style="width:{{ levelPct }}"></div></div>
       <div class="progress-and-certificates-9">{{ xpToNext }} XP to Level {{ nextLevel }}</div>
