@@ -116,7 +116,7 @@ async def main():
         await E("(() => { const a = window.__app; a._lastAct = Date.now() - 4 * 60000; localStorage.setItem('sf-act', String(a._lastAct)); a._idleCheck(); })()"); await W(200)
         ok('still signed in before the limit (4 of 5 minutes)', await E("window.__app.state.authed"))
         await E("(() => { const a = window.__app; a._lastAct = Date.now() - 6 * 60000; localStorage.setItem('sf-act', String(a._lastAct)); a._idleCheck(); })()"); await W(300)
-        ok('idle session signed out after the set minutes', not await E("window.__app.state.authed") and 'without activity' in (await E("window.__app.state.login.err || ''")), await E("[window.__app.state.authed, window.__app.state.login.err]"))
+        ok('idle session signed out after the set minutes', not await E("window.__app.state.authed") and 'without activity' in (await E("window.__app.state.login.info || window.__app.state.login.err || ''")), await E("[window.__app.state.authed, window.__app.state.login.info, window.__app.state.login.err]"))   # v41.22: the notice is shown as info, offline demo mode only
 
         # ---------- 7. clickjacking: another site frames the app ----------
         pg2 = await ctx.new_page(); await pg2.goto('http://127.0.0.1:8812/index.html'); await pg2.wait_for_timeout(1500)
