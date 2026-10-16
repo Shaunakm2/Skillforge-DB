@@ -1,4 +1,16 @@
 const LEARNER_SCREENS = ['home', 'catalog', 'progress', 'calendar', 'discussions', 'docs', 'search'];
+/* v41.25: the saved branding (name, colour, message, logo) is kept in this browser after each sign-in, so the sign-in page
+ * can show it. Before sign-in the app cannot read the database, so without this the sign-in page always showed the defaults. */
+const BRAND0 = (() => {
+  const d = { brandName: 'Skillforge', brandAccent: '#0066A1', brandMsg: 'Welcome to Skillforge. Sign in with your work account.', brandLogo: '' };
+  if (typeof Backend === 'undefined' || !Backend.on) return d;
+  try { const j = JSON.parse(localStorage.getItem('sf-brand') || 'null'); if (!j || typeof j !== 'object') return d;
+    if (typeof j.brandName === 'string' && j.brandName.trim()) d.brandName = j.brandName.slice(0, 120);
+    if (typeof j.brandAccent === 'string' && /^#[0-9a-fA-F]{6}$/.test(j.brandAccent)) d.brandAccent = j.brandAccent;
+    if (typeof j.brandMsg === 'string' && !/Northwind/i.test(j.brandMsg)) d.brandMsg = j.brandMsg.slice(0, 2000);
+    if (typeof j.brandLogo === 'string' && j.brandLogo.length <= 300000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(j.brandLogo)) d.brandLogo = j.brandLogo; } catch (e) {}
+  return d;
+})();
 /* Skillforge LMS — the app: initial state, navigation and the view-model pipeline.
  * renderVals() builds the shared context, then each feature module (js/learner, js/staff, js/admin)
  * adds the values its screens bind to. */
@@ -41,7 +53,7 @@ class SkillforgeApp extends Skillforge.Store {
       adminCourses:ADMIN_COURSES0, cDraft:null, cQuizPick:1, paths:PATHS0, pathSel:1,
       repType:'learning', repUStatus:'All', repRange:'30d', repDept:'All', repScheduled:{},
       userStatus:'Active', uMenu:null, misF:{ month:'All', segment:'All', training:'All', status:'All', sub:'All', q:'' }, masters:MASTERS0, tiles:{}, platform:PLATFORM0, tileGroup:'home', trTab:'overview', repCols:{}, kpLib:KP_LIB0, kqEdit:null, badges:BADGES0, mdTab:'lists', mdList:'trainingNames', mdEdit:null, bdEdit:null, accessReqs:ACCESS_REQS0, dash:DB0, docs:DOCS0, docCfg:DOC_CFG0, docAck:{}, loginLog:{}, dbEdit:null, reqModal:null, reqFilter:'Pending', users:USERS0.map(u => ({ ...u, roleId: u.name === 'Priya Raman' ? 'r_qa' : ({ Learner:'r_learner', Trainer:'r_trainer', Admin:'r_admin' })[u.role] })), roles:ROLES0, roleSel:'r_trainer', roleDraft:null, userQuery:'', userRole:'All', userModal:false, ud:null,
-      autos:AUTOS0, integ:INTEG0, auditQuery:'', audit: AUDIT.map(a => ({ ...a })), perms:PERMS0, brandName:'Skillforge', brandAccent:'#0066A1', brandMsg:'Welcome to Skillforge. Sign in with your work account.',
+      autos:AUTOS0, integ:INTEG0, auditQuery:'', audit: AUDIT.map(a => ({ ...a })), perms:PERMS0, brandName:BRAND0.brandName, brandAccent:BRAND0.brandAccent, brandMsg:BRAND0.brandMsg, brandLogo:BRAND0.brandLogo,
       gbQuery:'', assignOpen:false, assignCourse:'negotiation', assignSel:{}, assignDue: Progress.plus(TODAY_KEY, 30), range:'90d', toast:null,
     };
     // The full organisation (3,500 people, 1,000 courses) is loaded by default; ?small=1 keeps only the demo people.
@@ -235,6 +247,10 @@ class SkillforgeApp extends Skillforge.Store {
     const s = this.state;
     this.edSnap(s);   // v41.21
     Backend.observe(s);
+    if (Backend.on && s.authed && s.beReady) {   // v41.25
+      const bj = JSON.stringify({ brandName: s.brandName, brandAccent: s.brandAccent, brandMsg: s.brandMsg, brandLogo: s.brandLogo || '' });
+      if (bj !== this._brandJ) { this._brandJ = bj; try { localStorage.setItem('sf-brand', bj); } catch (e) {} }
+    }
     const role = this.roleOf(s);
     const activeNav = (['item', 'course', 'lesson', 'quiz'].includes(s.screen) && s.navFrom && !PARENT[s.navFrom] ? s.navFrom : PARENT[s.screen]) || s.screen;
     // Access comes from the person's role (Settings › Roles & permissions). Admins have every permission.
@@ -276,9 +292,34 @@ class SkillforgeApp extends Skillforge.Store {
       hasToast: !!s.toast, toastClose: () => { clearTimeout(this.tt); this.setState({ toast:null }); },
       toastCls: ['item', 'lesson', 'quiz'].includes(s.screen) ? 'ovl-33-up' : '',   // v36: above the player's bottom bar and timer
       toast: s.toast,
+      brLogoSrc: s.brandLogo || '', brLogoOn: !!s.brandLogo, brLogoOff: !s.brandLogo,   // v41.25: logo on sign-in, header and Branding preview
+      brLogoPick: e => this.brLogoRead(e), brLogoClear: () => this.brLogoSet('', 'Logo removed. The “S” badge is shown again.'),
     };
     RENDER_PIPELINE.forEach(fn => Object.assign(vals, this[fn](c)));
     return { ...vals, ...this.adminVals(s, c.all), ...this.batchVals(s, role), ...this.assignVals(s, role), ...this.attemptVals(s, role), ...this.qbankVals(s, role), ...this.accountVals(s, role) };
+  }
+  /* v41.25: Branding › Logo. The picture is shrunk in the browser (PNG / JPG / WebP, at most 400 × 120 px) and saved inside the
+   * branding setting as a small embedded image, so it also shows on the sign-in page (no storage link that needs a sign-in). */
+  brLogoSet(v, msg) { this.setState({ brandLogo: v }); this.toastMsg(msg || 'Logo updated.'); }
+  brLogoRead(e) {
+    const inp = e && e.target, f = inp && inp.files && inp.files[0]; if (!f) return;
+    const LIMIT = 120000;   // characters of the embedded image: keeps the saved row small and under the live-update message size
+    if (!/^image\/(png|jpeg|webp)$/.test(f.type) || /\.svgz?$/i.test(f.name)) { try { inp.value = ''; } catch (x) {} return this.toastMsg('Use a PNG, JPG or WebP image. SVG isn’t accepted because it can carry scripts.'); }
+    if (f.size > 5 * 1048576) { try { inp.value = ''; } catch (x) {} return this.toastMsg('That image is over 5 MB. Choose a smaller file.'); }
+    Promise.resolve(Backend.on && Backend._sniff ? Backend._sniff(f) : true)
+      .then(ok => { if (!ok) throw new Error('The file content does not match its type.');
+        return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); }); })
+      .then(url => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('That file could not be opened as an image.')); im.src = url; }))
+      .then(im => {
+        const k = Math.min(1, 400 / im.naturalWidth, 120 / im.naturalHeight), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        const photo = f.type === 'image/jpeg'; let out = c.toDataURL(photo ? 'image/jpeg' : 'image/png', 0.92);
+        if (out.length > LIMIT && !photo) out = c.toDataURL('image/webp', 0.9);
+        if (out.length > LIMIT || !/^data:image\/(png|jpeg|webp);base64,/.test(out)) throw new Error('That image is too detailed to store as a logo. Use a simpler or smaller image.');
+        this.brLogoSet(out, Backend.on ? 'Logo updated. It is saved with the branding and shows on the sign-in page, the header and the preview.' : 'Logo updated for this session (offline demo).'); })
+      .catch(err => this.toastMsg(String((err && err.message) || err)))
+      .finally(() => { try { inp.value = ''; } catch (x) {} });
   }
   moveQ(i, dir) { this.setState(st => { const ids = [...st.quizDraft.ids]; const j = i + dir; if (j < 0 || j >= ids.length) return null; const t = ids[i]; ids[i] = ids[j]; ids[j] = t; return { quizDraft: { ...st.quizDraft, ids } }; }); }
 
