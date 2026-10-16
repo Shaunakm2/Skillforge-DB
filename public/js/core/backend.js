@@ -561,9 +561,26 @@ const Backend = (() => {
     if ((d.op === 'commit' || d.op === 'finish') && sess && sess.kind === 'course') scormReport(false).then(r => { if (r.done && app && app._scormServerDone) app._scormServerDone(sess && sess.ids); }).catch(() => {});
   });
 
+  /* v41.25: branding for the sign-in page, read before anyone has signed in (SQL function sf_public_brand, migration 010).
+   * Every field is checked again here. After sign-in the database's own row replaces it, so this only fills the gap before login. */
+  async function loadPublicBrand(a) {
+    try {
+      const { data, error } = await sb.rpc('sf_public_brand', { p_org: org });
+      if (error || !data || typeof data !== 'object' || a.state.beReady) return;
+      const p = {};
+      if (typeof data.brandName === 'string' && data.brandName.trim()) p.brandName = data.brandName.slice(0, 120);
+      if (typeof data.brandAccent === 'string' && /^#[0-9a-fA-F]{6}$/.test(data.brandAccent)) p.brandAccent = data.brandAccent;
+      if (typeof data.brandMsg === 'string' && !/Northwind/i.test(data.brandMsg)) p.brandMsg = data.brandMsg.slice(0, 2000);
+      if (typeof data.brandLogo === 'string' && data.brandLogo.length <= 300000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(data.brandLogo)) p.brandLogo = data.brandLogo;
+      if (!Object.keys(p).length) return;
+      a.setState(p);
+      try { localStorage.setItem('sf-brand', JSON.stringify({ ...{ brandName: a.state.brandName, brandAccent: a.state.brandAccent, brandMsg: a.state.brandMsg, brandLogo: a.state.brandLogo || '' }, ...p })); } catch (e) {}
+    } catch (e) { /* function not installed yet (migration 010) or offline: the sign-in page keeps what it has */ }
+  }
   async function start(a) {
     app = a; if (!on) { a.setState({ beStatus: status }); return; }
     a.setState({ beOn: true, beStatus: status });
+    loadPublicBrand(a);   // not awaited: the sign-in page must not wait for it
     // v41.2: while the saved sign-in is checked the app shows a short "Loading" screen (state.booting), not the
     // sign-in form, and a restored session returns to the page the person was on (NavMemory), not the landing page.
     // v41.19: a reset-password link signs the person in; ask for the new password first instead of opening the app.
