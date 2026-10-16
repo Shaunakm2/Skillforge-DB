@@ -20,7 +20,7 @@ const SF_PERSON = ['enroll', 'itemDone', 'itemQuiz', 'attemptsUsed', 'extraAttem
 const SF_SETTINGS = ['masters', 'tiles', 'repCols', 'dash', 'certTpl', 'zh', 'autos', 'integ', 'kp', 'platform', 'brand', 'docCfg'];
 const SF_BRAND = ['brandName', 'brandAccent', 'brandMsg'];
 /* v41.20: databases seeded by older versions hold the demo sign-in message; show Skillforge's instead (saved on the next Branding save). */
-const brandFix = d => d && /Northwind/i.test(String(d.brandMsg || '')) ? { ...d, brandMsg: 'Welcome to Skillforge. Sign in with your work account.' } : d;
+const brandFix = d => d && /Northwind/i.test(String(d.brandMsg || '')) ? { ...d, brandMsg: 'Welcome to Skillforge.' } : d;
 const SF_ALL = SF_LIST.concat(SF_PERSON, SF_SETTINGS, ['assignedOn', 'fbLog']);
 /* Dashboards are stored as one row per board, per custom KPI and per schedule (v29), so the database can decide who reads
  * which: viewers get only the boards shared with their role; KPIs, schedules and templates are for dashboard editors.
