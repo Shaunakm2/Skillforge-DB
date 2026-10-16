@@ -1826,17 +1826,6 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
   .sf-l2-brand .sf-l2-logo{width:40px;height:40px;font-size:22px;border-radius:12px}.sf-l2-brand .sf-l2-name{font-size:26px}.sf-l2-tag{display:none}
   .sf-l2-side{width:100%}.sf-l2-card{max-width:none;padding:20px 18px;gap:10px;border-radius:24px}.sf-l2-h{font-size:22px}
 }
-@media(max-height:700px){.sf-l2-card{gap:8px;padding:18px 20px}.sf-l2-h{font-size:21px}.sf-in{height:40px}.sf-login-btn{height:42px}.sf-check{margin:0}}
-/* Short screens: keep demo accounts visible, tighten the card instead. */
-@media(max-height:660px){
-  .sf-l2{padding-top:10px!important;padding-bottom:10px!important}
-  .sf-l2-card{gap:6px!important;padding:14px 20px!important}
-  .sf-l2-card .sf-l2-h{font-size:19px}.sf-l2-card .sf-l2-h::after{display:none!important}
-  .sf-l2-label{font-size:11px}.sf-in{height:36px!important;padding-top:0;padding-bottom:0}.sf-login-btn{height:38px!important}
-  .sf-demo2{padding-top:6px;gap:4px}.sf-demo2-b{padding:5px 4px;min-height:28px;flex-shrink:0}.sf-demo2-n{display:none}
-  .sf-check{margin:0;padding:0}
-}
-@media(max-height:520px){.sf-l2-brand{display:none!important}}
 
 /* ---------- Mobile: two-row header, stacking layouts, scrollable wide tables ---------- */
 @media(max-width:760px){
@@ -2322,11 +2311,6 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
 .sf-l2-card .sf-login-info{background:#EAF3FA;color:#16405F;border:1px solid #CFE2F1}
 .sf-sent-ic{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:#E3F1EE;color:#007A4D}
 .sf-l2-card .sf-demo2{margin-top:2px}
-/* smaller screens: tighten instead of clipping (the sign-in page never scrolls on a laptop) */
-@media(max-height:760px){.sf-l2-card{padding:26px 28px 24px;gap:14px}.sf-l2-card .sf-l2-h{font-size:25px}.sf-l2-card .sf-in{height:46px}.sf-l2-card .sf-login-btn{height:46px}.sf-sent-ic{width:44px;height:44px}}
-@media(max-height:640px){.sf-l2-card{padding:18px 22px;gap:10px}.sf-l2-card .sf-l2-h{font-size:22px}.sf-l2-card .sf-l2-msg{font-size:13px}.sf-l2-card .sf-in{height:40px;font-size:14px}.sf-l2-label{font-size:12.5px}.sf-field{gap:5px}.sf-l2-card .sf-login-btn{height:42px;font-size:15px}.sf-l2-row .sf-check,.sf-forgot{min-height:26px}}
-@media(max-height:540px){.sf-l2-card .sf-l2-msg{display:none}}
-@media(min-width:901px) and (max-height:600px){.sf-l2{overflow-y:auto;align-items:start;padding-top:64px}}
 /* phones: full-width card; if the keyboard leaves too little room the page scrolls instead of cutting the button off */
 @media(max-width:900px){
   .sf-l2{overflow-y:auto;justify-content:flex-start}
@@ -2336,3 +2320,10 @@ html:has(.sf-l2),body:has(.sf-l2){height:100%;overflow:hidden}
   .sf-l2-card .sf-in{font-size:16px}   /* 16px stops iPhones zooming the page when a field is tapped */
 }
 @media(max-width:360px){.sf-l2-card{padding:20px 16px 18px}.sf-l2-row .sf-check,.sf-forgot{font-size:13px}.sf-l2-row{gap:2px 8px}}
+
+/* v41.23: short windows. The card keeps its comfortable size and stays centred; if the window is really too short, the sign-in area scrolls
+   (it used to squash the card to 36 px fields and pin it to the top edge). The page itself is locked on this screen, so .sf-l2 scrolls. */
+.sf-l2{align-items:start!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain}
+@media(min-width:901px){.sf-l2-side{margin-block:auto}}
+@media(max-height:760px){.sf-l2{padding-top:32px!important;padding-bottom:32px!important}}
+@media(max-height:600px){.sf-l2{padding-top:24px!important;padding-bottom:24px!important}.sf-l2-brand{margin-top:0!important}}
