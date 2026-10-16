@@ -18,7 +18,7 @@ const SF_LIST = ['users', 'adminCourses', 'lcms', 'qs', 'quizzes', 'batches', 't
   'badges', 'paths', 'cats', 'groups', 'extHistory', 'syncLog', 'attemptRecs', 'attemptLog', 'bmLog', 'reviews', 'threads', 'docs', 'asgSub'];
 const SF_PERSON = ['enroll', 'itemDone', 'itemQuiz', 'attemptsUsed', 'extraAttempts', 'bookmarks', 'surveyResp', 'prefs', 'docAck', 'loginLog'];
 const SF_SETTINGS = ['masters', 'tiles', 'repCols', 'dash', 'certTpl', 'zh', 'autos', 'integ', 'kp', 'platform', 'brand', 'docCfg'];
-const SF_BRAND = ['brandName', 'brandAccent', 'brandMsg'];
+const SF_BRAND = ['brandName', 'brandAccent', 'brandMsg', 'brandLogo'];   // v41.25: brandLogo = small embedded image (data URL)
 /* v41.20: databases seeded by older versions hold the demo sign-in message; show Skillforge's instead (saved on the next Branding save). */
 const brandFix = d => d && /Northwind/i.test(String(d.brandMsg || '')) ? { ...d, brandMsg: 'Welcome to Skillforge. Sign in with your work account.' } : d;
 const SF_ALL = SF_LIST.concat(SF_PERSON, SF_SETTINGS, ['assignedOn', 'fbLog']);
