@@ -167,8 +167,9 @@ SkillforgeApp.prototype.amMasters = function (c) {
     ...appVals,
     ...tileVals,
     ...kqVals, mdIsKq: tab === 'kq',
-    isMasters:true, mdTabs: [['lists', 'MIS lists'], ['types', 'Training types'], ['statuses', 'Trainee statuses'], ['holidays', 'Holiday list'], ['badges', 'Badges'], ['tiles', 'Tile management'], ['app', 'App settings']].map(([k, l]) => UI.chip(tab, k, l, () => {
+    isMasters:true, mdTabs: [['lists', 'MIS lists'], ['types', 'Training types'], ['statuses', 'Trainee statuses'], ['holidays', 'Holiday list'], ['badges', 'Badges'], ['certs', 'Certificates'], ['tiles', 'Tile management'], ['app', 'App settings']].map(([k, l]) => UI.chip(tab, k, l, () => {
       if (k === 'types' || k === 'statuses') return this.go('batches', { adminView:true, bView: k });
+      if (k === 'certs') return this.go('certs', { adminView:true });
       this.setState({ mdTab: k }); })),
     mdIsLists: tab === 'lists', mdIsHols: tab === 'holidays', mdIsBadges: tab === 'badges',
     ...listVals, ...holVals, ...badgeVals,

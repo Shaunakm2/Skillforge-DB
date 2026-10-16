@@ -12,7 +12,7 @@ SkillforgeApp.prototype.amSettings = function (c) {
     ['users', 'User management', 'Accounts, roles and what each role can do.', [
       ['Users & accounts', 'Create and edit accounts, reset passwords, deactivate.', activeUsers + ' active', 'users', '#DB2777', W, I.users],
       ['Roles & permissions', 'Create roles, choose their permissions and default courses.', s.roles.length + ' roles', 'perms', '#84CC16', INK, I.shield]]],
-    ['content', 'Learning content', 'Questions, uploads, courses, assignments and certificates.', [
+    ['content', 'Learning content', 'Questions, uploads, courses and assignments.', [
       ['Question bank', 'Every question with its metadata. Assessments are built from it.', s.qs.length + ' questions', 'qbank', '#7C5CFF', W, I.bank],
       ['LCMS', 'Upload hub for documents, video, audio, SCORM and assessments.', s.lcms.length + ' modules', 'lcms', '#0F766E', W, I.layers],
       ['Course catalog', 'Build courses from LCMS modules.', s.adminCourses.length + ' courses', 'courseAdmin', '#08AE6E', INK, I.course],
@@ -20,7 +20,6 @@ SkillforgeApp.prototype.amSettings = function (c) {
       ['Access requests', 'Courses learners asked for from the catalog. Approve (assigns the course) or decline.', s.accessReqs.filter(r => r.status === 'Pending').length + ' pending', 'assignments', '#D64545', W, I.bell, { reqFilter:'Pending', rqFocus:true }],
       ['Assessment attempt management', 'Give a learner extra attempts on an assessment.', extraCount + (extraCount === 1 ? ' extra attempt given' : ' extra attempts given'), 'attempts', '#7C3AED', W, I.retry],
       ['Clear SCORM bookmarking', 'Reset where a learner resumes a SCORM course.', Object.values(s.bookmarks).reduce((n, m) => n + Object.keys(m).length, 0) + ' bookmarks', 'bookmarks', '#B45309', W, I.bookmark],
-      ['Certificates', 'Design the certificate: background, name, course, date and score.', 'v' + s.certTpl.version, 'certs', '#CA8A04', W, I.award],
       ['Categories', 'Categories, sub categories and sub-sub categories.', s.cats.length + ' categories', 'categories', '#F59E0B', INK, I.tree],
       ['Learning paths', 'Sequence courses for a role or a team.', s.paths.length + ' paths', 'paths', '#FF6B4A', INK, I.path],
       ['Course builder', 'Draft a course module by module.', s.bMods.length + ' modules in draft', 'builder', '#8C5A9E', W, I.course]]],
@@ -45,12 +44,13 @@ SkillforgeApp.prototype.amSettings = function (c) {
       ['Database & storage', Backend.on ? 'Supabase connection, free plan usage, what is stored, sample data clean-up and backups.' : 'Not connected: data lives in this browser only. Connect Supabase to keep it.', Backend.on ? (s.beUsage && Backend.Usage.on() ? 'Supabase · ' + Math.round(s.beUsage.storage / Backend.Usage.LIM.storage * 100) + '% of free storage used' : 'Supabase · ' + Backend.org) : 'Offline', 'database', '#3ECF8E', '#16324F', I.layers],
       ['Integrations', 'SSO, HRIS sync, virtual classrooms, SCORM.', s.integ.filter(a => a.on).length + ' connected', 'integrations', '#0EA5E9', INK, I.plug],
       ['Branding', 'Portal name, colors and sign-in page.', s.brandName, 'branding', '#F43F5E', INK, I.brush]]],
-    ['masters', 'Master data', 'Lists and settings the old MIS workbook kept on its Validation sheet, plus holidays and badges.', [
+    ['masters', 'Master data', 'Lists and settings the old MIS workbook kept on its Validation sheet, plus holidays, badges and the certificate design.', [
       ['MIS lists', 'Training segment, type of trainee, training name, division, sub division, location, brand, attrition reasons…', MASTER_DEFS.length + ' lists', 'masters', '#0F766E', W, I.tree, { mdTab:'lists' }],
       ['Training types', 'Duration, day-wise plan, passing %, weights, batch ID code.', s.ttypes.length + ' types', 'batches', '#4F46E5', W, I.batch, { bView:'types' }],
       ['Trainee statuses', 'In-Training, Early Absorb, Attried… and the group each counts in.', s.statuses.length + ' statuses', 'batches', '#7C3AED', W, I.users, { bView:'statuses' }],
       ['Holiday list', 'Standard holidays. Add one or upload a CSV; batch end dates move automatically.', s.holidays.length + ' holidays', 'masters', '#B45309', W, I.bell, { mdTab:'holidays' }],
       ['Badges', 'What learners earn: icon, name, colour and the rule to earn it.', s.badges.filter(b => b.on).length + ' active', 'masters', '#CA8A04', W, I.award, { mdTab:'badges' }],
+      ['Certificates', 'Upload your certificate design (PNG, JPG, SVG or PDF) and place the name, course, date and score on it.', 'v' + s.certTpl.version, 'certs', '#CA8A04', W, I.award, {}],
       ['Tile management', 'Show, hide, rename and reorder tiles on Home, Settings, batch cards, Training overview and the learner menu.', Object.keys(TILE_GROUPS).length + ' tile groups', 'masters', '#9333EA', W, I.layers, { mdTab:'tiles' }],
       ['App settings', 'Switch features on or off (gamification, badges, discussions, calendar, access requests…), defaults, and a map of everything you can customise.', Object.values((s.platform || PLATFORM0).feat).filter(Boolean).length + ' features on', 'masters', '#0F766E', W, I.shield, { mdTab:'app' }]]],
     ['migration', 'Migration', 'Data coming in from HRMS and APIs, and moving learning records in or out of Skillforge.', [

@@ -18,7 +18,6 @@ const MODULES = [
   ['assignments', 'Course assignment', 'content', ['assignments']],
   ['attempts', 'Assessment attempt management', 'content', ['attempts']],
   ['bookmarks', 'Clear SCORM bookmarking', 'content', ['bookmarks']],
-  ['certs', 'Certificates', 'content', ['certs']],
   ['categories', 'Categories', 'content', ['categories']],
   ['paths', 'Learning paths', 'content', ['paths']],
   ['builder', 'Course builder', 'content', ['builder']],
@@ -39,7 +38,7 @@ const MODULES = [
   ['integrations', 'Integrations, ZingHR sync, database & storage', 'platform', ['integrations', 'zinghr', 'database']],
   ['branding', 'Branding', 'platform', ['branding']],
   ['migration', 'Migration', 'migration', ['migReport', 'migrate', 'contentCheck']],
-  ['masters', 'Master data (MIS lists, holidays, badges)', 'masters', ['masters']],
+  ['masters', 'Master data (MIS lists, holidays, badges, certificate design)', 'masters', ['masters', 'certs']],   // v41.24: the Certificates screen belongs to Master data; there is no separate Certificates permission any more
 ];
 const ALL_PERMS = Object.fromEntries(MODULES.map(m => [m[0], true]));
 const ROLES0 = [
