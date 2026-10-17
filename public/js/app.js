@@ -246,6 +246,7 @@ class SkillforgeApp extends Skillforge.Store {
 
   renderVals() {
     const s = this.state;
+    Progress.configure(s);   // v41.30: the Weekend days setting applies to every screen and to new assignments, not only after a course status was looked up
     this.edSnap(s);   // v41.21
     Backend.observe(s);
     if (Backend.on && s.authed && s.beReady) {   // v41.25
