@@ -445,14 +445,49 @@ const Backend = (() => {
   }
 
   /* ---------- load ---------- */
+  /* v41.27: the organisation's rows are read one collection at a time, SF_PARALLEL collections at once (it was one long chain of
+   * 1,000-row pages across everything). Each collection is paged by its key. The rows, and their order within a collection, are the same as
+   * before. A collection the app does not know is not read (the app never used those rows). loadStats() reports rows and milliseconds per
+   * collection (also logged to the console when js/config.js has LOAD_DEBUG: true) so the slow ones can be seen before choosing what to load later. */
+  const SF_PARALLEL = 6, LOAD_COLLS = SF_ALL.concat(Object.keys(DASH_PARTS));
+  let loadStat = null;
+  const qv = v => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  async function pool(items, n, fn) { const out = new Array(items.length); let i = 0;
+    await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k); } })); return out; }
+  async function loadColl(coll) {
+    const rows = []; let last = null;
+    for (;;) {
+      let q = sb.from('sf_doc').select('coll,key,data,version').eq('org_id', org).eq('coll', coll).order('key').limit(1000);
+      if (last !== null) q = q.or('coll.gt.' + qv(coll) + ',and(coll.eq.' + qv(coll) + ',key.gt.' + qv(last) + ')');
+      const { data, error } = await q; if (error) throw error;
+      data.forEach(deproto); for (const r of data) rows.push(r);
+      if (data.length < 1000) break; last = data[data.length - 1].key;
+    }
+    return rows;
+  }
   async function loadAll() {
-    const all = [];
-    let last = null;   // keyset paging (OFFSET would re-check every skipped row against the policies)
-    const qv = v => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-    for (;;) { let q = sb.from('sf_doc').select('coll,key,data,version').eq('org_id', org).order('coll').order('key').limit(1000);
-      if (last) q = q.or('coll.gt.' + qv(last.coll) + ',and(coll.eq.' + qv(last.coll) + ',key.gt.' + qv(last.key) + ')');
-      const { data, error } = await q; if (error) throw error; data.forEach(deproto); all.push(...data); if (data.length < 1000) break; last = data[data.length - 1]; }
+    const t0 = Date.now(), per = {};
+    const parts = await pool(LOAD_COLLS, SF_PARALLEL, async c => { const t = Date.now(), r = await loadColl(c); per[c] = { rows: r.length, ms: Date.now() - t }; return r; });
+    const all = []; parts.forEach(r => { for (const x of r) all.push(x); });
+    loadStat = { rows: all.length, ms: Date.now() - t0, per };
+    if (cfg.LOAD_DEBUG) console.info('Skillforge load', loadStat.rows + ' rows in ' + loadStat.ms + ' ms', Object.entries(per).filter(([, v]) => v.rows).sort((a, b) => b[1].ms - a[1].ms).map(([k, v]) => k + ' ' + v.rows + ' / ' + v.ms + ' ms').join(' | '));
     return all;
+  }
+  /* v41.27: file links.
+   * Content staff (and admins) sign every file themselves, 100 paths per request, three requests at a time.
+   * Everyone else goes through the "learning" function, which signs only files of courses assigned to them and documents they may see.
+   * Those people now ask only for paths that can qualify (the files of their assigned courses, and documents), in 200-path requests
+   * three at a time, instead of sending every path in the organisation. The function still decides what it signs; a path it refuses
+   * comes back without a link, exactly as before. The rule below mirrors the one in supabase/functions/learning/index.ts ("sign"):
+   * keep the two together. */
+  const CONTENT_PERMS = ['lcms', 'lcmsForms', 'courseAdmin', 'builder', 'certs', 'qbank'];
+  const signsItself = () => me.role === 'Admin' || CONTENT_PERMS.some(p => (me.perms || []).includes(p));
+  function qualifyingPaths(st) {
+    const s2 = { ...app.state, ...st }, en = (s2.enroll || {})[nameOf(s2, me.emp)] || {}, mods = new Set(), ok = new Set();
+    (s2.adminCourses || []).forEach(a => { if (en[a.id]) (a.items || []).forEach(it => { if (it && it.moduleId != null) mods.add(String(it.moduleId)); }); });
+    (s2.lcms || []).forEach(m => { if (mods.has(String(m.id)) && m.file && m.file.path) ok.add(m.file.path); });
+    (s2.docs || []).forEach(d => (d.versions || []).forEach(v => { if (v && v.file && v.file.path) ok.add(v.file.path); }));
+    return ok;
   }
   async function signFiles(st) {
     signedAt = Date.now();
@@ -461,32 +496,42 @@ const Backend = (() => {
     // SCORM packages are served same-origin by /content (Cloudflare Pages Function)
     (st.lcms || []).forEach(m => { if (m.file && m.file.path && m.file.path.includes('/scorm/')) m.file.src = ''; });   // launched through the content site
     const paths = [...new Set(metas.map(m => m.path))]; if (!paths.length) return;
-    let urls = {};
-    if (me.role !== 'Admin' && !['lcms', 'lcmsForms', 'courseAdmin', 'builder', 'certs', 'qbank'].some(p => (me.perms || []).includes(p))) { for (let i = 0; i < paths.length; i += 200) Object.assign(urls, (await call('sign', { paths: paths.slice(i, i + 200) })).urls || {}); }
-    else for (let i = 0; i < paths.length; i += 100) { const { data } = await sb.storage.from(BUCKET).createSignedUrls(paths.slice(i, i + 100), SIGN_TTL); (data || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; }); }
+    const urls = {}, chunks = (list, n) => { const out = []; for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n)); return out; };
+    if (!signsItself()) {
+      const want = qualifyingPaths(st), ask = paths.filter(p => want.has(p));
+      await pool(chunks(ask, 200), 3, async part => { Object.assign(urls, (await call('sign', { paths: part })).urls || {}); });
+    } else {
+      await pool(chunks(paths, 100), 3, async part => { const { data } = await sb.storage.from(BUCKET).createSignedUrls(part, SIGN_TTL); (data || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; }); });
+    }
     metas.forEach(m => { m.src = urls[m.path] || ''; });
   }
-
-  async function whoAmI() {
-    const { data: u, error: ue } = await sb.auth.getUser(); if (!u || !u.user) return ue ? { none: true, why: 'Your session has ended' } : null;
-    if ((u.user.app_metadata || {}).must_change) return { mustChange: true, email: u.user.email };
-    let m; try { m = await call('me', {}); } catch (e) { return { none: true, email: u.user.email, why: e.message }; }
-    return { emp: m.empId, role: m.role, roleId: m.roleId, perms: m.role === 'Admin' ? [] : (m.perms || []), name: m.name, email: u.user.email, mustChange: !!m.mustChange };
+  /* v41.27: the saved sign-in is read on this device (getSession), not fetched (getUser was a network call). The `me` call that follows
+   * proves the session to the server anyway. "Password must be changed" is read from the access token's own claims, which the server
+   * uses too, so a stale copy of the user record cannot show the wrong screen. */
+  const tokenMeta = t => { try { const p = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(atob(p + '==='.slice((p.length + 3) % 4))).app_metadata || {}; } catch (e) { return {}; } };
+  async function whoAmI(method) {
+    const { data: g, error: ge } = await sb.auth.getSession(), sn = g && g.session, u = sn && sn.user;
+    if (!u) return ge ? { none: true, why: 'Your session has ended' } : null;
+    if (tokenMeta(sn.access_token).must_change) return { mustChange: true, email: u.email };
+    let m; try { m = await call('me', method ? { method } : {}); } catch (e) { return { none: true, email: u.email, why: e.message }; }
+    return { emp: m.empId, role: m.role, roleId: m.roleId, perms: m.role === 'Admin' ? [] : (m.perms || []), name: m.name, email: u.email, mustChange: !!m.mustChange, logged: !!m.logged };
   }
   async function afterSignIn() {
-    me = await whoAmI();
+    me = await whoAmI(freshLogin);
     if (!me || me.none) { const why = (me && me.why) || ''; await sb.auth.signOut();
       // v41.19: say what actually went wrong (it was always the same sentence)
       if (/session has ended/i.test(why)) throw new Error('Your session ended. Sign in again with your current password.');
       if (/expired/i.test(why)) throw new Error(why);
       throw new Error('Your sign-in worked, but it is not linked to an active Skillforge account. Ask your L&D administrator.' + (why && !/not linked/i.test(why) ? ' (' + why + ')' : '')); }
     if (me.mustChange) return { mustChange: true, me };
-    if (freshLogin) { const m = freshLogin; freshLogin = null; call('signedIn', { method: m }).catch(() => {}); }
+    // v41.27: `me` already recorded this sign-in when it was asked to; only an older server (no "logged" in its answer) needs the separate call
+    if (freshLogin) { const m = freshLogin; freshLogin = null; if (!me.logged) call('signedIn', { method: m }).catch(() => {}); }
     setStatus('Loading data…', true);
-    const rows = await loadAll();
+    // v41.27: the directory of names (learners only) is read at the same time as the rows
+    const [rows, dirRes] = await Promise.all([loadAll(), me.role === 'Learner' ? sb.rpc('sf_directory', { p_org: org }) : null]);
     const empty = !rows.some(r => r.coll === 'users');
     if (!empty && me.role === 'Learner') {   // other people: names only, from the directory (no emails, phones, HR fields)
-      const { data: dir } = await sb.rpc('sf_directory', { p_org: org });
+      const dir = dirRes && dirRes.data;
       const mine = new Set(rows.filter(r => r.coll === 'users').map(r => r.data.empId));
       (dir || []).filter(d => !mine.has(d.empId)).forEach(d => rows.push({ coll: 'users', key: d.id, data: { ...d, _dir: true, email: '', phone: '' }, version: 0, dir: true }));
     }
@@ -767,6 +812,6 @@ const Backend = (() => {
     if (ids.length) { const r = await sb.from('sf_member').select('user_id,app_name').eq('org_id', org).in('user_id', ids); if (!r.error) r.data.forEach(m => { names[m.user_id] = m.app_name; }); }
     return data.map(d => deproto({ ...d, who: names[d.actor] || (d.actor ? 'User ' + String(d.actor).slice(0, 8) : 'System') })); }
   return { Usage, auditList, deproto, scormLaunch, scormPreview, scormReport, scormLeave, scormFlush, scormActive, fbKey, empOfName, on, configured, org, BUCKET, start, observe, signIn, signOut, setNewPassword, resetLink, adminUsers, call, pull, reloadColl, keepSignIn, rememberTouch, remembered, KEEP_MIN, cleanPatch, sampleIndex, sampleRows, purge, afterSignIn, seed, createLogins, membersWithLogin,
-    Files, status: () => status, me: () => me, rowsOf, stateOf, merge, canWrite, client: () => sb, _sniff: sniff };
+    Files, loadStats: () => loadStat, status: () => status, me: () => me, rowsOf, stateOf, merge, canWrite, client: () => sb, _sniff: sniff };
 })();
 const Files = Backend.Files;

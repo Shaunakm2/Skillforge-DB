@@ -9,6 +9,7 @@
 //   scormPing / scormEnd { org, courseId, step | moduleId, sid }   -> renew / end the launch session
 //   scormCommit    { org, courseId, step, sid, status, score }      -> completion (after the minimum time)
 //   stepPing       { org, courseId, step, resume? }                 -> seat-time heartbeat for an open step (v41.26)
+//   me             { org, method? }  method "email" | "emp" also records the sign-in (v41.27: replaces a separate signedIn call)
 //   startAttempt / answer / submit / rescore / openStep / completeStep / submitSurvey / answerFeedback /
 //   requestAccess / decideRequest / updateProfile / post / docSeen { docId, ack? } (documents library: viewed / acknowledged)
 //
@@ -18,6 +19,8 @@
 //          SCORM_IDLE_MINUTES (default 30), SCORM_MAX_HOURS (hard cap of a launch link, default 8),
 //          SEAT_TIME_STRICT (v41.26, default on: viewing time of a step is counted by the server from stepPing heartbeats; set to "false" to go back to
 //          the old rule, time since the step was opened),
+//          v41.27: who-is-calling checks (session alive, member, expiry, permissions) are ONE database call, sf_learning_ctx (migration 011);
+//          without it the function falls back to four separate reads.
 //          SIGNED_URL_TTL_SECONDS (v41.26, default 3600, 300 to 14400: lifetime of file links; keep it equal to SIGNED_URL_TTL_SECONDS in js/config.js).
 // Deploy: supabase functions deploy learning
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -68,6 +71,34 @@ function dbFor(admin: any, org: string) {
     async del(coll: string, key: string) { await admin.from("sf_doc").delete().eq("org_id", org).eq("coll", coll).eq("key", key); },
   };
 }
+/* v41.27: who is calling, in one database call. Returns { deny: true } when the sign-in has ended, otherwise
+ * { mem, exp, perms, userKey } where mem is the sf_member row (or null) and perms the active permission keys of a non-admin.
+ * sf_learning_ctx (migration 011) answers everything at once; if it is not installed, or fails, the four separate reads below give
+ * the same answer. Nothing here is cached: a deactivated or reset person is refused on their next request. */
+let CTX_RPC: boolean | null = null;   // null = not tried yet, false = migration 011 is not installed
+async function loadCtx(admin: any, c: any, org: string, db: any) {
+  if (CTX_RPC !== false) {
+    const r = await admin.rpc("sf_learning_ctx", { p_user: c.sub, p_sid: String(c.session_id || ""), p_org: org });
+    if (!r.error && r.data && typeof r.data === "object" && "live" in r.data) {
+      CTX_RPC = true;
+      if (r.data.live !== true) return { deny: true };
+      const m = r.data.member;
+      return { mem: m || null, exp: String(r.data.expires || ""), perms: Array.isArray(r.data.perms) ? r.data.perms.map(String) : [], userKey: m ? (m.user_key || null) : null };
+    }
+    if (r.error && /PGRST202|42883|could not find|does not exist/i.test(String(r.error.code || "") + " " + String(r.error.message || ""))) CTX_RPC = false;
+    else if (r.error) console.error("sf_learning_ctx failed, using separate reads", r.error.message);
+  }
+  // separate reads (before v41.27, and the fallback)
+  const live = await admin.rpc("sf_session_ok", { p_user: c.sub, p_sid: String(c.session_id || "") });
+  if (live.error || live.data !== true) return { deny: true };
+  const { data: mem } = await admin.from("sf_member").select("emp_id,role,role_id,user_key,app_name,active").eq("org_id", org).eq("user_id", c.sub).maybeSingle();
+  if (!mem) return { mem: null, exp: "", perms: [], userKey: null };
+  const { data: ur } = await admin.from("sf_doc").select("key,data").eq("org_id", org).eq("coll", "users").eq("data->>empId", mem.emp_id).maybeSingle();
+  const roleKey = mem.role_id || (mem.role === "Trainer" ? "r_trainer" : "r_learner");
+  const roleDoc = mem.role === "Admin" ? null : await db.get("roles", roleKey);
+  const perms: string[] = Object.entries((roleDoc?.data?.perms) || {}).filter(([, v]) => v === true).map(([k]) => k);
+  return { mem, exp: String((ur && ur.data && ur.data.expires) || ""), perms, userKey: mem.user_key || (ur ? ur.key : null) };
+}
 const strongEnough = (pw: string) => pw.length >= 10 && /[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw);
 
 Deno.serve(async (req) => {
@@ -76,11 +107,13 @@ Deno.serve(async (req) => {
   try {
     const c = claims(req); if (!c) return json({ error: "Not signed in" }, 401);
     const admin = createClient(URL_, SERVICE, { auth: { persistSession: false } });
-    // v34: the token's session must still exist (deactivation / reset deletes it), and a database error means "no".
-    { const live = await admin.rpc("sf_session_ok", { p_user: c.sub, p_sid: String(c.session_id || "") });
-      if (live.error || live.data !== true) return json({ error: "Your session has ended. Sign in again." }, 401); }
     const body = await req.json().catch(() => ({}));
     const org = String(body.org || "");
+    const db = dbFor(admin, org);
+    // v34: the token's session must still exist (deactivation / reset deletes it), and a database error means "no".
+    // v41.27: that check, the member, the expiry date and the permissions come back from ONE database call (loadCtx).
+    const cx: any = await loadCtx(admin, c, org, db);
+    if (cx.deny) return json({ error: "Your session has ended. Sign in again." }, 401);
     const mustChange = !!(c.app_metadata || {}).must_change;
     if (body.action === "changePassword") {
       const pw = String(body.password || "");
@@ -96,19 +129,24 @@ Deno.serve(async (req) => {
       if (c.session_id) { const r = await admin.rpc("sf_revoke_sessions", { p_user: c.sub, p_keep: String(c.session_id) }); if (r.error) console.error("revoke other sessions failed", r.error.message); }
       return json({ ok: true });
     }
-    const { data: mem } = await admin.from("sf_member").select("emp_id,role,role_id,user_key,app_name,active").eq("org_id", org).eq("user_id", c.sub).maybeSingle();
+    const mem = cx.mem;
     if (!mem || !mem.active) return json({ error: "Your login is not linked to an active Skillforge account" }, 403);
-    { const { data: ur } = await admin.from("sf_doc").select("data").eq("org_id", org).eq("coll", "users").eq("data->>empId", mem.emp_id).maybeSingle();
-      const exp = ur && ur.data && ur.data.expires; if (exp && exp < L.day(new Date(), Deno.env.get("ORG_TIMEZONE") || "Asia/Kolkata")) return json({ error: "This account has expired. Contact your L&D administrator." }, 403); }
-    const db = dbFor(admin, org);
-    const roleKey = mem.role_id || (mem.role === "Trainer" ? "r_trainer" : "r_learner");
-    const roleDoc = mem.role === "Admin" ? null : await db.get("roles", roleKey);
-    const perms: string[] = mem.role === "Admin" ? ["*"] : Object.entries((roleDoc?.data?.perms) || {}).filter(([, v]) => v === true).map(([k]) => k);
-    if (body.action === "me") return json({ empId: mem.emp_id, role: mem.role, roleId: mem.role_id, perms, name: mem.app_name, mustChange });
+    if (cx.exp && cx.exp < L.day(new Date(), Deno.env.get("ORG_TIMEZONE") || "Asia/Kolkata")) return json({ error: "This account has expired. Contact your L&D administrator." }, 403);
+    const perms: string[] = mem.role === "Admin" ? ["*"] : cx.perms;
+    if (body.action === "me") {
+      // v41.27: the sign-in record (count, first and last time, method) is written here, so the app makes one call instead of two.
+      // It only counts when the app asks (method) and the password is not waiting to be changed; a failure never blocks signing in.
+      let logged = false;
+      if ((body.method === "email" || body.method === "emp") && !mustChange) {
+        try { const now = new Date().toISOString(), m = String(body.method);
+          await L.update(db, "loginLog", mem.emp_id, (cur: any) => ({ n: (cur.n || 0) + 1, first: cur.first || now, last: now, by: { ...(cur.by || {}), [m]: ((cur.by || {})[m] || 0) + 1 } }), {});
+          logged = true; } catch (e) { console.error("login log failed", (e as any)?.message || e); }
+      }
+      return json({ empId: mem.emp_id, role: mem.role, roleId: mem.role_id, perms, name: mem.app_name, mustChange, logged });
+    }
     if (mustChange) return json({ error: "Set a new password first" }, 403);
     const can = (p: string) => mem.role === "Admin" || perms.includes(p);
-    let userKey = mem.user_key;
-    if (!userKey) { const { data: u } = await admin.from("sf_doc").select("key").eq("org_id", org).eq("coll", "users").eq("data->>empId", mem.emp_id).maybeSingle(); userKey = u ? u.key : null; }
+    const userKey = cx.userKey || mem.user_key || null;   // v41.27: resolved together with the other checks
     // ---- signed file links: content staff see all files; others only files of courses assigned to them ----
     if (body.action === "sign") {
       const paths = (Array.isArray(body.paths) ? body.paths : []).map(String).filter((p: string) => p.startsWith(org + "/") && !p.includes("..")).slice(0, 200);

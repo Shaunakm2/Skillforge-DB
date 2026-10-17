@@ -72,7 +72,8 @@ class SkillforgeApp extends Skillforge.Store {
     if (!u && r.empty) { u = { id:'me-' + me.emp, name: me.name, empId: me.emp, email: me.email, role: me.role, roleId: ({ Admin:'r_admin', Trainer:'r_trainer' })[me.role] || 'r_learner', dept:'Learning and Development', designation:'', status:'Active', manager:'None', joined: TODAY_KEY };
       this.setState({ users: st.users.filter(x => x.empId !== me.emp).concat([u]) }); }
     if (!u) { Backend.signOut(); this.setState(s2 => ({ login: { ...s2.login, busy:false, err:'Your login is linked to employee ID ' + me.emp + ', but no person with that ID exists in Skillforge. Ask your L&D administrator.' } })); return; }
-    if (u.expires && u.expires < TODAY_KEY) { Backend.signOut(); this.setState(s2 => ({ login: { ...s2.login, busy:false, err:'This account expired on ' + Fmt.medium(u.expires) + '. Contact your L&D administrator.' } })); return; }
+    // v41.27: compared with today's date in the organisation's time zone (the server does the same), not the browser's
+    if (u.expires && u.expires < ((typeof Progress !== 'undefined' && Progress.orgToday) ? Progress.orgToday() : TODAY_KEY)) { Backend.signOut(); this.setState(s2 => ({ login: { ...s2.login, busy:false, err:'This account expired on ' + Fmt.medium(u.expires) + '. Contact your L&D administrator.' } })); return; }
     if (u.status === 'Deactivated') { Backend.signOut(); this.setState(s2 => ({ login: { ...s2.login, busy:false, err:'This account is deactivated. Contact your L&D administrator.' } })); return; }
     this.setState(s2 => ({ login: { ...s2.login, busy:false } }));
     if (this._signInAs) this._signInAs({ ...u, role: me.role }, opts);
