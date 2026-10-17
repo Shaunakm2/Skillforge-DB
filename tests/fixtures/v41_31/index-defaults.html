@@ -1,0 +1,16 @@
+  <sf-if value="{{ mdIsApp }}">
+  <div class="bt-two">
+    <div class="ui-70 bt-pad bt-col"><div class="ui-8">Features</div><div class="ui-6">Switched-off features disappear for everyone, including from the menu. Data is kept.</div>
+      <sf-for list="{{ pfFeats }}" as="f"><div class="create-course-39"><span class="ui-3"><span class="ui-95">{{ f.l }}</span><span class="create-course-40">{{ f.d }}</span></span><button class="create-course-41" on-click="{{ f.toggle }}" style="background:{{ f.track }}" role="switch" aria-checked="{{ f.on }}" aria-label="{{ f.l }}"><span class="ui-94" style="left:{{ f.knob }}"></span></button></div></sf-for></div>
+    <div class="ui-12" style="display:flex;flex-direction:column;gap:16px">
+      <div class="ui-70 bt-pad bt-col"><div class="ui-8">Defaults</div>
+        <label class="ui-61"><span class="ui-5">Password for new accounts and admin resets</span><input class="ovl-21" maxlength="40" value="{{ pfD.password }}" on-input="{{ setPfPw }}"></label>
+        <label class="ui-61"><span class="ui-5">Due date for new assignments and approved requests (days from today)</span><input class="ovl-21" type="number" min="1" max="365" value="{{ pfD.dueDays }}" on-input="{{ setPfDue }}"></label>
+        <label class="ui-61"><span class="ui-5">Essential training for new joiners (working days, default for new courses)</span><input class="ovl-21" type="number" min="1" max="365" value="{{ pfD.essDays }}" on-input="{{ setPfEss }}"></label>
+        <label class="ui-61"><span class="ui-5">Sign people out after inactivity (minutes; 0 = never; never less than 45 when connected)</span><input class="ovl-21" type="number" min="0" max="480" value="{{ pfIdle }}" on-input="{{ setPfIdle }}"></label>
+        <sf-if value="{{ pfDirty }}"><div class="ui-87"><button class="ui-60" on-click="{{ pfDiscard }}">Discard</button><button class="ui-91" on-click="{{ pfSave }}">Save defaults</button></div></sf-if></div>
+      <div class="ui-70 bt-pad bt-col"><div class="ui-8">Everything else you can customise</div>
+        <sf-for list="{{ pfWhere }}" as="w"><button class="pf-where" on-click="{{ w.go }}"><span class="ui-12"><span class="ui-95">{{ w.t }}</span><span class="ui-6">{{ w.d }}</span></span><span class="set-go">→</span></button></sf-for></div>
+    </div>
+  </div>
+  </sf-if>

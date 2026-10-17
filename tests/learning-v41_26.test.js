@@ -123,11 +123,35 @@ test('< and > are refused with a message, not removed', async () => {
   const ok = await L.handle(db, ctx({ userKey: 'u1' }), 'updateProfile', { bio: 'hello' }); assert.equal(ok.patch.bio, 'hello');
 });
 
-test('deploy order: a page that does not send heartbeats (hb) keeps the wall-clock rule even when the server is strict', async () => {
+test('REGRESSION v41.31: leaving hb out does NOT give the old rule when strict (a direct API caller cannot skip viewing time)', async () => {
   const db = mem(); await seed(db, [{ kind: 'pdf', mins: 3 }]);               // needs 18 s
   const t = s => ctx({ seatStrict: true, now: new Date(Date.parse('2026-10-17T10:00:00Z') + s * 1000) });
-  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0 });            // old page: no hb
-  assert.equal((await db.get('stepOpen', 'E1|c1|0')).data.secs, undefined);
-  await assert.rejects(() => L.handle(db, t(5), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least 18 seconds/);
-  assert.equal((await L.handle(db, t(30), 'completeStep', { courseId: 'c1', step: 0 })).done, true);
+  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0 });            // no hb, no pings
+  assert.equal((await db.get('stepOpen', 'E1|c1|0')).data.secs, 0, 'the row is counted whatever the caller sends');
+  await assert.rejects(() => L.handle(db, t(300), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least 18 seconds/, '5 minutes of waiting is not viewing time');
+  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0, hb: false });
+  await assert.rejects(() => L.handle(db, t(300), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least/);
+});
+test('REGRESSION v41.31: a row left from before the upgrade (no secs) cannot be completed by waiting when strict; real heartbeats still work', async () => {
+  const db = mem(); await seed(db, [{ kind: 'pdf', mins: 3 }]);
+  await db.put('stepOpen', 'E1|c1|0', { at: '2026-10-17T10:00:00.000Z' }, null);   // an old-format row
+  const t = s => ctx({ seatStrict: true, now: new Date(Date.parse('2026-10-17T10:00:00Z') + s * 1000) });
+  await assert.rejects(() => L.handle(db, t(600), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least/);
+  await L.handle(db, t(620), 'stepPing', { courseId: 'c1', step: 0 }); await L.handle(db, t(640), 'stepPing', { courseId: 'c1', step: 0 });
+  assert.equal((await L.handle(db, t(660), 'completeStep', { courseId: 'c1', step: 0 })).done, true);
+});
+test('compatibility window (seatLegacy): only inside it, a page without hb gets the old rule; a page with hb is still counted; outside it nobody does', async () => {
+  const mk = async legacy => { const db = mem(); await seed(db, [{ kind: 'pdf', mins: 3 }]); return db; };
+  const t = (s, legacy) => ctx({ seatStrict: true, seatLegacy: legacy, now: new Date(Date.parse('2026-10-17T10:00:00Z') + s * 1000) });
+  let db = await mk(); await L.handle(db, t(0, true), 'openStep', { courseId: 'c1', step: 0 });                       // old page inside the window
+  assert.equal((await L.handle(db, t(30, true), 'completeStep', { courseId: 'c1', step: 0 })).done, true);
+  db = await mk(); await L.handle(db, t(0, true), 'openStep', { courseId: 'c1', step: 0, hb: true });               // new page inside the window: counted
+  await assert.rejects(() => L.handle(db, t(300, true), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least/);
+  db = await mk(); await L.handle(db, t(0, false), 'openStep', { courseId: 'c1', step: 0 });                         // window closed: counted for everyone
+  await assert.rejects(() => L.handle(db, t(300, false), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least/);
+});
+test('SEAT_TIME_STRICT=false (an operator decision) keeps the old rule for everyone', async () => {
+  const db = mem(); await seed(db, [{ kind: 'pdf', mins: 3 }]);
+  await L.handle(db, ctx(), 'openStep', { courseId: 'c1', step: 0 });
+  assert.equal((await L.handle(db, ctx({ now: new Date('2026-10-17T10:05:00Z') }), 'completeStep', { courseId: 'c1', step: 0 })).done, true);
 });

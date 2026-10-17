@@ -1,0 +1,12 @@
+diff --git a/public/index.html b/public/index.html
+index 1a5fe91..b1cef62 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -2173,6 +2173,7 @@
+         <label class="ui-61"><span class="ui-5">Due date for new assignments and approved requests (days from today)</span><input class="ovl-21" type="number" min="1" max="365" value="{{ pfD.dueDays }}" on-input="{{ setPfDue }}"></label>
+         <label class="ui-61"><span class="ui-5">Essential training for new joiners (working days, default for new courses)</span><input class="ovl-21" type="number" min="1" max="365" value="{{ pfD.essDays }}" on-input="{{ setPfEss }}"></label>
+         <label class="ui-61"><span class="ui-5">Sign people out after inactivity (minutes; 0 = never; never less than 45 when connected)</span><input class="ovl-21" type="number" min="0" max="480" value="{{ pfIdle }}" on-input="{{ setPfIdle }}"></label>
++        <div class="ui-61"><span class="ui-5">Weekend days (not counted as working days when essential-training deadlines are worked out)</span><div class="ui-63"><sf-for list="{{ pfWkDays }}" as="o"><button class="ovl-25" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div><span class="ui-6">Selected days are days off. Default: Saturday and Sunday. Batch training days and the holiday list keep their own rules.</span></div>
+         <sf-if value="{{ pfDirty }}"><div class="ui-87"><button class="ui-60" on-click="{{ pfDiscard }}">Discard</button><button class="ui-91" on-click="{{ pfSave }}">Save defaults</button></div></sf-if></div>
+       <div class="ui-70 bt-pad bt-col"><div class="ui-8">Everything else you can customise</div>
+         <sf-for list="{{ pfWhere }}" as="w"><button class="pf-where" on-click="{{ w.go }}"><span class="ui-12"><span class="ui-95">{{ w.t }}</span><span class="ui-6">{{ w.d }}</span></span><span class="set-go">→</span></button></sf-for></div>

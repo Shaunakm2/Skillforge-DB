@@ -17,6 +17,7 @@
 // supabase/config.toml). It is decoded locally: no call to /auth/v1/user, so no shared-IP Auth rate limit.
 // Secrets: ORG_TIMEZONE (IANA zone for calendar dates, default Asia/Kolkata), ALLOWED_ORIGIN (the app's origin, required), CONTENT_ORIGIN, CONTENT_SIGNING_KEY, STORAGE_BUCKET,
 //          SCORM_IDLE_MINUTES (default 30), SCORM_MAX_HOURS (hard cap of a launch link, default 8),
+//          SEAT_LEGACY_UNTIL (v41.31, default empty = never: an ISO date until which a page older than v41.26 may still use the old viewing-time rule),
 //          SEAT_TIME_STRICT (v41.26, default on: viewing time of a step is counted by the server from stepPing heartbeats; set to "false" to go back to
 //          the old rule, time since the step was opened),
 //          v41.27: who-is-calling checks (session alive, member, expiry, permissions) are ONE database call, sf_learning_ctx (migration 011);
@@ -35,6 +36,8 @@ const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { sta
 const URL_ = Deno.env.get("SUPABASE_URL")!, SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const BUCKET = Deno.env.get("STORAGE_BUCKET") || "lms-files";
 const SEAT_STRICT = (Deno.env.get("SEAT_TIME_STRICT") || "true").toLowerCase() !== "false";
+// v41.31: optional, time-limited compatibility for pages older than v41.26 (they cannot send heartbeats). ISO date, e.g. 2026-11-30. Empty = never (the default).
+const SEAT_LEGACY_UNTIL = Date.parse(Deno.env.get("SEAT_LEGACY_UNTIL") || "") || 0;
 const SIGN_TTL = Math.max(300, Math.min(14400, Number(Deno.env.get("SIGNED_URL_TTL_SECONDS") || 3600)));
 
 // The gateway verified the signature (verify_jwt); read the claims without another network call.
@@ -182,7 +185,7 @@ Deno.serve(async (req) => {
       const { data: tr } = await admin.from("sf_trainee").select("trainee_emp").eq("org_id", org).eq("trainer_emp", mem.emp_id);
       trainees = (tr || []).map((x: any) => String(x.trainee_emp)).filter((e: string) => e !== mem.emp_id); }
     const ctx = { tz: Deno.env.get("ORG_TIMEZONE") || "Asia/Kolkata", org, emp: mem.emp_id, role: mem.role, perms: mem.role === "Admin" ? [] : perms, trainees, name: mem.app_name, userKey, now: new Date(),
-      seatStrict: SEAT_STRICT,
+      seatStrict: SEAT_STRICT, seatLegacy: SEAT_LEGACY_UNTIL > 0 && Date.now() < SEAT_LEGACY_UNTIL,
       contentOrigin: Deno.env.get("CONTENT_ORIGIN") || "", signKey: Deno.env.get("CONTENT_SIGNING_KEY") || "",
       scormIdleMin: Number(Deno.env.get("SCORM_IDLE_MINUTES") || 30), scormMaxHours: Number(Deno.env.get("SCORM_MAX_HOURS") || 8) };
     const out = await L.handle(db, ctx, String(body.action || ""), body);

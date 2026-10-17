@@ -1,0 +1,123 @@
+Skillforge v41.31: direct-source patch (this file is NOT part of the app: do not commit it)
+================================================================================================
+
+WHAT THIS ZIP IS
+Complete, edited source files. No script rewrites your code; copy the folders over the repository and review `git diff`.
+(The earlier apply-v41.29.mjs / apply-v41.30.mjs patchers, CHANGELOG-*-entry.md and README.txt notes are gone: delete them if you committed them.)
+
+Edited files (all complete files)                           What changed
+public/js/core/helpers.js                                   downloadBlob(); csvDownload uses it; weekendDays default; defaultDue uses Progress.today()
+public/js/admin/masters.js                                  App settings: Weekend days buttons + saved with the defaults; organisation date
+public/js/admin/platform.js                                 permRows (unused no-op) removed; organisation date
+public/js/admin/database.js                                 backup uses downloadBlob(); organisation date
+public/js/admin/admin.js                                    unused goAdminHome removed
+public/js/learner/auth.js                                   unused toggleLgDemo, toggleSearch, setGq removed
+public/js/learner/essentials.js                             organisation date (overdue, working days left, assigned-on)
+public/js/app.js, core/backend.js, core/progress.js         v41.26 to v41.30 (see CHANGELOG entries below)
+supabase/functions/learning/index.ts, _shared/learning-core.js   v41.26 to v41.30
+supabase/migrations/011_v41_learning_ctx.sql                new, optional (the function falls back without it)
+tests/learning-core.test.js                                 your file with the stale survey assertion fixed (see "Review items")
+tests/learning-v41_26, progress-v41_26, edge-ctx-v41_27, backend-v41_27, ui-v41_30 (.test.js)   new
+scripts/check-unbound.mjs, check-callers.mjs, find-duplicates.mjs, prune-dist.mjs   report / clean-up tools (they only read, except prune-dist --apply)
+
+APPLY
+1. Copy public/, supabase/, tests/, scripts/ and patches/ over the repository.
+2. `git diff --stat`: each edited file should show a handful of changed lines (the table above says which).
+   If one shows hundreds, my copy of that file differed from yours in spacing: `git checkout -- <file>` and tell me.
+3. public/index.html (3,799 lines: too large to ship as a file, so it comes as a diff of ONE added line):
+     git apply patches/v41.31-index-weekend-days.patch
+   If git answers "patch does not apply" and your file has Windows line endings (OneDrive / Notepad saves), use the other one:
+     git apply patches/v41.31-index-weekend-days.crlf.patch
+   Both were tested here with a plain `git apply` against the exact lines of your file (LF, CRLF, line numbers moved, already applied, block changed): each
+   refuses what it cannot place and changes nothing. The line lands in Settings > Master data > App settings > Defaults, directly under "Sign people out
+   after inactivity" and above Discard / Save defaults (your file, lines 2175/2176). Check:  git diff --stat public/index.html   (expect: 1 insertion)
+   If both fail (someone changed that block), paste this ONE line by hand right after the line that contains setPfIdle and before the line that contains pfDirty:
+
+        <div class="ui-61"><span class="ui-5">Weekend days (not counted as working days when essential-training deadlines are worked out)</span><div class="ui-63"><sf-for list="{{ pfWkDays }}" as="o"><button class="ovl-25" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div><span class="ui-6">Selected days are days off. Default: Saturday and Sunday. Batch training days and the holiday list keep their own rules.</span></div>
+
+   `npm test` fails with "public/index.html has no {{ pfWkDays }}" until one of these is done, so it cannot be forgotten. Delete patches/ afterwards (git rm -r patches).
+4. Three files I could not ship whole (my view of them drops characters, and a whole-file copy would break the app). Each is a few exact edits:
+   a) public/js/admin/users.js : 5 uses of TODAY_KEY -> Progress.today()   (the default joined date, the export file name, 2x Progress.plus(TODAY_KEY, 30), Progress.plus(TODAY_KEY, 180)):
+        sed -i 's/\bTODAY_KEY\b/Progress.today()/g' public/js/admin/users.js && git diff --stat public/js/admin/users.js     (expect: 5 changed lines)
+   b) public/js/admin/certificates.js, in Certificate.download(): replace the whole  cv.toBlob(b => { const url = URL.createObjectURL(b), a = document.createElement('a'); ... }, 'image/png')  with
+        cv.toBlob(b => downloadBlob(file, b), 'image/png')
+   c) public/js/admin/documents.js, in the download handler (inside fetch(url)...then(b => { ... })): replace the block that starts  const u2 = URL.createObjectURL(b), a = document.createElement('a'); a.href = u2; a.download = (NAME)...
+      and ends  a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u2), 2000);  with   downloadBlob((NAME).replace(/[^A-Za-z0-9. -]+/g, '-'), b);   (keep NAME exactly as it is: v.file.name || d.code + '.' + (DOC_MIME_EXT[...] || 'bin'))
+   d) public/js/admin/certificate-pdf.js: I have not seen it. git grep -n createObjectURL public/js/admin/certificate-pdf.js ; same replacement as (b) if it saves a Blob.
+   certificate-upload.js uses createObjectURL only to read the picture back (a preview), not to download: leave it.
+5. CHANGELOG.md: paste the block at the end of this file directly under the line that starts "Newest first.", then
+     git mv README.txt docs/archive/RELEASE-NOTES-v41.24.txt        (its content is the v41.24 entry below)
+6. npm test && npm run build && node scripts/prune-dist.mjs --apply      (prune-dist keeps the one bundle index.html loads, removes the old hashed ones)
+7. Commit and push everything, including dist/.
+8. Supabase: SQL Editor > run supabase/migrations/011_v41_learning_ctx.sql (optional, safe to run twice); then Actions > deploy-functions.
+   Viewing time is counted by the server for EVERY caller (v41.31): there is no way to opt out by leaving a field out.
+   So deploy the SITE first and the FUNCTION second (npm run build, push, wait for the site, then Actions > deploy-functions): a page still on v41.25
+   cannot finish timed steps against the new function until it is refreshed (hard refresh or sign in again).
+   Optional, if you want old open pages to keep working for a while: set the function secret  SEAT_LEGACY_UNTIL=2026-10-31  (an ISO date). Until that
+   date only, a page that opens a step without hb:true gets the old rule (a direct API caller can use it too, which is why it is off by default and
+   ends by itself). Leave it empty for no window.
+
+REVIEW ITEMS
+- Seat-time regression (v41.30): confirmed and fixed. The opt-in made strict timing depend on a field the caller controls. Now: strict for every caller; a
+  row with no counted seconds counts as 0 (so a row left from before the upgrade cannot be completed by waiting either); the only exception is the dated
+  SEAT_LEGACY_UNTIL window, off by default. Three new tests fail on v41.30's code and pass now (leaving hb out; an old-format row; the window), plus one for
+  SEAT_TIME_STRICT=false. A page older than v41.26 will need a refresh after the function is deployed (or use the window).
+- Test 36 (learning-core.test.js): fixed. The assertion now expects the refusal  /< and >/  ("Answer 2: the characters < and > are not allowed"), checks that
+  the refused answer saves nothing and does not complete the step, and that the same answer without brackets still goes through. I ran your 22 tests against
+  your original code (22/22), then against mine (21/22 before the fix, 22/22 after).
+- Weekend days UI: it lives in masters.js + index.html (Master data > App settings), not platform.js. masters.js is shipped whole; index.html gets one added line through the diff in step 3.
+- Download helper: downloadBlob is in helpers.js and csvDownload and database.js use it. Four more copies still exist in files I have not been able to read:
+  find them with  git grep -n "createObjectURL" public/js  (a preview link, not a download, is fine) and replace each
+  `const url = URL.createObjectURL(BLOB), a = document.createElement('a'); a.href = url; a.download = NAME; ...; setTimeout(() => URL.revokeObjectURL(url), N);`
+  with  downloadBlob(NAME, BLOB);
+- Dead code: permRows removed. Of the 13 handlers: goAdminHome, toggleLgDemo, toggleSearch, setGq removed. exportUsers is NOT dead (the Export menu calls
+  V.exportUsers()), so it stays. Eight are left: downloadTemplate, saveRep, setBankQuery, setCQuizPick, setCdCat, setEwsNote, setEwsU, toggleAllBank.
+  Run  node scripts/check-unbound.mjs  : it prints, for each, where it is defined, whether the template uses it, and every other use. Delete the ones it
+  marks NOT IN TEMPLATE with no "other uses". (The template does bind setEwsPopU / setEwsPopNote: those are different names.)
+- Old bundles in dist/: step 6.   Docs: step 5.
+- Files that must not stay in the repo (earlier rounds): CHANGELOG-v41.2*-entry.md, CHANGELOG-v41.28-entry.md, this PATCH-NOTES file, README.txt, scripts/apply-v41.29.mjs, scripts/apply-v41.30.mjs, scripts/lib-v41.30.mjs, scripts/changelog-v41.30.md,
+  tests/patch-v41_29.test.js, tests/patch-v41_30.test.js, tests/fixtures/. One command:  git rm -rf --ignore-unmatch patches CHANGELOG-*-entry.md PATCH-NOTES-*.txt README.txt scripts/apply-v41.2*.mjs scripts/apply-v41.30.mjs scripts/lib-v41.30.mjs scripts/changelog-v41.30.md tests/patch-v41_29.test.js tests/patch-v41_30.test.js && git rm -rf --ignore-unmatch tests/fixtures/v41_29 tests/fixtures/v41_30
+- "Stricter text input": in the app this was already the behaviour since v35 (the input guard strips < and > while typing and says why). What changed is that
+  the server now refuses it with a message instead of silently removing it, for anything that reaches it without the browser guard (pasted/API/CSV).
+  Suggested note to trainers: "The characters < and > can't be used in learner answers or comments (for example 'score < 5'): write 'below 5' instead."
+
+STILL OPEN (unchanged from the review, not part of this patch)
+  loose CSP (style-src 'unsafe-inline' is required by the design. Checked this time in your v41.24 zip: the BUILT dist/_headers has frame-src 'self' blob: plus your Supabase project, skillforge-db.pages.dev, YouTube, Vimeo and H5P, not 'https:'; only public/_headers, the template the build replaces, carries the generic one), unsigned JWT decode (relies on
+  verify_jwt), SCORM status trusted from the browser, staff load every row at sign-in and sign files at boot, Realtime for every user with a permission,
+  and the L&D gaps (behaviour/impact follow-up, answer reveal, fixed deadlines).
+
+PASTE INTO CHANGELOG.md (under "Newest first.")
+------------------------------------------------------------------------------------------------
+## v41.31 (review follow-up: seat-time bypass closed again, stale test, clean-up)
+- **Viewing time is counted for every caller.** v41.30 had made it opt-in (`hb: true`), which let a direct API call skip it by leaving `hb` out; that is reverted. A row without counted seconds can never be completed by waiting. New optional secret `SEAT_LEGACY_UNTIL` (ISO date, default empty) gives pages older than v41.26 a dated compatibility window; deploy the site first, then the function.
+## v41.30 (clean-up)
+- **Weekend days apply everywhere.** `Progress.configure(state)` runs at the start of every render, so essential-training deadlines and new assignments use the setting.
+- **Essential training uses the organisation's date** (overdue, working days left, assigned-on) through `Progress.today()`.
+- **Dead code removed:** `permRows`, `goAdminHome`, `toggleLgDemo`, `toggleSearch`, `setGq`. `exportUsers` is used by the Export menu and stays.
+- Tests: `learning-core.test.js` survey test now expects the refusal of `<` and `>`; `ui-v41_30.test.js` runs the edited front-end files as they are.
+
+## v41.29 (weekend days, one download helper)
+- **Weekend days are a setting** (Master data › App settings › Weekend days, default Saturday + Sunday, at least one working day must remain), stored in `platform.defaults.weekendDays`. Batch training days and the holiday list check keep their own rules.
+- **One download helper:** `downloadBlob()` in helpers.js; `csvDownload` and the database backup use it.
+- `TODAY_KEY` replaced by `Progress.today()` in platform.js, masters.js, database.js and `defaultDue`.
+- Tools: `scripts/prune-dist.mjs`, `scripts/check-unbound.mjs`, `scripts/check-callers.mjs`, `scripts/find-duplicates.mjs`.
+
+## v41.28 (today in the organisation's time zone)
+- `Progress.today()`: the organisation's date when connected (ORG_TIMEZONE, default Asia/Kolkata), `TODAY_KEY` on the offline demo. Overdue, completion and start fallbacks, default due dates, the migration report end date, the first admin's joined date and the account-expiry check use it.
+
+## v41.27 (unnecessary API calls)
+- Opening a saved sign-in is one call: no `auth.getUser()`; "must change password" comes from the token; `me` records the sign-in when asked.
+- One database call instead of four for every `learning` request (`sf_learning_ctx`, migration 011); falls back to the four reads without it.
+- Rows load one collection at a time, six at once; the learner directory loads in parallel; learners ask to sign only files that can qualify. `LOAD_DEBUG: true` in config.js logs rows and time per collection.
+
+## v41.26 (reviewer findings)
+- **Submit can be finished by a retry**; attempts handed in before v41.26 count as complete.
+- **Viewing time is counted by the server** (`stepPing` heartbeat; `SEAT_TIME_STRICT=false` restores the old rule).
+- **A pass follows the attempts' current results** (a lower re-rating can remove it); steps finished another way are never touched.
+- **No invented assignment dates:** a missing assigned-on date is "date unknown".
+- **`<` and `>` are refused with a message** instead of being removed silently.
+- **One lifetime for file links** (`SIGNED_URL_TTL_SECONDS`, default 3600), renewed in the background; **save retry backs off** (8 s to 5 minutes, stops after 10 failures).
+
+## v41.24
+- **Certificates moves into Master data (admins only).** The tile moves from Learning content to Master data (after Badges), the separate Certificates permission is removed (the screen needs the Master data permission) and Master data gets a Certificates tab. A custom role that had the old Certificates permission can no longer open the screen. Test: `tests/e2e/v41_24_e2e.py`.
+------------------------------------------------------------------------------------------------

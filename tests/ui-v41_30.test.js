@@ -64,7 +64,7 @@ test('Weekend days: the saved setting drives Progress (a Friday off moves an ess
 });
 test('the Weekend days buttons are bound in public/index.html (paste the block if this fails)', { skip: !fs.existsSync(path.join(ROOT, 'public/index.html')) }, () => {
   const html = fs.readFileSync(path.join(ROOT, 'public/index.html'), 'utf8');
-  assert.ok(/\{\{\s*pfWkDays\s*\}\}/.test(html), 'public/index.html has no {{ pfWkDays }}: add the Weekend days block above the Discard / Save defaults buttons (see PATCH-NOTES.txt)');
+  assert.ok(/\{\{\s*pfWkDays\s*\}\}/.test(html), 'public/index.html has no {{ pfWkDays }}: apply patches/v41.31-index-weekend-days.patch (or the .crlf.patch if the file has Windows line endings): git apply patches/v41.31-index-weekend-days.patch');
 });
 
 // ---- auth.js and admin.js: the dead handlers are gone, everything else is still there ----

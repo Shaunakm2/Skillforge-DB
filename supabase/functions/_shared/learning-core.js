@@ -13,10 +13,10 @@
  *   db.put(coll, key, data, version|null) -> true | false   (false = someone else changed it: re-read and retry)
  *   db.del(coll, key)
  * ctx = { org, emp, userKey, role: 'Learner'|'Trainer'|'Admin', perms: [permission keys of the custom role], now: Date,
- *         contentOrigin, signKey, scormIdleMin?, scormMaxHours?, seatStrict? }   (perms are enforced here exactly as in the database policies)
+ *         contentOrigin, signKey, scormIdleMin?, scormMaxHours?, seatStrict?, seatLegacy? }   (perms are enforced here exactly as in the database policies)
  *
  * v41.26  Submit is resumable (finalised flag); view steps are timed on the server from heartbeats (stepPing) when
- *         ctx.seatStrict is true; a quiz pass follows the attempts' current results (syncQuizDone); text with < or > is
+ *         ctx.seatStrict is true (the default; ctx.seatLegacy = optional dated compatibility window, see openRow); a quiz pass follows the attempts' current results (syncQuizDone); text with < or > is
  *         refused with a message instead of being changed silently.
  *
  * SCORM   A package step completes only through scormCommit: the learner must have launched THIS package (a launch
@@ -265,12 +265,14 @@
   /* v41.26: seat time. With ctx.seatStrict the server counts the time itself: each stepPing (sent every ~20 s by the app while
    * the step is on screen and the tab is visible) adds the time since the previous ping, at most PING_MAX_S and never more than
    * the real time that passed, so a direct call cannot add time faster than the clock. A ping with resume:true (the tab was
-   * hidden) adds nothing. completeStep then needs the counted seconds, not the time since the step was opened. Rows opened
-   * before this change (no secs) and ctx.seatStrict false keep the old wall-clock rule. */
+   * hidden) adds nothing. completeStep then needs the counted seconds, not the time since the step was opened.
+   * ctx.seatStrict false (secret SEAT_TIME_STRICT=false) keeps the old wall-clock rule for everyone: an operator decision, not something a caller can choose. */
   const PING_MAX_S = 45, PING_MIN_GAP_S = 3;
-  /* Only a page that says it sends heartbeats (openStep { hb: true }, from v41.26 on) gets a counted row. A page still on an older version opens
-   * the step without hb: its row has no secs and completeStep keeps the old wall-clock rule for it, so deploy order does not matter. */
-  const openRow = (ctx, b) => ctx.seatStrict === true && b && b.hb === true ? { at: iso(ctx.now), secs: 0, last: iso(ctx.now) } : { at: iso(ctx.now) };
+  /* v41.31: counted time is the DEFAULT for every caller. A caller cannot opt out by leaving something out: the row is always created with secs, and
+   * completeStep always reads secs. The only exception is ctx.seatLegacy, a compatibility window an operator switches on with the secret
+   * SEAT_LEGACY_UNTIL (an ISO date; empty = never). Inside that window, and only then, a page that opens the step WITHOUT hb:true (a page older than
+   * v41.26 that cannot send heartbeats) gets the old wall-clock rule. After the date the window closes by itself. */
+  const openRow = (ctx, b) => ctx.seatStrict === true && (!ctx.seatLegacy || (b && b.hb === true)) ? { at: iso(ctx.now), secs: 0, last: iso(ctx.now) } : { at: iso(ctx.now) };
   async function stepPing(db, ctx, b) {
     const i = Number(b.step); if (!Number.isInteger(i) || i < 0 || i > 500) fail(400, 'No such step');
     const key = ctx.emp + '|' + String(b.courseId) + '|' + i, resume = b.resume === true;
@@ -292,7 +294,8 @@
     const f = c.features || {};
     if (VIEW_KINDS.includes(it.kind) && !f.selfComplete) {
       const o = await db.get('stepOpen', ctx.emp + '|' + c.id + '|' + i); if (!o) fail(409, 'Open this step first');
-      const need = viewNeed(it.mins), counted = ctx.seatStrict === true && o.data.secs !== undefined;
+      // strict and no compatibility window: always the counted seconds (a row without secs counts as 0, so it can never be completed by waiting)
+      const need = viewNeed(it.mins), counted = ctx.seatStrict === true && (o.data.secs !== undefined || !ctx.seatLegacy);
       const spent = counted ? Number(o.data.secs) || 0 : (ctx.now - new Date(o.data.at)) / 1000;
       if (spent + 2 < need) fail(409, 'Spend at least ' + need + ' seconds on this step (' + Math.ceil(need - spent) + 's to go)');
     }
