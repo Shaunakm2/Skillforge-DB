@@ -1276,9 +1276,9 @@
 <sf-if value="{{ isQbank }}">
 <div class="admin-settings-16" data-screen-label="Question bank">
   <div class="ui-65">
-    <div><h1 class="ui-66">Question bank</h1><div class="ui-29">{{ qCount }} questions. Filter to find what you need, click a question to see it in full, or tick several to bundle them into a quiz.</div></div>
+    <div><h1 class="ui-66">Question bank</h1><div class="ui-29">{{ qCount }} questions. Metadata groups them: filter by it to find a set, click a question to see it in full, or tick several to bundle them into an assessment.</div></div>
     <div class="qb-head-actions">
-      <button class="question-bank-8 hover-14" on-click="{{ qbOpenBulk }}" title="CSV with question, type, options, correct answer, explanation, category, difficulty, skill, Bloom level and tags. Every row is checked; rejected rows come back with a reason.">Upload CSV</button>
+      <button class="question-bank-8 hover-14" on-click="{{ qbOpenBulk }}" title="CSV with Metadata, Question Type, Marks, QuestionText, up to five answer options and up to five correct answers. Every row is checked; rejected rows come back with a reason.">Upload CSV</button>
       <button class="sf-link" on-click="{{ qbTemplate }}">Template</button>
       <button class="sf-link" on-click="{{ qbExport }}">Export</button>
       <button class="question-bank-1 hover-13" on-click="{{ openQModal }}">+ Add question</button>
@@ -1287,7 +1287,7 @@
   <div class="qb-stats"><sf-for list="{{ qbStats }}" as="x"><button class="qb-stat" on-click="{{ x.pick }}"><span class="qb-sv" style="color:{{ x.c }}">{{ x.v }}</span><span class="ui-6">{{ x.l }}</span></button></sf-for></div>
   <div class="qb-filters ui-70">
     <div class="qb-frow">
-      <label class="question-bank-11 qb-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#526B7A" stroke-width="2.4"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><input maxlength="80" class="ui-84" value="{{ qbQ }}" on-input="{{ setQbQ }}" placeholder="Search question text, category or author"></label>
+      <label class="question-bank-11 qb-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#526B7A" stroke-width="2.4"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><input maxlength="80" class="ui-84" value="{{ qbQ }}" on-input="{{ setQbQ }}" placeholder="Search question text, metadata or author"></label>
       <span class="sf-grow"></span>
       <label class="qb-sort"><span class="ui-6">Sort</span><sf-select class="ovl-31" value="{{ qbSort }}" on-change="{{ setQbSort }}"><sf-for list="{{ qbSortOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label>
     </div>
@@ -1314,7 +1314,7 @@
     <sf-for list="{{ qbRows }}" as="q">
       <div class="qb-row" style="background:{{ q.rowBg }}">
         <button class="question-bank-14" on-click="{{ q.toggle }}" style="border:2px solid {{ q.boxBd }};background:{{ q.boxBg }};color:#FFFFFF" aria-label="Select">{{ q.tick }}</button>
-        <span class="qb-qcell"><button class="qb-q" on-click="{{ q.open }}" style="opacity:{{ q.op }}"><span class="qb-qt">{{ q.text }}</span><span class="qb-qm"><span class="sf-code">{{ q.ref }}</span><span>{{ q.cat }}</span><span>·</span><span>{{ q.skill }}</span><span>·</span><span>{{ q.bloom }}</span><span>·</span><span>{{ q.author }}</span><sf-if value="{{ q.hasMedia }}"><span class="qb-media">{{ q.media }}</span></sf-if></span></button><span class="qb-tags"><sf-for list="{{ q.tags }}" as="t"><button class="qb-tag" on-click="{{ t.pick }}">{{ t.t }}</button></sf-for></span></span>
+        <span class="qb-qcell"><button class="qb-q" on-click="{{ q.open }}" style="opacity:{{ q.op }}"><span class="qb-qt">{{ q.text }}</span><span class="qb-qm"><span class="sf-code">{{ q.ref }}</span><span>{{ q.marksLabel }}</span><span>·</span><span>{{ q.author }}</span><sf-if value="{{ q.hasMedia }}"><span class="qb-media">{{ q.media }}</span></sf-if></span></button><span class="qb-tags"><sf-for list="{{ q.tags }}" as="t"><button class="qb-tag" on-click="{{ t.pick }}">{{ t.t }}</button></sf-for></span></span>
         <span><span class="qb-type" style="background:{{ q.tBg }};color:{{ q.tFg }}"><b>{{ q.tGlyph }}</b>{{ q.tShort }}</span></span>
         <span class="qb-diff" style="color:{{ q.dFg }}"><i style="background:{{ q.dDot }}"></i>{{ q.diff }}</span>
         <span class="qb-used" title="{{ q.usedTitle }}"><sf-if value="{{ q.usedOn }}"><span class="ui-95">{{ q.used }}</span></sf-if><sf-if value="{{ q.usedMuted }}"><span class="qb-unused">{{ q.used }}</span></sf-if><span class="ui-6 qb-usub">{{ q.usedSub }}</span></span>
@@ -1362,6 +1362,13 @@
   </div>
   <div class="quiz-builder-2">
     <div class="ui-23">
+      <div class="ui-70 bt-pad bt-col qd-meta">
+        <div class="sf-label-row"><span class="ui-8">Add questions by metadata</span><button class="sf-link" on-click="{{ addFromBank }}">Pick individual questions in the bank →</button></div>
+        <div class="ui-6">Each line is a Metadata group in the question bank. Add a whole group in one click; the assessment keeps a link to the bank questions, so a correction made in the bank reaches it.</div>
+        <sf-if value="{{ qdMetaHas }}"><input maxlength="80" class="ovl-21" value="{{ qdMetaQ }}" on-input="{{ setQdMetaQ }}" placeholder="Search metadata, e.g. Telephone Etiquette" aria-label="Search metadata"></sf-if>
+        <sf-for list="{{ qdMetaGroups }}" as="g"><div class="bt-trow"><span class="ui-12"><span class="ui-95">{{ g.name }}</span><span class="ui-6">{{ g.sub }}</span></span><span class="sf-row-actions"><sf-if value="{{ g.hasAny }}"><button class="ui-60" on-click="{{ g.remove }}">Remove group</button></sf-if><button class="ui-82" on-click="{{ g.add }}" disabled="{{ g.full }}">{{ g.label }}</button></span></div></sf-for>
+        <sf-if value="{{ qdMetaNone }}"><div class="ui-6">No questions have metadata yet. Upload questions with a Metadata column in the question bank, or add Metadata to a question when you edit it.</div></sf-if>
+      </div>
       <div class="quiz-builder-3">{{ qdCountLabel }}</div>
       <sf-for list="{{ draftQs }}" as="q">
         <div class="quiz-builder-4">
@@ -1389,7 +1396,8 @@
         </sf-for>
       </div>
       <div class="asm-dyn">
-        <div class="quiz-builder-20"><span class="quiz-builder-21">Dynamic assessment<span class="asm-sub">Show each learner a random set of the selected questions</span></span><button class="ui-93" role="switch" aria-checked="{{ dynToggle.on }}" on-click="{{ dynToggle.toggle }}" style="background:{{ dynToggle.track }}" aria-label="Dynamic assessment"><span class="ui-94" style="left:{{ dynToggle.knob }}"></span></button></div>
+        <div class="ui-92"><span class="ui-5">Assessment type</span><div class="ui-63"><sf-for list="{{ modeOpts }}" as="o"><button class="quiz-builder-16" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div></div>
+        <sf-if value="{{ qdStatic }}"><div class="asm-note">{{ qdStaticNote }}</div></sf-if>
         <sf-if value="{{ qd.dynamic }}">
           <div class="ui-92"><span class="ui-5">Questions per attempt</span><div class="asm-draw"><input class="asm-num" type="number" min="1" max="{{ qdPoolSize }}" value="{{ qdDraw }}" on-input="{{ setDrawCount }}"><span>of {{ qdPoolSize }} selected</span></div></div>
           <div class="asm-note" data-warn="{{ dynWarn }}">{{ dynNote }}</div>
@@ -2897,13 +2905,13 @@
   <div class="ovl-1" on-click="{{ stop }}">
     <div class="ovl-17 ca-modal" on-click="{{ stop }}" role="dialog" aria-label="Upload questions">
       <div class="ui-41"><div><div class="create-course-4">QUESTION BANK</div><h2 class="ovl-3">Upload questions</h2></div><button class="ovl-4" on-click="{{ qbCloseBulk }}">✕</button></div>
-      <div class="ca-step"><span class="ca-n">1</span><div class="ui-12"><div class="ui-95">Download the template</div><div class="ui-6">Types you can upload here: multiple choice, multiple select, true/false, fill in the blank (mark the blank with ___), written answer and Likert. Correct answer is the option letter (A;C for several). Tags are separated with ;</div></div><button class="ui-82 sf-export" on-click="{{ qbTemplate }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Template</button></div>
+      <div class="ca-step"><span class="ca-n">1</span><div class="ui-12"><div class="ui-95">Download the template</div><div class="ui-6">One row per question. Metadata* groups questions (e.g. Post Assessment Telephone Etiquette 2026), Marks* is what the question is worth, QuestionText*, AnswerOption1*–5 (at least two for choice questions) and CorrectAnswer1*–5 (the text of the correct option; several for multiple select). Question Type is optional: multiple choice, multiple select, true / false, fill in the blank or written answer. Left empty, it is worked out from the options and answers.</div></div><button class="ui-82 sf-export" on-click="{{ qbTemplate }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Template</button></div>
       <div class="ca-step"><span class="ca-n">2</span><div class="ui-12"><div class="ui-95">Choose your file</div><div class="ca-file"><label class="asm-upload-btn">Choose file<input class="asm-file" type="file" accept=".csv,text/csv" on-change="{{ qbPick }}"></label><span class="ui-6">CSV · up to 10 MB</span><span class="ui-55">{{ qbB.name }}</span><sf-if value="{{ qbBNoFile }}"><span class="ui-6">No file chosen</span></sf-if></div></div></div>
-      <div class="ca-step"><span class="ca-n">3</span><div class="ui-12"><div class="ui-95">Import</div><div class="ui-6">Valid rows are added to the bank with their metadata; duplicates and errors are listed with a reason.</div></div><button class="ui-91" on-click="{{ qbImport }}" disabled="{{ qbBNoFile }}">Import</button></div>
+      <div class="ca-step"><span class="ca-n">3</span><div class="ui-12"><div class="ui-95">Import</div><div class="ui-6">Valid rows are added to the bank under their metadata. A question already in the bank under the same metadata, and any row with an error, is listed with a reason.</div></div><button class="ui-91" on-click="{{ qbImport }}" disabled="{{ qbBNoFile }}">Import</button></div>
       <sf-if value="{{ qbBMsg }}"><div class="sf-login-err" role="alert">{{ qbB.msg }}</div></sf-if>
       <sf-if value="{{ qbBHasRes }}">
         <sf-if value="{{ qbRes.hasOk }}"><div class="ca-ok" role="status">✓ {{ qbRes.okLine }}</div></sf-if>
-        <sf-if value="{{ qbRes.hasBad }}"><div class="ca-bad" role="alert"><div class="sf-label-row"><span class="ui-95">✕ {{ qbRes.badLine }}</span><button class="ui-82 sf-export" on-click="{{ qbRejects }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Download rejected rows</button></div><sf-for list="{{ qbRes.badRows }}" as="r"><div class="ca-badrow"><span class="ui-55">{{ r.n }}</span><span>{{ r.why }}</span></div></sf-for><div class="ui-6">{{ qbRes.more }}</div></div></sf-if>
+        <sf-if value="{{ qbRes.hasBad }}"><div class="ca-bad" role="alert"><div class="sf-label-row"><span class="ui-95">✕ {{ qbRes.badLine }}</span><button class="ui-82 sf-export" on-click="{{ qbRejects }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Download rejected rows</button></div><sf-for list="{{ qbRes.badRows }}" as="r"><div class="ca-badrow"><span class="ui-55">{{ r.n }}</span><span>{{ r.why }}</span></div></sf-for><div class="ui-6">{{ qbRes.more }}</div><div class="ui-6">The good rows were added. Download the rejected rows, correct them (the reason is in the first column) and upload that file again: it uses the same columns, and rows already in the bank are skipped as duplicates.</div></div></sf-if>
         <button class="sf-link bt-left" on-click="{{ qbResetBulk }}">Upload another file</button>
       </sf-if>
       <div class="ovl-26"><button class="ui-60" on-click="{{ qbCloseBulk }}">Close</button></div>
@@ -3348,7 +3356,7 @@
       <sf-if value="{{ modIsLink }}"><label class="ui-61"><span class="ui-8">{{ modLinkLabel }}</span><input maxlength="2048" class="ovl-21" value="{{ md.url }}" on-input="{{ setMdUrl }}" placeholder="{{ modLinkPh }}"><span class="ui-6">{{ modLinkNote }}</span></label></sf-if>
       <sf-if value="{{ modIsQuiz }}">
         <label class="ui-61"><span class="ui-8">Assessment</span><sf-select class="ovl-31" value="{{ modQuizVal }}" on-change="{{ setMdQuiz }}"><sf-for list="{{ modQuizOpts }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select><span class="ui-6">{{ modQuizSummary }}</span></label>
-        <div class="ovl-22">Need a new one? <button class="sf-link" on-click="{{ buildQuizFromLcms }}">Build an assessment from the question bank →</button> Pick the questions, set the pass mark, attempts and randomisation, and it's added here when you save.</div>
+        <div class="ovl-22">Need a new one? <button class="sf-link" on-click="{{ buildQuizFromLcms }}">Build an assessment from the question bank →</button> Choose Static (everyone sees all questions) or Dynamic (a random set from the pool), add questions by metadata, set the pass mark, attempts and randomisation, and it is added here when you save.</div>
       </sf-if>
       <sf-if value="{{ modIsKp }}"><div class="kp-box">
         <div class="ui-61"><span class="ui-8">Kirkpatrick level</span><div class="ui-87"><sf-for list="{{ mdLevels }}" as="o"><button class="ovl-30" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div><span class="ui-6">{{ mdLevelQ }}</span></div>
@@ -3698,6 +3706,7 @@
               <input maxlength="120" class="ovl-21" value="{{ o.v }}" on-input="{{ o.set }}" placeholder="Option text">
             </div>
           </sf-for>
+          <div class="ui-87"><sf-if value="{{ qmCanAddOpt }}"><button class="asm-add" on-click="{{ addOpt }}">+ Add option</button></sf-if><sf-if value="{{ qmCanDropOpt }}"><button class="sf-link" on-click="{{ dropOpt }}">Remove last option</button></sf-if></div>
         </div>
       </sf-if>
       <sf-if value="{{ qmImgOpts }}">
@@ -3781,15 +3790,11 @@
           </sf-if>
         </sf-if>
       </div>
+      <label class="ui-61"><span class="ui-8">Metadata</span><input maxlength="160" class="ovl-21" list="qm-metas" value="{{ qm.meta }}" on-input="{{ setQmMeta }}" placeholder="e.g. Post Assessment Telephone Etiquette 2026"><datalist id="qm-metas"><sf-for list="{{ qmMetaOpts }}" as="o"><option value="{{ o }}"></option></sf-for></datalist><span class="ui-6">Groups questions, so you can pick them together when you build an assessment.</span></label>
       <div class="ovl-23">
-        <label class="ui-61"><span class="ui-8">Topic</span><sf-select class="ovl-24" value="{{ qm.topic }}" on-change="{{ setQmTopic }}"><sf-for list="{{ qmTopicOptions }}" as="o"><option value="{{ o }}">{{ o }}</option></sf-for></sf-select></label>
+        <sf-if value="{{ qmNotWritten }}"><label class="ui-61"><span class="ui-8">Marks</span><input class="ovl-21" type="number" min="0.5" max="100" step="0.5" value="{{ qm.marks }}" on-input="{{ setQmMarks }}"></label></sf-if>
         <div class="ui-61"><span class="ui-8">Difficulty</span><div class="ui-63"><sf-for list="{{ qmDiffs }}" as="o"><button class="ovl-25" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div></div>
       </div>
-      <div class="ovl-23">
-        <label class="ui-61"><span class="ui-8">Skill</span><input maxlength="120" class="ovl-21" list="qm-skills" value="{{ qm.skill }}" on-input="{{ setQmSkill }}" placeholder="e.g. Coaching"><datalist id="qm-skills"><sf-for list="{{ qmSkillOpts }}" as="o"><option value="{{ o }}"></option></sf-for></datalist></label>
-        <label class="ui-61"><span class="ui-8">Bloom level</span><sf-select class="ovl-24" value="{{ qm.bloom }}" on-change="{{ setQmBloom }}"><sf-for list="{{ qmBlooms }}" as="o"><option value="{{ o.v }}">{{ o.l }}</option></sf-for></sf-select></label>
-      </div>
-      <label class="ui-61"><span class="ui-8">Tags · separate with commas</span><input maxlength="120" class="ovl-21" value="{{ qm.tagsText }}" on-input="{{ setQmTags }}" placeholder="e.g. scenario, grow-model, q4-refresh"></label>
       <div class="ovl-26">
         <button class="ui-60" on-click="{{ closeQModal }}">Cancel</button>
         <button class="ovl-27" on-click="{{ saveQ }}">{{ qmSaveLabel }}</button>

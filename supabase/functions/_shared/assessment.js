@@ -7,6 +7,9 @@
  *                      True / False keeps its order. Match and Ordering are always shuffled.
  *  Attempts            quiz.attempts ('1' | '2' | '3' | 'Unlimited') plus any extra attempts
  *                      an admin grants to a specific learner.
+ *  Marks               v41.22: every question is worth question.marks (a number above 0; written answers: their points). The score is
+ *                      the marks earned over the marks of the questions shown, as a percentage. A question without marks counts 1,
+ *                      so assessments built before marks existed score exactly as before.
  *  Written answers     are rated by a trainer from 0 to question.points.
  *  Likert scale        is an opinion question and is not scored.
  */
@@ -32,6 +35,7 @@ const Assessment = (() => {
   const LIKERT = ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'];
   const isWritten = q => q.type === 'Written answer';
   const isScored = q => q.type !== 'Likert scale';
+  const weight = q => (Number(q.marks) > 0 ? Number(q.marks) : 1);   // what a question is worth (also shown to admins as its marks)
   const optCount = q => (q.opts || []).length || (q.pairs || []).length || (q.items || []).length;
 
   const MEDIA_KINDS = ['image', 'audio', 'video'];
@@ -101,33 +105,32 @@ const Assessment = (() => {
     }
   }
 
-  /* Score an attempt. Every scored question carries equal weight; written answers count rating / points.
+  /* Score an attempt. Each scored question counts its marks (1 when it has none); a written answer earns marks * rating / points.
      Likert questions are excluded. */
   function score(attempt, answers, bank, reviews) {
-    let auto = 0, autoRight = 0, written = 0, rated = 0, earned = 0, scored = 0;
+    let auto = 0, autoRight = 0, written = 0, rated = 0, earned = 0, scoredW = 0, gradedW = 0;
     attempt.forEach((a, i) => {
       const q = bank.find(x => String(x.id) === String(a.qid));
       const ans = answers[i] || {};
       if (!q || !isScored(q)) return;
-      scored++;
+      const w = weight(q);
+      scoredW += w;
       if (isWritten(q)) {
         written++;
         const r = reviews.find(x => x.id === ans.reviewId);
-        if (r && r.rating !== null) { rated++; earned += r.rating / q.points; }
+        if (r && r.rating !== null) { rated++; gradedW += w; earned += w * r.rating / q.points; }
       } else {
-        auto++;
+        auto++; gradedW += w;
         const g = grade(q, ans) || 0;
-        earned += g;
+        earned += w * g;
         if (g === 1) autoRight++;
       }
     });
     const pending = written - rated;
-    const graded = auto + rated;
-    const pct = pending ? (graded ? Math.round(100 * earned / graded) : 0) : (scored ? Math.round(100 * earned / scored) : 100);
+    const pct = pending ? (gradedW ? Math.round(100 * earned / gradedW) : 0) : (scoredW ? Math.round(100 * earned / scoredW) : 100);
     return { auto, autoRight, written, rated, pending, pct, final: pending === 0 };
   }
-
-  return { rand, shuffle, TYPES, LIKERT, isWritten, isScored, pool, shownCount, attemptsInfo, buildAttempt, grade, score, MEDIA_KINDS, MEDIA_ACCEPT, MEDIA_HINT };
+  return { rand, shuffle, TYPES, LIKERT, isWritten, isScored, weight, pool, shownCount, attemptsInfo, buildAttempt, grade, score, MEDIA_KINDS, MEDIA_ACCEPT, MEDIA_HINT };
 })();
 
 /* Shared with the server: supabase/functions/_shared/assessment.js is an exact copy (tests check this). */

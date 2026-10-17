@@ -1,5 +1,6 @@
 /* Skillforge LMS — Question bank list: filters, table and preview.
- * Filters: question type, difficulty, category, course, module, status, author, usage (+ search and sort).
+ * Filters: metadata, question type, course, status, difficulty, module, author, usage (+ search and sort).
+ * v41.22: Metadata (the label that groups questions, e.g. "Post Assessment Telephone Etiquette 2026") replaces category, skill, Bloom level and tag.
  * "Used in" is worked out from quizzes: question → quizzes that include it → courses and LCMS assessment
  * modules that use those quizzes.
  * Adds SkillforgeApp.prototype.qbankVals(), merged into renderVals() after adminVals() so it replaces the old list.
@@ -19,7 +20,7 @@ const QDIFF = { Easy:['#DCFCE7', '#166534', '#22C55E'], Medium:['#FEF3C7', '#924
 
 SkillforgeApp.prototype.qbankVals = function (s, role) {
   if (this._scrV !== 'qbank') return { qPrevOpen:false };
-  const W = '#FFFFFF', INK = '#16324F', F = s.qf, me = role.name;
+  const W = '#FFFFFF', INK = '#16324F', F = { meta:'All', ...s.qf }, me = role.name;   // v41.22: older saved filters have no metadata key
   const setF = patch => this.setState(st => ({ qf: { ...st.qf, ...patch } }));
   // usage map
   const quizzesOf = id => s.quizzes.filter(z => z.ids.includes(id));
@@ -30,15 +31,14 @@ SkillforgeApp.prototype.qbankVals = function (s, role) {
   const U = {}; s.qs.forEach(q => { const zs = quizzesOf(q.id), cs = [], ms = []; zs.forEach(z => { coursesOfQuiz(z).forEach(c => { if (!cs.includes(c)) cs.push(c); }); modsOfQuiz(z).forEach(m => { if (!ms.includes(m)) ms.push(m); }); }); U[q.id] = { zs, cs, ms }; });
   const uq = (F.q || '').trim().toLowerCase();
   const match = (q, skip) => { const u = U[q.id];
-    return (skip === 'type' || F.type === 'All' || q.type === F.type) && (skip === 'diff' || F.diff === 'All' || q.diff === F.diff) && (skip === 'cat' || F.cat === 'All' || q.topic === F.cat)
+    return (skip === 'type' || F.type === 'All' || q.type === F.type) && (skip === 'diff' || F.diff === 'All' || q.diff === F.diff) && (skip === 'meta' || F.meta === 'All' || (q.meta || '') === F.meta)
       && (skip === 'course' || F.course === 'All' || u.cs.some(c => c.id === F.course)) && (skip === 'module' || F.module === 'All' || u.ms.some(m => m.id === F.module))
       && (skip === 'status' || F.status === 'All' || (F.status === 'Archived') === !!q.archived) && (skip === 'author' || F.author === 'All' || q.author === F.author)
       && (skip === 'usage' || F.usage === 'All' || (F.usage === 'course' ? u.cs.length > 0 : F.usage === 'quiz' ? u.zs.length > 0 && !u.cs.length : F.usage === 'multi' ? u.cs.length >= 2 : !u.zs.length))
-      && (skip === 'skill' || F.skill === 'All' || q.skill === F.skill) && (skip === 'bloom' || F.bloom === 'All' || q.bloom === F.bloom) && (skip === 'tag' || F.tag === 'All' || (q.tags || []).includes(F.tag))
-      && (!uq || (q.text + ' ' + q.topic + ' ' + q.type + ' ' + (q.author || '') + ' ' + (q.skill || '') + ' ' + (q.bloom || '') + ' ' + (q.ref || '') + ' ' + (q.tags || []).join(' ')).toLowerCase().includes(uq)); };
+      && (!uq || (q.text + ' ' + (q.meta || '') + ' ' + q.type + ' ' + (q.author || '') + ' ' + (q.ref || '')).toLowerCase().includes(uq)); };
   // Option counts: one pass per filter over the questions that match every other filter (a tally, not a re-scan per option).
-  const valsOf = (key, q) => { const u = U[q.id]; switch (key) { case 'type': return [q.type]; case 'diff': return [q.diff]; case 'cat': return [q.topic]; case 'course': return u.cs.map(c => c.id); case 'module': return u.ms.map(m => m.id);
-    case 'skill': return [q.skill]; case 'bloom': return [q.bloom]; case 'tag': return q.tags || []; case 'status': return [q.archived ? 'Archived' : 'Active']; case 'author': return [q.author];
+  const valsOf = (key, q) => { const u = U[q.id]; switch (key) { case 'type': return [q.type]; case 'diff': return [q.diff]; case 'meta': return [q.meta || '']; case 'course': return u.cs.map(c => c.id); case 'module': return u.ms.map(m => m.id);
+    case 'status': return [q.archived ? 'Archived' : 'Active']; case 'author': return [q.author];
     case 'usage': return [u.cs.length ? 'course' : null, u.cs.length >= 2 ? 'multi' : null, u.zs.length && !u.cs.length ? 'quiz' : null, !u.zs.length ? 'unused' : null].filter(Boolean); } return []; };
   const tallies = {};
   const count = (key, val) => { if (!tallies[key]) { const t = new Map(); s.qs.forEach(q => { if (match(q, key)) valsOf(key, q).forEach(v => t.set(v, (t.get(v) || 0) + 1)); }); tallies[key] = t; } return tallies[key].get(val) || 0; };
@@ -48,26 +48,23 @@ SkillforgeApp.prototype.qbankVals = function (s, role) {
   const cById = id => Progress.courseOf(s, id), mById = id => s.lcms.find(m => m.id === id);
   const USAGE = { course:'Used in a course', multi:'Used in 2+ courses', quiz:'In a quiz, no course yet', unused:'Not used anywhere' };
   const FILTERS = [
+    ['meta', 'Metadata', opt('meta', 'All metadata', uniq(s.qs.map(q => q.meta)))],
     ['type', 'Question type', opt('type', 'All types', Object.keys(QTYPE).filter(t => s.qs.some(q => q.type === t)), t => QTYPE[t].short)],
-    ['diff', 'Difficulty', opt('diff', 'All difficulties', ['Easy', 'Medium', 'Hard'])],
-    ['cat', 'Category', opt('cat', 'All categories', uniq(s.qs.map(q => q.topic)))],
     ['course', 'Course', opt('course', 'All courses', usedCourses, id => cById(id).code + ' · ' + cById(id).title)],
-    ['module', 'Module', opt('module', 'All modules', usedMods, id => mById(id).code + ' · ' + mById(id).title)],
     ['status', 'Status', opt('status', 'All statuses', ['Active', 'Archived'])],
+    ['diff', 'Difficulty', opt('diff', 'All difficulties', ['Easy', 'Medium', 'Hard'])],
+    ['module', 'Module', opt('module', 'All modules', usedMods, id => mById(id).code + ' · ' + mById(id).title)],
     ['author', 'Author', opt('author', 'All authors', uniq(s.qs.map(q => q.author)))],
     ['usage', 'Usage', opt('usage', 'Any usage', Object.keys(USAGE), k => USAGE[k])],
-    ['skill', 'Skill', opt('skill', 'All skills', uniq(s.qs.map(q => q.skill)))],
-    ['bloom', 'Bloom level', opt('bloom', 'All levels', BLOOM.filter(b => s.qs.some(q => q.bloom === b)))],
-    ['tag', 'Tag', opt('tag', 'All tags', uniq(s.qs.flatMap(q => q.tags || [])), t => '#' + t)],
   ];
-  const labelOf = (k, v) => k === 'tag' ? '#' + v : k === 'type' ? QTYPE[v].short : k === 'course' ? (cById(v) || {}).code : k === 'module' ? (mById(v) || {}).code : k === 'usage' ? USAGE[v] : v;
+  const labelOf = (k, v) => k === 'type' ? QTYPE[v].short : k === 'course' ? (cById(v) || {}).code : k === 'module' ? (mById(v) || {}).code : k === 'usage' ? USAGE[v] : v;
   const active = FILTERS.filter(([k]) => F[k] !== 'All').map(([k, name]) => ({ label: name + ': ' + labelOf(k, F[k]), clear: () => setF({ [k]: 'All' }) }));
-  const SORTS = { new:['Newest first', (a, b) => (b.created || '').localeCompare(a.created || '') || b.id - a.id], used:['Most used', (a, b) => U[b.id].cs.length - U[a.id].cs.length || U[b.id].zs.length - U[a.id].zs.length], az:['Question A–Z', (a, b) => a.text.localeCompare(b.text)], diff:['Difficulty', (a, b) => ['Easy', 'Medium', 'Hard'].indexOf(a.diff) - ['Easy', 'Medium', 'Hard'].indexOf(b.diff)] };
+  const SORTS = { new:['Newest first', (a, b) => (b.created || '').localeCompare(a.created || '') || b.id - a.id], used:['Most used', (a, b) => U[b.id].cs.length - U[a.id].cs.length || U[b.id].zs.length - U[a.id].zs.length], az:['Question A–Z', (a, b) => a.text.localeCompare(b.text)], meta:['Metadata A–Z', (a, b) => (a.meta || '').localeCompare(b.meta || '') || a.id - b.id], diff:['Difficulty', (a, b) => ['Easy', 'Medium', 'Hard'].indexOf(a.diff) - ['Easy', 'Medium', 'Hard'].indexOf(b.diff)] };
   const list = s.qs.filter(q => match(q)).sort(SORTS[F.sort][1]);
   const allOn = list.length > 0 && list.every(q => s.bankSel[q.id]);
   const usedText = u => u.cs.length ? u.cs.length + (u.cs.length === 1 ? ' course' : ' courses') : u.zs.length ? u.zs.length + (u.zs.length === 1 ? ' quiz' : ' quizzes') + ', no course' : 'Not used';
   const rows = list.map(q => { const T = QTYPE[q.type] || QTYPE['Multiple choice'], d = QDIFF[q.diff], u = U[q.id], on = !!s.bankSel[q.id];
-    return { ref: q.ref || '', skill: q.skill || '', bloom: q.bloom || '', tags: (q.tags || []).map(t => ({ t: '#' + t, pick: () => setF({ tag: t }) })), id: q.id, text: q.text, cat: q.topic, author: q.author || '—', media: q.media ? { image:'Image', audio:'Audio', video:'Video' }[q.media.kind] : '', hasMedia: !!q.media,
+    return { ref: q.ref || '', marksLabel: Assessment.weight(q) + (Assessment.weight(q) === 1 ? ' mark' : ' marks'), meta: q.meta || '', tags: q.meta ? [{ t: q.meta, pick: () => setF({ meta: q.meta }) }] : [{ t: 'No metadata', pick: () => setF({ meta: 'All' }) }], id: q.id, text: q.text, author: q.author || '—', media: q.media ? { image:'Image', audio:'Audio', video:'Video' }[q.media.kind] : '', hasMedia: !!q.media,
       tShort: T.short, tBg: T.bg, tFg: T.fg, tGlyph: T.glyph, diff: q.diff, dBg: d[0], dFg: d[1], dDot: d[2],
       used: usedText(u), usedSub: u.cs.length ? u.cs.map(c => c.code).join(', ') : u.zs.map(z => z.name).join(', '), usedOn: u.cs.length > 0, usedMuted: !u.cs.length, usedTitle: u.cs.map(c => c.code + ' ' + c.title).concat(u.zs.map(z => 'Quiz: ' + z.name)).join('\n') || 'Not used in any quiz or course',
       st: q.archived ? 'Archived' : 'Active', stBg: q.archived ? '#EAF1F6' : '#DCFCE7', stFg: q.archived ? '#526B7A' : '#166534', op: q.archived ? 0.6 : 1,
@@ -88,7 +85,7 @@ SkillforgeApp.prototype.qbankVals = function (s, role) {
     prev = { qPrevOpen: true, pv2: { text: pq.text, tShort: T.short, tBg: T.bg, tFg: T.fg, diff: pq.diff, dBg: d[0], dFg: d[1], why: pq.why || '', hasWhy: !!pq.why, media: pq.media || null,
         isImg: !!pq.media && pq.media.kind === 'image', isAud: !!pq.media && pq.media.kind === 'audio', isVid: !!pq.media && pq.media.kind === 'video',
         opts: opts.map((o, i) => ({ ...o, key: 'ABCDEFGH'[i] || '', hasSrc: !!o.src, bg: o.ok ? '#DCFCE7' : '#F4F8FC', fg: o.ok ? '#166534' : '#16324F', mark: o.ok ? '✓' : '' })),
-        meta: [['Reference', pq.ref || '—'], ['Category', pq.topic], ['Skill', pq.skill || '—'], ['Bloom level', pq.bloom || '—'], ['Tags', (pq.tags || []).map(t => '#' + t).join(' ') || '—'], ['Author', pq.author || '—'], ['Status', pq.archived ? 'Archived' : 'Active'], ['Created', pq.created ? shortDate(pq.created) : '—']].map(([l, v]) => ({ l, v })),
+        meta: [['Reference', pq.ref || '—'], ['Metadata', pq.meta || '—'], ['Marks', String(Assessment.weight(pq))], ['Author', pq.author || '—'], ['Status', pq.archived ? 'Archived' : 'Active'], ['Created', pq.created ? shortDate(pq.created) : '—']].map(([l, v]) => ({ l, v })),
         courses: u.cs.map(c => ({ t: c.code + ' · ' + c.title })), quizzes: u.zs.map(z => ({ t: z.name })), mods: u.ms.map(m => ({ t: m.code + ' · ' + m.title })), noUse: !u.zs.length,
         archLabel: pq.archived ? 'Restore' : 'Archive' },
       closeQPrev: () => this.setState({ qPrev:null }),
@@ -101,11 +98,11 @@ SkillforgeApp.prototype.qbankVals = function (s, role) {
   return {
     ...prev, qbRows: QPG.rows, qbPager: QPG.pager, qbEmpty: !rows.length, qbFilters: FILTERS.map(([k, name, opts]) => ({ name, opts, val: F[k], on: F[k] !== 'All', set: e => setF({ [k]: e.target.value }) })),
     // v41.18: four everyday filters stay visible; the other seven open with "More filters" (they stay open while one is set)
-    ...(() => { const MAIN = ['type', 'diff', 'course', 'status'], mk = ([k, name, opts]) => ({ name, opts, val: F[k], on: F[k] !== 'All', set: e => setF({ [k]: e.target.value }) });
+    ...(() => { const MAIN = ['meta', 'type', 'course', 'status'], mk = ([k, name, opts]) => ({ name, opts, val: F[k], on: F[k] !== 'All', set: e => setF({ [k]: e.target.value }) });
       const more = FILTERS.filter(f => !MAIN.includes(f[0])), nOn = more.filter(f => F[f[0]] !== 'All').length, open = !!s.qbMore || nOn > 0;
       return { qbFiltersMain: FILTERS.filter(f => MAIN.includes(f[0])).map(mk), qbFiltersMore: more.map(mk), qbMoreOpen: open,
         qbMoreLabel: open ? (nOn ? 'More filters · ' + nOn + ' on' : 'Fewer filters') : 'More filters', qbMoreToggle: () => { if (nOn && open) return this.toastMsg('Clear the extra filters first, or use Clear all'); this.setState({ qbMore: !open }); } }; })(),
-    qbActive: active, qbHasActive: active.length > 0 || !!uq, qbClear: () => setF({ type:'All', diff:'All', cat:'All', course:'All', module:'All', status:'All', author:'All', usage:'All', skill:'All', bloom:'All', tag:'All', q:'' }),
+    qbActive: active, qbHasActive: active.length > 0 || !!uq, qbClear: () => setF({ type:'All', diff:'All', meta:'All', course:'All', module:'All', status:'All', author:'All', usage:'All', q:'' }),
     qbQ: F.q || '', setQbQ: e => setF({ q: e.target.value }),
     qbSortOpts: Object.entries(SORTS).map(([v, [l]]) => ({ v, l })), qbSort: F.sort, setQbSort: e => setF({ sort: e.target.value }),
     qbCount: 'Showing ' + rows.length + ' of ' + s.qs.length + ' questions',

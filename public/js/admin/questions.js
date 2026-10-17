@@ -13,22 +13,23 @@ SkillforgeApp.prototype.amQuestions = function (c) {
   // v39: editing loads the saved question into the same editor (qEditId). Ids, reference, author and usage are kept.
   const editQ = s.qEditId != null ? s.qs.find(q => q.id === s.qEditId) : null;
   const pad4 = a => (a || []).concat(['', '', '', '']).slice(0, 4);
-  const draftOf = q => ({ editId: q.id, text: q.text || '', type: q.type, why: q.why || '', topic: q.topic, diff: q.diff || 'Medium', skill: q.skill || '', bloom: q.bloom || 'Understand',
+  const pad5 = a => (a || []).concat(['', '', '', '', '']).slice(0, 5);   // v41.22: choice questions can have 2 to 5 options
+  const draftOf = q => ({ editId: q.id, text: q.text || '', type: q.type, why: q.why || '', meta: q.meta || '', marks: q.marks > 0 ? q.marks : 1, topic: q.topic || 'General', diff: q.diff || 'Medium', skill: q.skill || '', bloom: q.bloom || 'Understand',
     tagsText: (q.tags || []).join(', '), points: q.points || 5, guide: q.guide || '', media: q.media ? { ...q.media, uploaded: q.media.uploaded !== false } : null,
-    opts: ['Multiple choice', 'True / False', 'Multiple select'].includes(q.type) ? pad4(q.opts) : ['', '', '', ''], ans: typeof q.ans === 'number' ? q.ans : 0, answers: (q.answers || []).slice(),
+    opts: ['Multiple choice', 'True / False', 'Multiple select'].includes(q.type) ? pad5(q.opts) : ['', '', '', '', ''], optN: Math.min(5, Math.max(2, (q.opts || []).length || 4)), ans: typeof q.ans === 'number' ? q.ans : 0, answers: (q.answers || []).slice(),
     imgs: q.type === 'Image options' ? [0, 1, 2, 3].map(k => { const o = (q.opts || [])[k]; return o && typeof o === 'object' ? { ...o, uploaded: o.uploaded !== false } : { src:'', label:'' }; }) : [{ src:'', label:'' }, { src:'', label:'' }, { src:'', label:'' }, { src:'', label:'' }],
     pairs: q.type === 'Match the following' ? (q.pairs || []).map(p => p.slice()) : [['', ''], ['', ''], ['', '']], accept: (q.accept || []).join(', '), items: q.type === 'Ordering' ? (q.items || []).slice() : ['', '', ''] });
-  const qm = s.qm || (editQ ? draftOf(editQ) : null) || { text:'', type:'Multiple choice', opts:['', '', '', ''], ans:0, answers:[], why:'', topic:'Change management', diff:'Medium', skill:'', bloom:'Understand', tagsText:'', points:5, guide:'', media:null, imgs:[{ src:'', label:'' }, { src:'', label:'' }, { src:'', label:'' }, { src:'', label:'' }], pairs:[['', ''], ['', ''], ['', '']], accept:'', items:['', '', ''] };
+  const qm = s.qm || (editQ ? draftOf(editQ) : null) || { text:'', type:'Multiple choice', opts:['', '', '', '', ''], optN:4, ans:0, answers:[], why:'', meta:'', marks:1, topic:'General', diff:'Medium', skill:'', bloom:'Understand', tagsText:'', points:5, guide:'', media:null, imgs:[{ src:'', label:'' }, { src:'', label:'' }, { src:'', label:'' }, { src:'', label:'' }], pairs:[['', ''], ['', ''], ['', '']], accept:'', items:['', '', ''] };
   const qmUsedQuizzes = qm.editId != null ? (s.quizzes || []).filter(z => (z.ids || []).includes(qm.editId)) : [];
   // Courses that carry those quizzes (only worked out while the editor is open on a used question).
   const qmCourseN = qmUsedQuizzes.length ? (() => { const ids = new Set(qmUsedQuizzes.map(z => z.id)); return s.adminCourses.filter(c => (c.items || []).some(i => i.kind === 'quiz' && ids.has(i.quizId))).length; })() : 0;
   const qmUsedIn = qmUsedQuizzes.length ? qmUsedQuizzes.length + (qmUsedQuizzes.length === 1 ? ' quiz' : ' quizzes') + (qmCourseN ? ' across ' + qmCourseN.toLocaleString('en-US') + (qmCourseN === 1 ? ' course' : ' courses') : '') : '';
   const setQm = patch => this.setState(st => ({ qm: { ...(st.qm || qm), ...patch } }));
-  const optCount = qm.type === 'True / False' ? 2 : ['Multiple choice', 'Multiple select'].includes(qm.type) ? 4 : 0;
+  const optCount = qm.type === 'True / False' ? 2 : ['Multiple choice', 'Multiple select'].includes(qm.type) ? Math.min(5, Math.max(2, qm.optN || 4)) : 0;
   const qmMulti = qm.type === 'Multiple select';
   const qmKind = qm.media ? qm.media.kind : 'none';
   const qmPickFile = e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (!f.type.startsWith(qmKind + '/')) { e.target.value = ''; return this.toastMsg('That file is not ' + (qmKind === 'image' ? 'an image' : 'a' + (qmKind === 'audio' ? 'n audio' : ' video') + ' file')); } if (qm.media && qm.media.uploaded) URL.revokeObjectURL(qm.media.src); setQm({ media: { kind: qmKind, src: Files.local(f, 'questions'), name: f.name, size: f.size, uploaded:true } }); };
-  const qmOpts = qm.opts.slice(0, optCount).map((v, i) => { const on = qmMulti ? qm.answers.includes(i) : qm.ans === i; return { v, letter:'ABCD'[i], on, markBg: on ? '#7C5CFF' : W, markBorder: on ? '#7C5CFF' : '#BFCFDB', mark: () => setQm(qmMulti ? { answers: on ? qm.answers.filter(x => x !== i) : qm.answers.concat([i]) } : { ans:i }), set: e => { const o = [...qm.opts]; o[i] = e.target.value; setQm({ opts:o }); } }; });
+  const qmOpts = qm.opts.slice(0, optCount).map((v, i) => { const on = qmMulti ? qm.answers.includes(i) : qm.ans === i; return { v, letter:'ABCDE'[i], on, markBg: on ? '#7C5CFF' : W, markBorder: on ? '#7C5CFF' : '#BFCFDB', mark: () => setQm(qmMulti ? { answers: on ? qm.answers.filter(x => x !== i) : qm.answers.concat([i]) } : { ans:i }), set: e => { const o = [...qm.opts]; o[i] = e.target.value; setQm({ opts:o }); } }; });
   const setArr = (key, i, val) => { const a = JSON.parse(JSON.stringify(qm[key])); a[i] = val; setQm({ [key]: a }); };
   const qmImgs = qm.imgs.map((im, i) => { const on = qm.ans === i; return { ...im, letter:'ABCD'[i], on, has: !!im.src, markBg: on ? '#7C5CFF' : W, markBorder: on ? '#7C5CFF' : '#BFCFDB', mark: () => setQm({ ans:i }), setLabel: e => setArr('imgs', i, { ...im, label: e.target.value }), setUrl: e => setArr('imgs', i, { ...im, src: e.target.value.trim(), uploaded:false }), url: im.uploaded ? '' : im.src, pick: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (!f.type.startsWith('image/')) { e.target.value = ''; return this.toastMsg('That file is not an image'); } setArr('imgs', i, { ...im, src: Files.local(f, 'questions'), uploaded:true, label: im.label || f.name.replace(/\.[^.]+$/, '') }); }, clear: () => setArr('imgs', i, { src:'', label: im.label }) }; });
   const qmPairs = qm.pairs.map((p, i) => ({ n: i + 1, left: p[0], right: p[1], setL: e => setArr('pairs', i, [e.target.value, p[1]]), setR: e => setArr('pairs', i, [p[0], e.target.value]), canRemove: qm.pairs.length > 2, remove: () => setQm({ pairs: qm.pairs.filter((_, j) => j !== i) }) }));
@@ -75,7 +76,10 @@ SkillforgeApp.prototype.amQuestions = function (c) {
     qmPrev: { isImage: qmKind === 'image', isAudio: qmKind === 'audio', isVideo: qmKind === 'video', src: qm.media ? qm.media.src : '' },
     qmClearMedia: () => setQm({ media: { kind: qmKind, src:'', name:'' } }),
     setQmText: e => setQm({ text: e.target.value }),
-    qmTypes: segs(qm.type, Assessment.TYPES, v => setQm({ type:v, opts: v === 'True / False' ? ['True', 'False', '', ''] : qm.type === 'True / False' ? ['', '', '', ''] : qm.opts, ans:0, answers:[] })),
+    qmTypes: segs(qm.type, Assessment.TYPES, v => setQm({ type:v, optN: v === 'True / False' ? 2 : qm.type === 'True / False' ? 4 : qm.optN, opts: v === 'True / False' ? ['True', 'False', '', '', ''] : qm.type === 'True / False' ? ['', '', '', '', ''] : qm.opts, ans:0, answers:[] })),
+    qmCanAddOpt: ['Multiple choice', 'Multiple select'].includes(qm.type) && optCount < 5, addOpt: () => setQm({ optN: optCount + 1 }),
+    qmCanDropOpt: ['Multiple choice', 'Multiple select'].includes(qm.type) && optCount > 2,
+    dropOpt: () => { const last = optCount - 1, o = pad5(qm.opts); o[last] = ''; setQm({ optN: last, opts: o, ans: qm.ans >= last ? 0 : qm.ans, answers: (qm.answers || []).filter(x => x < last) }); },
     qmMulti,
     qmImgOpts: qm.type === 'Image options',
     qmImgs,
@@ -94,22 +98,29 @@ SkillforgeApp.prototype.amQuestions = function (c) {
     qmExplain: !['Written answer', 'Likert scale'].includes(qm.type),
     qmOptsLabel: qmMulti ? 'Options · mark every correct one' : 'Options · mark the correct one',
     qmDiffs: segs(qm.diff, ['Easy', 'Medium', 'Hard'], v => setQm({ diff:v })),
-    qmBlooms: BLOOM.map(v => ({ v, l: v })), setQmBloom: e => setQm({ bloom: e.target.value }), setQmSkill: e => setQm({ skill: e.target.value }), setQmTags: e => setQm({ tagsText: e.target.value }),
-    qmSkillOpts: Array.from(new Set(s.qs.map(x => x.skill).filter(Boolean))).sort(),
-    qmTopicOptions: topics.slice(1),
-    setQmTopic: e => setQm({ topic: e.target.value }),
+    // v41.22: Metadata groups questions (e.g. "Post Assessment Telephone Etiquette 2026") so an assessment can pick them together; Marks is what the question is worth.
+    qmMetaOpts: Array.from(new Set(s.qs.map(x => (x.meta || '').trim()).filter(Boolean))).sort(),
+    setQmMeta: e => setQm({ meta: e.target.value }),
+    setQmMarks: e => setQm({ marks: e.target.value === '' ? '' : e.target.value }),
+    qmNotWritten: qm.type !== 'Written answer',
     saveQ: () => {
       if (!qm.text.trim()) return this.toastMsg('Write the question first');
+      const metaTxt = (qm.meta || '').replace(/\s+/g, ' ').trim();
+      if (!metaTxt && qm.editId == null) return this.toastMsg('Add the metadata, e.g. Post Assessment Telephone Etiquette 2026');
+      if (metaTxt.length > 160) return this.toastMsg('Metadata is too long (160 characters at most)');
+      const mk = Math.round(Number(String(qm.marks).replace(',', '.')) * 100) / 100;
+      if (qm.type !== 'Written answer' && !(mk > 0 && mk <= 100)) return this.toastMsg('Marks must be a number above 0 (up to 100)');
       const t = qm.type, need = m => this.toastMsg(m);
       if (qm.media && !qm.media.src) return need('Upload a file or paste a link for the ' + MEDIA_LABEL[qm.media.kind].toLowerCase());
       const old = qm.editId != null ? s.qs.find(q => q.id === qm.editId) : null;
       if (qm.editId != null && !old) return need('This question no longer exists. Close the editor and refresh.');
       const id = old ? old.id : nextUserId(s.qs);
-      const base = { id, ref: 'QB-' + String(id).padStart(4, '0'), skill: (qm.skill || '').trim() || Q_SKILL[qm.topic] || qm.topic, bloom: qm.bloom || 'Understand', tags: tagsOf(qm.tagsText), lang:'English', text: qm.text.trim(), topic: qm.topic, type: t, diff: qm.diff, used:0, author: role.name, created: TODAY_KEY, media: qm.media ? { kind: qm.media.kind, src: qm.media.src, name: qm.media.name } : null, why: qm.why.trim() };
+      const base = { id, ref: 'QB-' + String(id).padStart(4, '0'), meta: metaTxt, marks: t === 'Written answer' ? qm.points : mk, skill: (qm.skill || '').trim() || Q_SKILL[qm.topic] || qm.topic || 'General', bloom: qm.bloom || 'Understand', tags: tagsOf(qm.tagsText), lang:'English', text: qm.text.trim(), topic: qm.topic || 'General', type: t, diff: qm.diff, used:0, author: role.name, created: TODAY_KEY, media: qm.media ? { kind: qm.media.kind, src: qm.media.src, name: qm.media.name } : null, why: qm.why.trim() };
       let extra;
       if (t === 'Multiple choice' || t === 'True / False' || t === 'Multiple select') {
         const opts = qm.opts.slice(0, optCount).map(o => o.trim());
         if (opts.some(o => !o)) return need('Fill in every answer option');
+        if (new Set(opts.map(o => o.toLowerCase())).size < opts.length) return need('The answer options must all be different');
         if (t === 'Multiple select' && !qm.answers.length) return need('Mark at least one correct option');
         extra = t === 'Multiple select' ? { opts, answers: qm.answers.slice().sort() } : { opts, ans: qm.ans };
       } else if (t === 'Image options') {
