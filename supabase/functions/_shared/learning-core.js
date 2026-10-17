@@ -13,7 +13,11 @@
  *   db.put(coll, key, data, version|null) -> true | false   (false = someone else changed it: re-read and retry)
  *   db.del(coll, key)
  * ctx = { org, emp, userKey, role: 'Learner'|'Trainer'|'Admin', perms: [permission keys of the custom role], now: Date,
- *         contentOrigin, signKey, scormIdleMin?, scormMaxHours? }   (perms are enforced here exactly as in the database policies)
+ *         contentOrigin, signKey, scormIdleMin?, scormMaxHours?, seatStrict? }   (perms are enforced here exactly as in the database policies)
+ *
+ * v41.26  Submit is resumable (finalised flag); view steps are timed on the server from heartbeats (stepPing) when
+ *         ctx.seatStrict is true; a quiz pass follows the attempts' current results (syncQuizDone); text with < or > is
+ *         refused with a message instead of being changed silently.
  *
  * SCORM   A package step completes only through scormCommit: the learner must have launched THIS package (a launch
  *         session written here), the package must report completed/passed, and the minimum time must have passed on
@@ -29,7 +33,10 @@
   // UTC would record a completion at 01:00 IST as the previous day. ctx.tz comes from ORG_TIMEZONE (default Asia/Kolkata).
   const DAYF = new Map(), day = (d, tz) => { tz = tz || 'Asia/Kolkata'; let f = DAYF.get(tz);
     if (!f) DAYF.set(tz, f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })); return f.format(d); };
-  const str = (v, max, name) => { v = String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F<>]/g, '').trim(); if (v.length > max) fail(400, name + ' is too long (' + max + ' characters max)'); return v; };
+  // v41.26: control characters (invisible) are still removed, but < and > are refused with a message, never dropped silently.
+  const str = (v, max, name) => { v = String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
+    if (/[<>]/.test(v)) fail(400, name + ': the characters < and > are not allowed');
+    if (v.length > max) fail(400, name + ' is too long (' + max + ' characters max)'); return v; };
   const uid = () => { const b = new Uint8Array(16); globalThis.crypto.getRandomValues(b); return Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); };
   const viewNeed = mins => Math.min(60, Math.max(15, Math.round((mins || 5) * 6)));
   const VIEW_KINDS = ['pdf', 'doc', 'image', 'link', 'lesson', 'video', 'audio', 'html', 'xapi', 'embed', 'youtube'];   // v41.11: + packages without SCORM tracking, H5P, YouTube
@@ -135,7 +142,7 @@
     // Someone who can read the answer keys may still take the course; the attempt is marked so reports can show it.
     // v41.18: the quiz's time limit (Quizzes › Time limit, saved as z.time in minutes) is enforced here, on the server clock.
     const limitMin = timeLimitOf(z), endsAt = limitMin ? iso(new Date(ctx.now.getTime() + limitMin * 60000)) : null;
-    const rec = { id, emp: ctx.emp, courseId: c.id, step: i, quizId: z.id, attemptNo: n, items: att, answers: {}, startedAt: iso(ctx.now), endsAt, submittedAt: null, keyAccess: hasKeys(ctx) };
+    const rec = { id, emp: ctx.emp, courseId: c.id, step: i, quizId: z.id, attemptNo: n, items: att, answers: {}, startedAt: iso(ctx.now), endsAt, submittedAt: null, finalised: false, keyAccess: hasKeys(ctx) };
     if (!(await db.put('attempt', id, rec, null))) fail(409, 'Try again');
     return { attemptId: id, attemptNo: n, quiz: { id: z.id, name: z.name, pass: z.pass, timeLimit: limitMin || null, endsAt }, attempts: A.attemptsInfo(z, n, extra),
       questions: att.map(a => sanitize(byId.get(String(a.qid)), a.order)) };
@@ -160,24 +167,67 @@
     const g = A.grade(q, orig);
     return { g, ...(g === null ? {} : reveal(q, at.items[k].order, c.features || {})), feedbackIncorrect: !!(c.features || {}).incorrect };
   }
-  async function submit(db, ctx, b) {
-    const r = await loadAttempt(db, ctx, b.attemptId), at = r.data;
-    if (at.submittedAt) fail(409, 'This attempt is already submitted');
-    const z = (await db.get('quizzes', String(at.quizId))).data, c = (await db.get('adminCourses', String(at.courseId))).data;
-    const qmap = await db.getMany('qs', at.items.map(x => String(x.qid))), bank = [...qmap.values()].map(x => x.data);
-    const answers = { ...at.answers }, newReviews = [];
-    at.items.forEach((a, i) => { const q = qmap.get(String(a.qid)).data; if (A.isWritten(q) && answers[i] && answers[i].text) { const rid = 'r' + uid().slice(0, 12); answers[i] = { ...answers[i], reviewId: rid };
+  /* v41.26: submit can be finished by a retry.
+   * 1. the attempt is stamped as handed in (this is what stops a second hand-in) with finalised:false;
+   * 2. every record that depends on it is written by a step that is safe to repeat;
+   * 3. the attempt is marked finalised.
+   * If anything fails between 1 and 3, the learner's next "submit" finds submittedAt set and finalised === false and
+   * completes steps 2 and 3 instead of leaving the attempt used up with no result. Attempts handed in before v41.26 have no
+   * finalised flag and count as complete. */
+  const reviewsOf = (at, answers, qmap, z, submitted) => { const out = [];
+    at.items.forEach((a, i) => { const q = qmap.get(String(a.qid)).data, an = answers[i];
       // the review carries what a rater needs (question, points, guide): raters don't need the question bank or its keys
-      newReviews.push({ id: rid, learnerEmp: ctx.emp, quiz: z.name, quizId: z.id, attemptId: at.id, qid: q.id, qText: q.text || '', points: q.points || 0, guide: q.guide || '', answer: answers[i].text, submitted: iso(ctx.now), rating: null }); } });
-    const sc = A.score(at.items, answers, bank, newReviews), passed = sc.final && sc.pct >= z.pass;
-    if (!(await db.put('attempt', at.id, { ...at, answers, submittedAt: iso(ctx.now), result: sc }, r.version))) fail(409, 'This attempt is already submitted');
-    for (const rv of newReviews) await db.put('reviews', rv.id, rv, null);
-    await update(db, 'itemQuiz', ctx.emp, d => { d = d || {}; d[c.id] = d[c.id] || {}; d[c.id][at.step] = (d[c.id][at.step] || []).concat([{ attemptId: at.id, attempt: at.items, answers }]); return d; }, {});
+      if (A.isWritten(q) && an && an.reviewId) out.push({ id: an.reviewId, learnerEmp: at.emp, quiz: z.name, quizId: z.id, attemptId: at.id, qid: q.id, qText: q.text || '', points: q.points || 0, guide: q.guide || '', answer: an.text, submitted, rating: null }); });
+    return out; };
+  async function finalizeAttempt(db, ctx, at, z, c, qmap) {
+    const bank = [...qmap.values()].map(x => x.data), answers = at.answers, emp = at.emp, built = reviewsOf(at, answers, qmap, z, at.submittedAt);
+    for (const rv of built) await db.put('reviews', rv.id, rv, null);                  // false = already stored: a rating is never overwritten
+    const have = await db.getMany('reviews', built.map(rv => rv.id)), rvs = built.map(rv => (have.get(rv.id) || { data: rv }).data);
+    const sc = A.score(at.items, answers, bank, rvs), passed = sc.final && sc.pct >= z.pass;
+    await update(db, 'itemQuiz', emp, d => { d = d || {}; const byCourse = (d[c.id] = d[c.id] || {}), list = byCourse[at.step] || [];
+      if (list.some(x => x.attemptId === at.id)) return undefined;
+      byCourse[at.step] = list.concat([{ attemptId: at.id, attempt: at.items, answers }]); return d; }, {});
     const res = at.items.map((a, i) => ({ qid: a.qid, ok: A.grade(qmap.get(String(a.qid)).data, answers[i]) === 1 }));
-    await db.put('attemptRecs', at.id, { id: at.id, empId: ctx.emp, quizId: z.id, quizName: z.name, courseId: c.id, courseCode: c.code || '', courseTitle: c.title, attemptNo: at.attemptNo,
-      startedAt: at.startedAt, submittedAt: iso(ctx.now), mins: Math.max(1, Math.round((ctx.now - new Date(at.startedAt)) / 60000)), correct: sc.autoRight, total: sc.auto + sc.written, score: sc.pct, pass: passed, res, keyAccess: !!at.keyAccess }, null);
-    if (passed) await markDone(db, ctx, c.id, at.step, { at: day(ctx.now, ctx.tz), score: sc.pct });
+    const rec = { id: at.id, empId: emp, quizId: z.id, quizName: z.name, courseId: c.id, courseCode: c.code || '', courseTitle: c.title, attemptNo: at.attemptNo,
+      startedAt: at.startedAt, submittedAt: at.submittedAt, mins: Math.max(1, Math.round((Date.parse(at.submittedAt) - new Date(at.startedAt)) / 60000)), correct: sc.autoRight, total: sc.auto + sc.written, score: sc.pct, pass: passed, res, keyAccess: !!at.keyAccess };
+    await update(db, 'attemptRecs', at.id, d => d ? undefined : rec, null);               // already there (a retry, or re-rated meanwhile): keep it
+    await syncQuizDone(db, emp, ctx.tz, c.id, at.step);
+    await update(db, 'attempt', at.id, d => d && d.finalised === false ? { ...d, finalised: true } : undefined);
     return { score: sc, passed, pending: sc.pending > 0 };
+  }
+  async function submit(db, ctx, b) {
+    const r = await loadAttempt(db, ctx, b.attemptId), at = r.data, resume = !!at.submittedAt && at.finalised === false;
+    if (at.submittedAt && !resume) fail(409, 'This attempt is already submitted');
+    const z = (await db.get('quizzes', String(at.quizId))).data, c = (await db.get('adminCourses', String(at.courseId))).data;
+    const qmap = await db.getMany('qs', at.items.map(x => String(x.qid)));
+    if (resume) return finalizeAttempt(db, ctx, at, z, c, qmap);
+    const answers = { ...at.answers };
+    at.items.forEach((a, i) => { const q = qmap.get(String(a.qid)).data; if (A.isWritten(q) && answers[i] && answers[i].text) answers[i] = { ...answers[i], reviewId: 'r' + uid().slice(0, 12) }; });
+    const submittedAt = iso(ctx.now), sc = A.score(at.items, answers, [...qmap.values()].map(x => x.data), reviewsOf(at, answers, qmap, z, submittedAt));
+    const next = { ...at, answers, submittedAt, result: sc, finalised: false };
+    if (!(await db.put('attempt', at.id, next, r.version))) fail(409, 'This attempt is already submitted');
+    return finalizeAttempt(db, ctx, next, z, c, qmap);
+  }
+  /* v41.26: the "done" mark that comes from passing an assessment follows the attempts' current results, so a lower
+   * re-rating can undo a pass. Only marks that came from an assessment are touched (an object with a score and no src);
+   * a step finished another way (viewed, agreed, accepted assignment, survey) is never changed here. If another attempt
+   * still passes, the mark moves to it. */
+  const isQuizMark = v => !!v && typeof v === 'object' && v.score != null && !v.src;
+  async function syncQuizDone(db, emp, tz, cid, step) {
+    const list = ((((await db.get('itemQuiz', emp)) || { data: {} }).data[cid]) || {})[step] || [];
+    const recs = await db.getMany('attemptRecs', list.map(x => String(x.attemptId)));
+    const best = list.map(x => recs.get(String(x.attemptId))).filter(x => x && x.data.pass).map(x => x.data).sort((a, b) => (b.score || 0) - (a.score || 0))[0] || null;
+    await update(db, 'itemDone', emp, d => { d = d || {}; const cur = (d[cid] || {})[step];
+      if (cur && !isQuizMark(cur)) return undefined;
+      const set = v => { d[cid] = d[cid] || {}; d[cid][step] = v; return d; };
+      if (cur) {
+        const mine = cur.attemptId ? recs.get(String(cur.attemptId)) : null;
+        if (mine && mine.data.pass) return mine.data.score === cur.score ? undefined : set({ ...cur, score: mine.data.score });   // still passes: follow its score
+        if (!cur.attemptId && best) return undefined;                                                                              // older mark, some attempt still passes
+        if (best) return set({ at: cur.at, score: best.score, attemptId: best.id });                                                // marked attempt no longer passes, another does
+        delete d[cid][step]; if (!Object.keys(d[cid]).length) delete d[cid]; return d;                                              // nothing passes any more
+      }
+      return best ? set({ at: day(new Date(best.submittedAt), tz), score: best.score, attemptId: best.id }) : undefined; }, {});
   }
 
   /* After a trainer rates a written answer, the attempt is re-scored here (never in the browser). */
@@ -200,8 +250,8 @@
     const qmap = await db.getMany('qs', at.items.map(x => String(x.qid)));
     const ids = Object.values(at.answers).map(a => a && a.reviewId).filter(Boolean), rvs = [...(await db.getMany('reviews', ids)).values()].map(x => x.data);
     const sc = A.score(at.items, at.answers, [...qmap.values()].map(x => x.data), rvs), passed = sc.final && sc.pct >= z.pass;
-    await update(db, 'attemptRecs', at.id, d => d && ({ ...d, score: sc.pct, pass: passed }));
-    if (passed) await markDone(db, { ...ctx, emp: at.emp }, at.courseId, at.step, { at: day(ctx.now, ctx.tz), score: sc.pct });
+    await update(db, 'attemptRecs', at.id, d => d ? ({ ...d, score: sc.pct, pass: passed }) : undefined);   // v41.26: never write an empty row if the record is missing
+    await syncQuizDone(db, at.emp, ctx.tz, at.courseId, at.step);   // v41.26: a pass follows the new rating, up or down
     return { score: sc, passed };
   }
 
@@ -209,8 +259,25 @@
   async function openStep(db, ctx, b) {
     const { c, i } = await checkStep(db, ctx, b.courseId, b.step);
     const key = ctx.emp + '|' + c.id + '|' + i, cur = await db.get('stepOpen', key);
-    if (!cur) await db.put('stepOpen', key, { at: iso(ctx.now) }, null);
+    if (!cur) await db.put('stepOpen', key, openRow(ctx), null);
     return { openedAt: cur ? cur.data.at : iso(ctx.now) };
+  }
+  /* v41.26: seat time. With ctx.seatStrict the server counts the time itself: each stepPing (sent every ~20 s by the app while
+   * the step is on screen and the tab is visible) adds the time since the previous ping, at most PING_MAX_S and never more than
+   * the real time that passed, so a direct call cannot add time faster than the clock. A ping with resume:true (the tab was
+   * hidden) adds nothing. completeStep then needs the counted seconds, not the time since the step was opened. Rows opened
+   * before this change (no secs) and ctx.seatStrict false keep the old wall-clock rule. */
+  const PING_MAX_S = 45, PING_MIN_GAP_S = 3;
+  const openRow = ctx => ctx.seatStrict === true ? { at: iso(ctx.now), secs: 0, last: iso(ctx.now) } : { at: iso(ctx.now) };
+  async function stepPing(db, ctx, b) {
+    const i = Number(b.step); if (!Number.isInteger(i) || i < 0 || i > 500) fail(400, 'No such step');
+    const key = ctx.emp + '|' + String(b.courseId) + '|' + i, resume = b.resume === true;
+    if (!(await db.get('stepOpen', key))) fail(409, 'Open this step first');
+    const out = await update(db, 'stepOpen', key, d => { if (!d) return undefined;
+      const gap = (ctx.now.getTime() - Date.parse(d.last || d.at)) / 1000;
+      if (!(gap >= PING_MIN_GAP_S)) return undefined;
+      return { ...d, secs: (Number(d.secs) || 0) + (resume ? 0 : Math.min(gap, PING_MAX_S)), last: iso(ctx.now) }; });
+    return { secs: Math.floor(Number(out && out.secs) || 0) };
   }
   async function completeStep(db, ctx, b) {
     const { c, i, it, st } = await checkStep(db, ctx, b.courseId, b.step);
@@ -223,7 +290,8 @@
     const f = c.features || {};
     if (VIEW_KINDS.includes(it.kind) && !f.selfComplete) {
       const o = await db.get('stepOpen', ctx.emp + '|' + c.id + '|' + i); if (!o) fail(409, 'Open this step first');
-      const need = viewNeed(it.mins), spent = (ctx.now - new Date(o.data.at)) / 1000;
+      const need = viewNeed(it.mins), counted = ctx.seatStrict === true && o.data.secs !== undefined;
+      const spent = counted ? Number(o.data.secs) || 0 : (ctx.now - new Date(o.data.at)) / 1000;
       if (spent + 2 < need) fail(409, 'Spend at least ' + need + ' seconds on this step (' + Math.ceil(need - spent) + 's to go)');
     }
     await markDone(db, ctx, c.id, i, { at: day(ctx.now, ctx.tz), src: it.kind === 'ack' ? 'agreed' : 'viewed' });
@@ -360,7 +428,7 @@
     await update(db, 'scormSess', key, d => ({ sid, emp: ctx.emp, prefix: f.path, courseId: c ? c.id : null, step: i, moduleId: String(it ? it.moduleId : b.moduleId),
       ended: false, firstAt: d && d.firstAt && d.prefix === f.path ? d.firstAt : iso(ctx.now), launchedAt: iso(ctx.now), until: new Date(nowMs + idleMs(ctx)).toISOString(),
       status: d && d.prefix === f.path ? d.status || null : null, score: d && d.prefix === f.path ? d.score ?? null : null }), null);
-    if (c) { const ok = ctx.emp + '|' + c.id + '|' + i; if (!(await db.get('stepOpen', ok))) await db.put('stepOpen', ok, { at: iso(ctx.now) }, null); }
+    if (c) { const ok = ctx.emp + '|' + c.id + '|' + i; if (!(await db.get('stepOpen', ok))) await db.put('stepOpen', ok, openRow(ctx), null); }
     const maxH = Math.max(1, Math.min(12, Number(ctx.scormMaxHours) || 8));
     const token = await signToken(ctx.signKey, { o: ctx.org, p: f.path, e: ctx.emp, s: sid, k: key, x: Math.floor(nowMs / 1000) + maxH * 3600 });
     const origin = ctx.contentOrigin.replace(/\/$/, '');
@@ -427,7 +495,7 @@
 
   // rows no browser ever reads (Row Level Security hides them from everyone except the service role)
   const SERVER_PRIVATE = ['attempt', 'stepOpen', 'scormSess'];
-  const ACTIONS = { scormLaunch, scormPing, scormEnd, scormCommit, startAttempt, answer, submit, rescore, openStep, completeStep, submitSurvey, submitChecklist, submitAssignment, reviewAssignment, answerFeedback, requestAccess, decideRequest, updateProfile, post, docSeen, signedIn };
+  const ACTIONS = { scormLaunch, scormPing, scormEnd, scormCommit, startAttempt, answer, submit, rescore, openStep, stepPing, completeStep, submitSurvey, submitChecklist, submitAssignment, reviewAssignment, answerFeedback, requestAccess, decideRequest, updateProfile, post, docSeen, signedIn };
   async function handle(db, ctx, action, body) {
     const fn = Object.prototype.hasOwnProperty.call(ACTIONS, action) ? ACTIONS[action] : null; if (!fn) fail(400, 'Unknown action');
     // Ids and keys sent by the browser are used as record keys: built-in object property names are never valid ones.
@@ -438,5 +506,5 @@
     const out = await fn(tdb, ctx, body || {});
     return { ...(out || {}), _touched: touched.filter(t => !SERVER_PRIVATE.includes(t.coll)) };
   }
-  globalThis.LearningCore = { day, handle, Fail, sanitize, toOriginal, viewNeed, scormNeed, hasKeys, update, signToken, docVisible, docCurPath, SERVER_PRIVATE, ACTIONS: Object.keys(ACTIONS) };
+  globalThis.LearningCore = { day, handle, Fail, syncQuizDone, sanitize, toOriginal, viewNeed, scormNeed, hasKeys, update, signToken, docVisible, docCurPath, SERVER_PRIVATE, ACTIONS: Object.keys(ACTIONS) };
 })();

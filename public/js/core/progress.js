@@ -14,8 +14,20 @@
  */
 const Progress = (() => {
   const key = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const plus = (k, n) => { const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() + n); return key(d); };
-  const weekend = k => { const w = new Date(k + 'T12:00:00').getDay(); return w === 0 || w === 6; };
+  const plus = (k, n) => { if (!k) return ''; const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() + n); return key(d); };
+  /* v41.26: weekend days are a setting (Settings › App settings › Weekend days, saved as platform.defaults.weekendDays, 0 = Sunday … 6 = Saturday).
+   * Default Saturday + Sunday. At least one working day must remain, otherwise the default is used. Progress.configure(state) reads it. */
+  const WEEKEND_DEFAULT = [0, 6]; let WEEKEND = WEEKEND_DEFAULT;
+  const cleanWeekend = v => { const a = Array.isArray(v) ? [...new Set(v.map(Number))].filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : null; return a && a.length < 7 ? a : WEEKEND_DEFAULT; };
+  const setWeekend = v => { WEEKEND = cleanWeekend(v); return WEEKEND; };
+  let weekendKey = '';   // configure() runs on every lookup: only rebuild when the saved setting changed
+  const configure = s => { const d = s && s.platform && s.platform.defaults, k = d && Array.isArray(d.weekendDays) ? d.weekendDays.join(',') : '';
+    if (k !== weekendKey) { weekendKey = k; setWeekend(k ? d.weekendDays : WEEKEND_DEFAULT); } };
+  const weekend = (k, days) => { const w = new Date(k + 'T12:00:00').getDay(); return (days ? cleanWeekend(days) : WEEKEND).includes(w); };
+  /* v41.26: "today" in the organisation's time zone (ORG_TIMEZONE in js/config.js, default Asia/Kolkata: the same zone the server uses for
+   * completion dates), not the browser's. Use it where TODAY_KEY is defined. */
+  const orgToday = (tz, now) => { tz = tz || ((typeof window !== 'undefined' && window.SKILLFORGE_CONFIG && window.SKILLFORGE_CONFIG.ORG_TIMEZONE) || 'Asia/Kolkata');
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now || new Date()); } catch (e) { return key(now || new Date()); } };
   const hash = str => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; };
   const isStepCourse = () => true;
 
@@ -24,7 +36,7 @@ const Progress = (() => {
   const cache = new Map(); // detail cache, cleared when records change
   let cacheKey = [];
   const sameKey = k => k.length === cacheKey.length && k.every((x, i) => x === cacheKey[i]);
-  const touch = s => { const k = [s.itemDone, s.itemQuiz, s.extHistory, s.enroll, s.assignedOn, s.adminCourses, s.quizzes, s.reviews, s.attemptsUsed]; if (!sameKey(k)) { cache.clear(); cacheKey = k; } };
+  const touch = s => { configure(s); const k = [s.itemDone, s.itemQuiz, s.extHistory, s.enroll, s.assignedOn, s.adminCourses, s.quizzes, s.reviews, s.attemptsUsed]; if (!sameKey(k)) { cache.clear(); cacheKey = k; } };
 
   /* Index: imported completions by "user|courseId". */
   const migIndex = memo(ext => { const m = new Map(); (ext || []).forEach(r => { if (r.courseId && r.status === 'Completed') m.set(r.user + '|' + r.courseId, r); }); return m; });
@@ -47,15 +59,18 @@ const Progress = (() => {
     return a.items.length > 0 && itemStates(s, a, user).every(x => x.done);
   }
   /* The Nth working day counting the start day (weekends and holidays skipped). */
-  function workingDeadline(start, days, holidays) {
+  function workingDeadline(start, days, holidays, weekendDays) {
+    if (!start) return '';
     const hol = new Set((holidays || []).map(h => h.date)); let k = start, n = 0, guard = 0;
-    while (guard++ < 800) { if (!weekend(k) && !hol.has(k)) { n++; if (n >= days) return k; } k = plus(k, 1); }
+    while (guard++ < 800) { if (!weekend(k, weekendDays) && !hol.has(k)) { n++; if (n >= days) return k; } k = plus(k, 1); }
     return k;
   }
-  const workingDaysBetween = (from, to, holidays) => { const hol = new Set((holidays || []).map(h => h.date)); let n = 0, k = plus(from, 1), guard = 0; while (k <= to && guard++ < 800) { if (!weekend(k) && !hol.has(k)) n++; k = plus(k, 1); } return n; };
-
-  const assignedOn = (s, user, cid) => { const rec = (s.assignedOn || {})[user + '|' + cid]; if (rec) return rec; const due = (s.enroll[user] || {})[cid];
-    if (!due) return ''; const d = plus(due, -21); return d > TODAY_KEY ? TODAY_KEY : d; };
+  /* Working days after `from` up to and including `to`. null when either date is unknown: callers must treat that as "no value", not 0. */
+  const workingDaysBetween = (from, to, holidays, weekendDays) => { if (!from || !to) return null;
+    const hol = new Set((holidays || []).map(h => h.date)); let n = 0, k = plus(from, 1), guard = 0; while (k <= to && guard++ < 800) { if (!weekend(k, weekendDays) && !hol.has(k)) n++; k = plus(k, 1); } return n; };
+  /* v41.26: the date a course was assigned, or '' when it was never recorded ("date unknown"). It used to be invented as the due date
+   * minus 21 days, which made working-day compliance look better or worse than it was. */
+  const assignedOn = (s, user, cid) => (s.assignedOn || {})[user + '|' + cid] || '';
 
   /* Course status for one person, from the learning records. Cached until records change. */
   function detail(s, user, a) {
@@ -78,7 +93,7 @@ const Progress = (() => {
     const completed = n && doneN === n ? mods.map(m => m.completedOn).filter(Boolean).sort().pop() || TODAY_KEY : '';
     const overdue = !completed && !!due && due < TODAY_KEY;
     const status = completed ? 'Completed' : overdue ? 'Overdue' : doneN || started ? 'In progress' : 'Not started';
-    const out = { assignedOn: from, due, startedOn: started, completedOn: completed, pct, doneN, total: n, status, overdue, source, mods };
+    const out = { assignedOn: from, assignedKnown: !!from, due, startedOn: started, completedOn: completed, pct, doneN, total: n, status, overdue, source, mods };
     cache.set(ck, out); return out;
   }
 
@@ -115,7 +130,7 @@ const Progress = (() => {
     pairs.forEach(([name, cid]) => { const u = userBy.get(name), a = courseOf(s, cid); if (!u || !a || u.status === 'Deactivated') return;
       const d = detail(s, name, a); if (keep && !keep(u, a, d)) return;
       a.items.forEach((it, i) => { const m = d.mods[i], mod = it.moduleId ? s.lcms.find(x => x.id === it.moduleId) : null, z = it.kind === 'quiz' ? s.quizzes.find(q => q.id === it.quizId) : null;
-        rows.push([u.empId, u.name, u.dept, u.role, a.code, a.title, a.essential ? 'Yes' : 'No', d.assignedOn, d.due, d.startedOn, d.completedOn, d.pct, d.status,
+        rows.push([u.empId, u.name, u.dept, u.role, a.code, a.title, a.essential ? 'Yes' : 'No', d.assignedOn || 'Date unknown', d.due, d.startedOn, d.completedOn, d.pct, d.status,
           i + 1, mod ? mod.code : '', mod ? mod.title : z ? z.name : it.title, MODULE_TYPE[it.kind] || it.kind, m.startedOn, m.completedOn, m.pct, m.attempts, m.best, d.source]); }); });
     return [head].concat(rows);
   }
@@ -164,5 +179,5 @@ const Progress = (() => {
       if (ch) patch[coll] = ch; });
     return { patch, people, dropped };
   }
-  return { stepUid, stepMap, remapCourse, hasCert, isStepCourse, itemStates, courseDone, migrated, workingDeadline, workingDaysBetween, detail, assignedOn, plus, completionRows, myCourses, summary, seedRecords, hash, courseOf };
+  return { stepUid, stepMap, remapCourse, hasCert, isStepCourse, itemStates, courseDone, migrated, workingDeadline, workingDaysBetween, configure, setWeekend, orgToday, detail, assignedOn, plus, completionRows, myCourses, summary, seedRecords, hash, courseOf };
 })();

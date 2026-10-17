@@ -80,6 +80,9 @@ const Backend = (() => {
   if (configured && !String(cfg.ORG_ID || '').trim()) throw new Error('js/config.js: ORG_ID is empty. Set your organisation id before deploying.');
   const org = String(cfg.ORG_ID || '').trim() || 'demo-offline', BUCKET = cfg.STORAGE_BUCKET || 'lms-files', SCORM_BUCKET = 'lms-scorm';
   let sb = null, app = null, me = null, ready = false, channel = null, freshLogin = null;
+  // v41.26: one lifetime for file links, for staff and learners alike (js/config.js SIGNED_URL_TTL_SECONDS, default 3600, 5 minutes to 4 hours;
+  // the Edge Function reads the same value from its secret SIGNED_URL_TTL_SECONDS). Links are renewed in the background before they run out.
+  const SIGN_TTL = Math.max(300, Math.min(14400, +cfg.SIGNED_URL_TTL_SECONDS || 3600)); let signedAt = 0;
   let status = { text: on ? 'Connecting…' : configured ? 'Supabase is configured, but vendor/supabase.js is missing (see SETUP-SUPABASE.md)' : 'Offline (sample data in this browser only)', ok: !configured, at: '' };
   // x-sf-org tells the database which organisation this session works in (policies compute the caller's context once).
   // v34: the sign-in (access + refresh token) is kept in sessionStorage, so it ends with the tab/browser and is not left behind on a shared PC;
@@ -205,7 +208,7 @@ const Backend = (() => {
   let lastColl = {};           // collection -> state reference last compared
   const dirty = new Map();     // rowId -> { coll, key, data, ref }  (waiting to be saved)
   const delQ = new Map();      // rowId -> { coll, key }
-  let busy = false, timer = null;
+  let busy = false, timer = null, saveRetry = null, failN = 0;   // v41.26: failN counts failed saves in a row (backoff)
   const remember = (coll, key, version, data, ref) => base.set(rid(coll, key), { version, json: JSON.stringify(data), ref });
 
   /* Compare the app state with what the server has; queue changed rows. */
@@ -259,7 +262,7 @@ const Backend = (() => {
   }
 
   async function flush() {
-    if (busy) return; busy = true;
+    if (busy) return; busy = true; clearTimeout(saveRetry); let failed = false;
     try {
       const saves = [...dirty.values()], dels = [...delQ.values()]; dirty.clear(); delQ.clear();
       let ok = 0, merged = 0, refused = [], clashes = 0;
@@ -292,13 +295,18 @@ const Backend = (() => {
       if (refused.length) parts.push(refused.length + ' not saved: your role can’t change ' + [...new Set(refused.map(r => r.coll))].join(', ') + '. The saved value is shown again.');
       setStatus(parts.join(' · '), !refused.length);
       if (refused.length || clashes) notify(parts.slice(1).join(' · '));
+      failN = 0;
     } catch (e) {
       console.error(e);
       const r = e.retry || {};
       (r.saves || []).forEach(x => { const id = rid(x.coll, x.key); if (!dirty.has(id)) dirty.set(id, x); });
       (r.dels || []).forEach(x => { const id = rid(x.coll, x.key); if (!delQ.has(id) && !dirty.has(id)) delQ.set(id, x); });
-      setStatus('Not saved yet (' + (e.message || e) + '). Retrying…', false); setTimeout(flush, 8000);
-    } finally { busy = false; if (dirty.size || delQ.size) setTimeout(flush, 300); }
+      // v41.26: back off 8 s, 16 s, 32 s … up to 5 minutes and stop after 10 failures in a row (it was a retry every 8 s, and again
+      // after 0.3 s, for ever). Changes stay on this page; the next edit, or the connection coming back, tries again.
+      failed = true; failN++;
+      if (failN >= 10) setStatus('Not saved (' + (e.message || e) + '). Your changes are still on this page; check the connection. It will try again when you make another change or the connection returns.', false);
+      else { const wait = Math.min(300000, 8000 * Math.pow(2, failN - 1)); setStatus('Not saved yet (' + (e.message || e) + '). Trying again in ' + Math.round(wait / 1000) + ' s…', false); saveRetry = setTimeout(flush, wait); }
+    } finally { busy = false; if (!failed && (dirty.size || delQ.size)) setTimeout(flush, 300); }
   }
 
   /* Apply database rows (pulled, realtime or merged) to the app without sending them back. */
@@ -398,12 +406,37 @@ const Backend = (() => {
 
   /* ---------- server actions (Edge Function "learning") ---------- */
   async function call(action, body) {
+    // v41.26: send the seat-time counted so far before the server decides whether the step may be completed
+    if (action === 'completeStep' && watch && watch.key === watchKey(body)) await watch.ping();
     const { data, error } = await sb.functions.invoke('learning', { body: { action, org, ...body } });
     let msg = data && data.error;
     if (error && !msg) { try { const j = await error.context.json(); msg = j.error; } catch (e) { msg = error.message; } }
     if (msg) throw new Error(msg);
     if (data && data._touched && data._touched.length) await pull(data._touched);
+    if (action === 'openStep' || (action === 'scormLaunch' && body && body.courseId != null)) watchStep(body.courseId, body.step);
+    else if (action === 'completeStep' && data && data.done && watch && watch.key === watchKey(body)) stopWatch();
     return data || {};
+  }
+  /* ---------- v41.26: seat time is counted by the server ----------
+   * While a step is open and the tab is visible, a heartbeat ("stepPing") goes to the server every 20 s. The server adds the time
+   * since the previous ping (at most 45 s, never more than the clock allows) and completeStep needs that counted time, so a call
+   * made straight to the API cannot skip the viewing time. When the tab comes back from hidden, the first ping adds nothing.
+   * It stops by itself after 20 minutes on one step, when another step opens, on completion and on sign-out. */
+  const BEAT_MS = 20000, WATCH_MAX_MS = 20 * 60000;
+  let watch = null;
+  const watchKey = b => String(b && b.courseId) + '|' + Number(b && b.step);
+  function stopWatch() { if (!watch) return; clearInterval(watch.timer); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', watch.vis); watch = null; }
+  function watchStep(courseId, step) {
+    stopWatch(); if (typeof document === 'undefined' || courseId == null) return;
+    const w = watch = { key: watchKey({ courseId, step }), started: Date.now(), resume: false, inflight: null, timer: 0, vis: null };
+    w.ping = () => w.inflight || (w.inflight = (async () => { const resume = w.resume; w.resume = false;
+      try { await call('stepPing', { courseId, step, resume }); }
+      catch (e) { if (/Unknown action|Open this step first/i.test(String(e && e.message))) stopWatch(); }   // old server, or the step was never opened: nothing to count
+      finally { w.inflight = null; } })());
+    w.vis = () => { if (document.visibilityState === 'hidden') w.hidden = true; else if (w.hidden) { w.hidden = false; w.resume = true; w.ping(); } };
+    document.addEventListener('visibilitychange', w.vis);
+    w.timer = setInterval(() => { if (watch !== w) return; if (Date.now() - w.started > WATCH_MAX_MS) return stopWatch();
+      if (document.visibilityState !== 'visible') { w.hidden = true; return; } if (w.hidden) { w.hidden = false; w.resume = true; } w.ping(); }, BEAT_MS);
   }
   async function adminUsers(action, payload) {
     const { data, error } = await sb.functions.invoke('admin-users', { body: { action, org, ...payload } });
@@ -422,6 +455,7 @@ const Backend = (() => {
     return all;
   }
   async function signFiles(st) {
+    signedAt = Date.now();
     const metas = [], walk = v => { if (!v || typeof v !== 'object') return; if (typeof v.path === 'string' && v.path && 'src' in v && !v.path.includes('/scorm/')) metas.push(v); for (const k in v) walk(v[k]); };
     ['lcms', 'adminCourses', 'certTpl', 'qs', 'docs'].forEach(k => walk(st[k]));
     // SCORM packages are served same-origin by /content (Cloudflare Pages Function)
@@ -429,7 +463,7 @@ const Backend = (() => {
     const paths = [...new Set(metas.map(m => m.path))]; if (!paths.length) return;
     let urls = {};
     if (me.role !== 'Admin' && !['lcms', 'lcmsForms', 'courseAdmin', 'builder', 'certs', 'qbank'].some(p => (me.perms || []).includes(p))) { for (let i = 0; i < paths.length; i += 200) Object.assign(urls, (await call('sign', { paths: paths.slice(i, i + 200) })).urls || {}); }
-    else for (let i = 0; i < paths.length; i += 100) { const { data } = await sb.storage.from(BUCKET).createSignedUrls(paths.slice(i, i + 100), 60 * 60 * 8); (data || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; }); }
+    else for (let i = 0; i < paths.length; i += 100) { const { data } = await sb.storage.from(BUCKET).createSignedUrls(paths.slice(i, i + 100), SIGN_TTL); (data || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; }); }
     metas.forEach(m => { m.src = urls[m.path] || ''; });
   }
 
@@ -470,6 +504,19 @@ const Backend = (() => {
     setStatus(empty ? 'Connected. The database is empty: load the starting data in Settings › Platform › Database & storage.' : 'Connected · ' + rows.length.toLocaleString('en-US') + ' records', true);
     return { empty, me, user: (st.users || []).find(u => u.empId === me.emp) || null };
   }
+  /* v41.26: file links last SIGN_TTL seconds. When the page is used again after three quarters of that, they are signed again (same
+   * collections as at sign-in) so a document opened after a long session still works. */
+  let resigning = false;
+  async function resignIfStale() {
+    if (resigning || !ready || !app || !signedAt || Date.now() - signedAt < SIGN_TTL * 750) return;
+    resigning = true;
+    try { const st = {}; ['lcms', 'adminCourses', 'certTpl', 'qs', 'docs'].forEach(k => { if (app.state[k]) st[k] = app.state[k]; });
+      await signFiles(st); app.setState(Object.fromEntries(Object.entries(st).map(([k, v]) => [k, Array.isArray(v) ? v.slice() : { ...v }]))); }
+    catch (e) { console.error('re-signing file links failed', e); signedAt = Date.now() - SIGN_TTL * 700; }   // try again in about 5 % of the lifetime
+    finally { resigning = false; }
+  }
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') resignIfStale(); });
+  if (typeof window !== 'undefined') window.addEventListener('online', () => { failN = 0; if (dirty.size || delQ.size) flush(); });
   function subscribe() {
     if (channel) sb.removeChannel(channel);
     channel = sb.channel('sf-' + org).on('postgres_changes', { event: '*', schema: 'public', table: 'sf_doc', filter: 'org_id=eq.' + org }, p => {
@@ -498,7 +545,7 @@ const Backend = (() => {
     const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error;   // from the user's own IP
     freshLogin = /@/.test(String(username || '')) ? 'email' : 'emp';   // recorded after sign-in (not on page reloads)
   }
-  async function signOut() { if (on) { scormLeave(); if (channel) sb.removeChannel(channel); await sb.auth.signOut(); } if (LS) { LS.removeItem(KEEP_KEY); Object.keys(LS).filter(isAuthKey).forEach(k => LS.removeItem(k)); } }
+  async function signOut() { stopWatch(); if (on) { scormLeave(); if (channel) sb.removeChannel(channel); await sb.auth.signOut(); } if (LS) { LS.removeItem(KEEP_KEY); Object.keys(LS).filter(isAuthKey).forEach(k => LS.removeItem(k)); } }
   async function setNewPassword(pw) {
     const { data: u0 } = await sb.auth.getUser(); const email = u0 && u0.user && u0.user.email; recovery = false;
     const { data, error } = await sb.functions.invoke('learning', { body: { action: 'changePassword', password: pw, org } });
@@ -707,7 +754,7 @@ const Backend = (() => {
     setStatus('Uploading ' + f.name + '…', true);
     const { error } = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type || undefined, upsert: false });
     if (error) { swap({ src: '', uploadError: error.message }); return setStatus('Upload failed: ' + error.message, false); }
-    const { data } = await sb.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 8);
+    const { data } = await sb.storage.from(BUCKET).createSignedUrl(path, SIGN_TTL);
     swap({ src: data.signedUrl, path }); setStatus('Uploaded ' + f.name, true); spaceAdd(f.size || 0);
   }
 

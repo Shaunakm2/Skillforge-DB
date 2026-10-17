@@ -8,13 +8,17 @@
 //   scormLaunch    { org, courseId, step } or { org, moduleId } -> launch URL on the separate content site + session id
 //   scormPing / scormEnd { org, courseId, step | moduleId, sid }   -> renew / end the launch session
 //   scormCommit    { org, courseId, step, sid, status, score }      -> completion (after the minimum time)
+//   stepPing       { org, courseId, step, resume? }                 -> seat-time heartbeat for an open step (v41.26)
 //   startAttempt / answer / submit / rescore / openStep / completeStep / submitSurvey / answerFeedback /
 //   requestAccess / decideRequest / updateProfile / post / docSeen { docId, ack? } (documents library: viewed / acknowledged)
 //
 // Identity comes from the caller's JWT, which the Supabase gateway has already verified (verify_jwt = true in
 // supabase/config.toml). It is decoded locally: no call to /auth/v1/user, so no shared-IP Auth rate limit.
 // Secrets: ORG_TIMEZONE (IANA zone for calendar dates, default Asia/Kolkata), ALLOWED_ORIGIN (the app's origin, required), CONTENT_ORIGIN, CONTENT_SIGNING_KEY, STORAGE_BUCKET,
-//          SCORM_IDLE_MINUTES (default 30), SCORM_MAX_HOURS (hard cap of a launch link, default 8).
+//          SCORM_IDLE_MINUTES (default 30), SCORM_MAX_HOURS (hard cap of a launch link, default 8),
+//          SEAT_TIME_STRICT (v41.26, default on: viewing time of a step is counted by the server from stepPing heartbeats; set to "false" to go back to
+//          the old rule, time since the step was opened),
+//          SIGNED_URL_TTL_SECONDS (v41.26, default 3600, 300 to 14400: lifetime of file links; keep it equal to SIGNED_URL_TTL_SECONDS in js/config.js).
 // Deploy: supabase functions deploy learning
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import "../_shared/assessment.js";
@@ -27,6 +31,8 @@ if (ORIGIN) cors["Access-Control-Allow-Origin"] = ORIGIN;   // no wildcard: with
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const URL_ = Deno.env.get("SUPABASE_URL")!, SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const BUCKET = Deno.env.get("STORAGE_BUCKET") || "lms-files";
+const SEAT_STRICT = (Deno.env.get("SEAT_TIME_STRICT") || "true").toLowerCase() !== "false";
+const SIGN_TTL = Math.max(300, Math.min(14400, Number(Deno.env.get("SIGNED_URL_TTL_SECONDS") || 3600)));
 
 // The gateway verified the signature (verify_jwt); read the claims without another network call.
 // SECURITY ASSUMPTION: decodes without verifying the signature; safe only while supabase/config.toml keeps
@@ -129,7 +135,7 @@ Deno.serve(async (req) => {
         allowed = paths.filter((p: string) => okp.has(p) || docOk.has(p));
       }
       if (!allowed.length) return json({ urls: {} });
-      const { data } = await admin.storage.from(BUCKET).createSignedUrls(allowed, Math.max(60, Math.min(900, Number(Deno.env.get("SIGNED_URL_TTL_SECONDS") || 600))));
+      const { data } = await admin.storage.from(BUCKET).createSignedUrls(allowed, SIGN_TTL);   // v41.26: same lifetime as the links the app signs for staff
       return json({ urls: Object.fromEntries((data || []).filter((x: any) => x.signedUrl).map((x: any) => [x.path, x.signedUrl])) });
     }
     // v41.21: the trainees of the batches this person trains (kept by the database from batches: sf_trainee), for grading scope
@@ -138,6 +144,7 @@ Deno.serve(async (req) => {
       const { data: tr } = await admin.from("sf_trainee").select("trainee_emp").eq("org_id", org).eq("trainer_emp", mem.emp_id);
       trainees = (tr || []).map((x: any) => String(x.trainee_emp)).filter((e: string) => e !== mem.emp_id); }
     const ctx = { tz: Deno.env.get("ORG_TIMEZONE") || "Asia/Kolkata", org, emp: mem.emp_id, role: mem.role, perms: mem.role === "Admin" ? [] : perms, trainees, name: mem.app_name, userKey, now: new Date(),
+      seatStrict: SEAT_STRICT,
       contentOrigin: Deno.env.get("CONTENT_ORIGIN") || "", signKey: Deno.env.get("CONTENT_SIGNING_KEY") || "",
       scormIdleMin: Number(Deno.env.get("SCORM_IDLE_MINUTES") || 30), scormMaxHours: Number(Deno.env.get("SCORM_MAX_HOURS") || 8) };
     const out = await L.handle(db, ctx, String(body.action || ""), body);
