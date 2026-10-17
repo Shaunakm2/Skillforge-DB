@@ -1,0 +1,10 @@
+<!DOCTYPE html><html><body><div id="app"></div><template id="app-template">
+  <sf-if value="{{ mdIsApp }}">
+  <div class="ui-70 bt-pad bt-col">
+    <div class="ui-8">Defaults</div>
+    <label class="ui-61"><span class="ui-5">Password for new accounts and admin resets</span><input class="ovl-21" value="{{ pfD.password }}" on-input="{{ setPfPw }}"></label>
+    <label class="ui-61"><span class="ui-5">Sign people out after inactivity (minutes; 0 = never; default 30)</span><input class="ovl-21" type="number" value="{{ pfIdle }}" on-input="{{ setPfIdle }}"></label>
+    <div class="ovl-26"><sf-if value="{{ pfDirty }}"><button class="ui-60" on-click="{{ pfDiscard }}">Discard</button></sf-if><button class="ui-91" on-click="{{ pfSave }}">Save defaults</button></div>
+  </div>
+  </sf-if>
+</template></body></html>

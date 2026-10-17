@@ -26,8 +26,15 @@ const Progress = (() => {
   const weekend = (k, days) => { const w = new Date(k + 'T12:00:00').getDay(); return (days ? cleanWeekend(days) : WEEKEND).includes(w); };
   /* v41.26: "today" in the organisation's time zone (ORG_TIMEZONE in js/config.js, default Asia/Kolkata: the same zone the server uses for
    * completion dates), not the browser's. Use it where TODAY_KEY is defined. */
-  const orgToday = (tz, now) => { tz = tz || ((typeof window !== 'undefined' && window.SKILLFORGE_CONFIG && window.SKILLFORGE_CONFIG.ORG_TIMEZONE) || 'Asia/Kolkata');
-    try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now || new Date()); } catch (e) { return key(now || new Date()); } };
+  const fmtCache = {}; let otDay = '', otAt = 0;
+  const orgToday = (tz, now) => { const live = !tz && !now;
+    if (live && otDay && Date.now() - otAt < 30000) return otDay;   // asked thousands of times while building a report: work it out at most every 30 s
+    tz = tz || ((typeof window !== 'undefined' && window.SKILLFORGE_CONFIG && window.SKILLFORGE_CONFIG.ORG_TIMEZONE) || 'Asia/Kolkata');
+    let d; try { const f = fmtCache[tz] || (fmtCache[tz] = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })); d = f.format(now || new Date()); } catch (e) { d = key(now || new Date()); }
+    if (live) { otDay = d; otAt = Date.now(); } return d; };
+  /* v41.28: the date "today" means for due dates, overdue and completion fallbacks. Connected to the database: the organisation's date (the
+   * server dates completions in the same zone). Offline demo: TODAY_KEY, because the sample data is built around it. */
+  const today = () => (typeof Backend !== 'undefined' && Backend.on) ? orgToday() : TODAY_KEY;
   const hash = str => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; };
   const isStepCourse = () => true;
 
@@ -36,7 +43,7 @@ const Progress = (() => {
   const cache = new Map(); // detail cache, cleared when records change
   let cacheKey = [];
   const sameKey = k => k.length === cacheKey.length && k.every((x, i) => x === cacheKey[i]);
-  const touch = s => { configure(s); const k = [s.itemDone, s.itemQuiz, s.extHistory, s.enroll, s.assignedOn, s.adminCourses, s.quizzes, s.reviews, s.attemptsUsed]; if (!sameKey(k)) { cache.clear(); cacheKey = k; } };
+  const touch = s => { configure(s); const k = [today(), s.itemDone, s.itemQuiz, s.extHistory, s.enroll, s.assignedOn, s.adminCourses, s.quizzes, s.reviews, s.attemptsUsed]; if (!sameKey(k)) { cache.clear(); cacheKey = k; } };
 
   /* Index: imported completions by "user|courseId". */
   const migIndex = memo(ext => { const m = new Map(); (ext || []).forEach(r => { if (r.courseId && r.status === 'Completed') m.set(r.user + '|' + r.courseId, r); }); return m; });
@@ -50,8 +57,8 @@ const Progress = (() => {
   function itemStates(s, a, user) {
     const dn = (s.itemDone[user] || {})[a.id] || {}, qr = (s.itemQuiz[user] || {})[a.id] || {}; let prevOk = true;
     return a.items.map((it, i) => { let done = false, at = '', best = null, pendingQ = false; const v = dn[i];
-      if (v) { done = true; at = typeof v === 'string' ? v : v.at || TODAY_KEY; if (v && typeof v === 'object' && v.score != null) best = { pct: v.score }; }
-      if (it.kind === 'quiz') { const z = s.quizzes.find(x => x.id === it.quizId); (qr[i] || []).forEach(r => { const sc = Assessment.score(r.attempt, r.answers, s.qs, s.reviews); if (!sc.final) pendingQ = true; else if (!best || sc.pct > best.pct) best = sc; if (z && quizPassed(s, z, r)) { done = true; at = at || TODAY_KEY; } }); }
+      if (v) { done = true; at = typeof v === 'string' ? v : v.at || today(); if (v && typeof v === 'object' && v.score != null) best = { pct: v.score }; }
+      if (it.kind === 'quiz') { const z = s.quizzes.find(x => x.id === it.quizId); (qr[i] || []).forEach(r => { const sc = Assessment.score(r.attempt, r.answers, s.qs, s.reviews); if (!sc.final) pendingQ = true; else if (!best || sc.pct > best.pct) best = sc; if (z && quizPassed(s, z, r)) { done = true; at = at || today(); } }); }
       const locked = !!a.features.linear && !prevOk; prevOk = prevOk && done; return { done, at, locked, best, pendingQ }; });
   }
   function courseDone(s, user, a) {
@@ -86,12 +93,12 @@ const Progress = (() => {
     } else {
       const st = itemStates(s, a, user), firstAt = st.map(x => x.at).filter(Boolean).sort()[0] || '';
       mods = a.items.map((it, i) => { const x = st[i], tries = used(it);
-        return { pct: x.done ? 100 : 0, done: x.done, startedOn: x.done ? x.at : tries ? (firstAt || TODAY_KEY) : '', completedOn: x.done ? x.at : '', attempts: tries === '' ? '' : (tries || (x.done && quizOf(it) ? 1 : 0)), best: x.best ? x.best.pct : '' }; });
+        return { pct: x.done ? 100 : 0, done: x.done, startedOn: x.done ? x.at : tries ? (firstAt || today()) : '', completedOn: x.done ? x.at : '', attempts: tries === '' ? '' : (tries || (x.done && quizOf(it) ? 1 : 0)), best: x.best ? x.best.pct : '' }; });
     }
     const doneN = mods.filter(m => m.done).length, n = a.items.length, pct = n ? Math.round(doneN / n * 100) : 0;
     const started = mods.map(m => m.startedOn).filter(Boolean).sort()[0] || '';
-    const completed = n && doneN === n ? mods.map(m => m.completedOn).filter(Boolean).sort().pop() || TODAY_KEY : '';
-    const overdue = !completed && !!due && due < TODAY_KEY;
+    const completed = n && doneN === n ? mods.map(m => m.completedOn).filter(Boolean).sort().pop() || today() : '';
+    const overdue = !completed && !!due && due < today();   // v41.28: the organisation's today, not the browser's
     const status = completed ? 'Completed' : overdue ? 'Overdue' : doneN || started ? 'In progress' : 'Not started';
     const out = { assignedOn: from, assignedKnown: !!from, due, startedOn: started, completedOn: completed, pct, doneN, total: n, status, overdue, source, mods };
     cache.set(ck, out); return out;
@@ -179,5 +186,5 @@ const Progress = (() => {
       if (ch) patch[coll] = ch; });
     return { patch, people, dropped };
   }
-  return { stepUid, stepMap, remapCourse, hasCert, isStepCourse, itemStates, courseDone, migrated, workingDeadline, workingDaysBetween, configure, setWeekend, orgToday, detail, assignedOn, plus, completionRows, myCourses, summary, seedRecords, hash, courseOf };
+  return { stepUid, stepMap, remapCourse, hasCert, isStepCourse, itemStates, courseDone, migrated, workingDeadline, workingDaysBetween, configure, setWeekend, orgToday, today, detail, assignedOn, plus, completionRows, myCourses, summary, seedRecords, hash, courseOf };
 })();
