@@ -91,7 +91,7 @@ test('a step finished another way is never undone by a rating', async () => {
 test('seat time is counted by the server from pings; waiting alone is not enough when seatStrict', async () => {
   const db = mem(); await seed(db, [{ kind: 'pdf', mins: 3 }]);              // needs viewNeed(3) = 18 s
   const t = s => ctx({ seatStrict: true, now: new Date(Date.parse('2026-10-17T10:00:00Z') + s * 1000) });
-  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0 });
+  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0, hb: true });
   await assert.rejects(() => L.handle(db, t(300), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least 18 seconds/, '5 minutes of wall-clock with no pings');
   await L.handle(db, t(20), 'stepPing', { courseId: 'c1', step: 0 });
   assert.equal((await db.get('stepOpen', 'E1|c1|0')).data.secs, 20);
@@ -104,7 +104,7 @@ test('a ping after a long gap adds at most 45 s; a resume ping adds nothing; no 
   const db = mem(); await seed(db, [{ kind: 'pdf', mins: 10 }]);
   const t = s => ctx({ seatStrict: true, now: new Date(Date.parse('2026-10-17T10:00:00Z') + s * 1000) });
   await assert.rejects(() => L.handle(db, t(5), 'stepPing', { courseId: 'c1', step: 0 }), /Open this step first/);
-  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0 });
+  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0, hb: true });
   await L.handle(db, t(1000), 'stepPing', { courseId: 'c1', step: 0 });
   assert.equal((await db.get('stepOpen', 'E1|c1|0')).data.secs, 45);
   await L.handle(db, t(2000), 'stepPing', { courseId: 'c1', step: 0, resume: true });
@@ -121,4 +121,13 @@ test('< and > are refused with a message, not removed', async () => {
   const db = mem(); await db.put('users', 'u1', { id: 'u1', empId: 'E1' }, null);
   await assert.rejects(() => L.handle(db, ctx({ userKey: 'u1' }), 'updateProfile', { bio: 'a<b' }), /< and > are not allowed/);
   const ok = await L.handle(db, ctx({ userKey: 'u1' }), 'updateProfile', { bio: 'hello' }); assert.equal(ok.patch.bio, 'hello');
+});
+
+test('deploy order: a page that does not send heartbeats (hb) keeps the wall-clock rule even when the server is strict', async () => {
+  const db = mem(); await seed(db, [{ kind: 'pdf', mins: 3 }]);               // needs 18 s
+  const t = s => ctx({ seatStrict: true, now: new Date(Date.parse('2026-10-17T10:00:00Z') + s * 1000) });
+  await L.handle(db, t(0), 'openStep', { courseId: 'c1', step: 0 });            // old page: no hb
+  assert.equal((await db.get('stepOpen', 'E1|c1|0')).data.secs, undefined);
+  await assert.rejects(() => L.handle(db, t(5), 'completeStep', { courseId: 'c1', step: 0 }), /Spend at least 18 seconds/);
+  assert.equal((await L.handle(db, t(30), 'completeStep', { courseId: 'c1', step: 0 })).done, true);
 });

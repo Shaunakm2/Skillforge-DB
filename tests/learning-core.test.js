@@ -4,7 +4,6 @@ const fs = require('fs'), path = require('path');
 require('../public/js/core/assessment.js'); require('../supabase/functions/_shared/learning-core.js');
 const memdb = require('./memdb');
 const L = globalThis.LearningCore;
-
 function world() {
   const db = memdb();
   db.seed('qs', '1', { id: 1, type: 'Multiple choice', text: 'Q1', opts: ['a', 'b', 'c', 'd'], ans: 2, why: 'because' });
@@ -24,17 +23,14 @@ const ctx = (over) => ({ org: 'o', emp: 'E1', role: 'Learner', perms: [], now: n
 const solve = (q) => {   // answer correctly from a sanitized question + the original (test only)
   return null;
 };
-
 test('shared assessment file is identical to the browser copy', () => {
   assert.strictEqual(fs.readFileSync(path.join(__dirname, '../public/js/core/assessment.js'), 'utf8'), fs.readFileSync(path.join(__dirname, '../supabase/functions/_shared/assessment.js'), 'utf8'));
 });
-
 test('not enrolled / locked steps are refused', async () => {
   const db = world();
   await assert.rejects(L.handle(db, ctx({ emp: 'E2' }), 'openStep', { courseId: 'safety', step: 0 }), /not assigned/);
   await assert.rejects(L.handle(db, ctx(), 'startAttempt', { courseId: 'safety', step: 1 }), /earlier steps/);
 });
-
 test('view time is checked on the server clock', async () => {
   const db = world();
   await L.handle(db, ctx(), 'openStep', { courseId: 'safety', step: 0 });
@@ -42,7 +38,6 @@ test('view time is checked on the server clock', async () => {
   await L.handle(db, ctx({ now: new Date('2026-10-04T10:00:30Z') }), 'completeStep', { courseId: 'safety', step: 0 });
   assert.ok(db.peek('itemDone', 'E1').safety[0]);
 });
-
 test('sanitized questions carry no answer key', async () => {
   const db = world(); db.seed('itemDone', 'E1', { safety: { 0: '2026-10-01' } });
   const r = await L.handle(db, ctx(), 'startAttempt', { courseId: 'safety', step: 1 });
@@ -50,7 +45,6 @@ test('sanitized questions carry no answer key', async () => {
   assert.ok(!/"ans"|"answers"|"accept"|"why"/.test(s), s);
   assert.strictEqual(r.questions.length, 4);
 });
-
 test('grading, attempt limit and completion happen on the server', async () => {
   const db = world(); db.seed('itemDone', 'E1', { safety: { 0: '2026-10-01' } });
   for (let round = 0; round < 2; round++) {
@@ -75,19 +69,16 @@ test('grading, attempt limit and completion happen on the server', async () => {
   await assert.rejects(L.handle(db, ctx(), 'startAttempt', { courseId: 'safety', step: 1 }), /used all/);
   assert.strictEqual(db.peek('attemptsUsed', 'E1')[7], 2);
 });
-
 test('parallel starts cannot exceed the attempt limit', async () => {
   const db = world(); db.seed('itemDone', 'E1', { safety: { 0: '2026-10-01' } });
   const rs = await Promise.allSettled([0, 1, 2, 3, 4].map(() => L.handle(db, ctx(), 'startAttempt', { courseId: 'safety', step: 1 })));
   assert.strictEqual(rs.filter(r => r.status === 'fulfilled').length, 2);
 });
-
 test('someone else’s attempt cannot be answered', async () => {
   const db = world(); db.seed('itemDone', 'E1', { safety: { 0: '2026-10-01' } }); db.seed('enroll', 'E2', { safety: 'x' }); db.seed('itemDone', 'E2', { safety: { 0: 'x' } });
   const r = await L.handle(db, ctx(), 'startAttempt', { courseId: 'safety', step: 1 });
   await assert.rejects(L.handle(db, ctx({ emp: 'E2' }), 'answer', { attemptId: r.attemptId, index: 0, answer: { sel: 0 } }), /not found/);
 });
-
 test('written answers wait for a trainer; rescore passes the step', async () => {
   const db = world();
   const r = await L.handle(db, ctx(), 'startAttempt', { courseId: 'w', step: 0 });
@@ -102,17 +93,18 @@ test('written answers wait for a trainer; rescore passes the step', async () => 
   const rs = await L.handle(db, ctx({ emp: 'Q1', role: 'Learner', perms: ['gradebook', 'gradeAll'] }), 'rescore', { reviewId: rid, rating: 8 });
   assert.strictEqual(rs.passed, true); assert.ok(db.peek('itemDone', 'E1').w[0]);
 });
-
 test('survey validates and completes; feedback only by its recipient', async () => {
   const db = world(); db.seed('itemDone', 'E1', { safety: { 0: 'x', 1: 'x' } });
   await assert.rejects(L.handle(db, ctx(), 'submitSurvey', { courseId: 'safety', step: 2, answers: [9, 'ok'] }), /Answer question 1/);
-  await L.handle(db, ctx(), 'submitSurvey', { courseId: 'safety', step: 2, answers: [4, 'fine <b>x</b>'] });
-  assert.strictEqual(db.peek('surveyResp', 'E1')['safety:2'].answers[1], 'fine bx/b');
+  // v41.26: < and > are refused with a message instead of being removed silently ('fine <b>x</b>' used to be stored as 'fine bx/b')
+  await assert.rejects(L.handle(db, ctx(), 'submitSurvey', { courseId: 'safety', step: 2, answers: [4, 'fine <b>x</b>'] }), /< and >/);
+  assert.ok(!db.peek('surveyResp', 'E1') && !db.peek('itemDone', 'E1').safety[2], 'a refused answer saves nothing and does not complete the step');
+  await L.handle(db, ctx(), 'submitSurvey', { courseId: 'safety', step: 2, answers: [4, 'fine bold'] });
+  assert.strictEqual(db.peek('surveyResp', 'E1')['safety:2'].answers[1], 'fine bold');
   db.seed('lcms', 'f1', { id: 'f1', type: 'Feedback form', level: 'L1', qs: [{ t: 'r', kind: 'rating' }] });
   await assert.rejects(L.handle(db, ctx(), 'answerFeedback', { key: 'safety|E9|L1|E9', formId: 'f1', answers: [5] }), /not addressed/);
   await L.handle(db, ctx(), 'answerFeedback', { key: 'safety|E1|L1|E1', formId: 'f1', answers: [5] });
 });
-
 test('access requests: learner asks, only manager/admin decides', async () => {
   const db = world(); db.seed('users', 'u1', { id: 'u1', empId: 'E1', managerKey: 'uM' }); db.seed('adminCourses', 'neg', { id: 'neg', title: 'Neg', status: 'Published', items: [], features: {} });
   const { id } = await L.handle(db, ctx(), 'requestAccess', { courseId: 'neg', reason: 'Need it for renewals' });
@@ -120,7 +112,6 @@ test('access requests: learner asks, only manager/admin decides', async () => {
   await L.handle(db, ctx({ emp: 'M1', userKey: 'uM' }), 'decideRequest', { id, approve: true });
   assert.ok(db.peek('enroll', 'E1').neg);
 });
-
 test('profile edits are limited to safe fields; forum posts carry the author', async () => {
   const db = world(); db.seed('users', 'u1', { id: 'u1', empId: 'E1', role: 'Learner', name: 'A' });
   await L.handle(db, ctx(), 'updateProfile', { phone: '+91 98765 43210', role: 'Admin', roleId: 'r_admin' });
@@ -129,7 +120,6 @@ test('profile edits are limited to safe fields; forum posts carry the author', a
   await L.handle(db, ctx({ emp: 'E2', userKey: 'u2' }), 'post', { threadId: id, body: 'Reply' });
   const t = db.peek('threads', id); assert.strictEqual(t.authorKey, 'u1'); assert.ok(!JSON.stringify(t).includes('E1') && !JSON.stringify(t).includes('E2'), 'no employee IDs in threads');
 });
-
 /* ---------- SCORM: launch sessions and server-checked completion ---------- */
 function scormWorld() {
   const db = world();
@@ -194,7 +184,6 @@ test('answer keys: attempts by people who can read them are marked; raters get t
   const rv = [...db.rows.values()].map(x => x.data).find(d => d && d.attemptId === r3.attemptId && d.qid === 5);
   assert.strictEqual(rv.qText, 'Q5'); assert.strictEqual(rv.points, 10);
 });
-
 test('documents: viewed then acknowledged, server clock, audience and dates enforced', async () => {
   const db = memdb();
   await db.put('docs', 'd1', { status:'Published', audience:['All'], mandatory:true, cur:2, effective:'2026-01-01', expiry:'', versions:[{ v:2, file:{ path:'o/docs/a.pdf' } }] }, null);
@@ -209,7 +198,6 @@ test('documents: viewed then acknowledged, server clock, audience and dates enfo
   await assert.rejects(L.handle(db, c, 'docSeen', { docId:'d3' }), /not available/);
   assert.strictEqual(L.docCurPath({ cur:2, versions:[{ v:1, file:{ path:'x' } }, { v:2, file:{ path:'y' } }] }), 'y');
 });
-
 test('sign-ins are recorded by the server; dates use the organisation time zone, not UTC', async () => {
   const db = memdb();
   await L.handle(db, ctx({}), 'signedIn', { method:'emp' }); await L.handle(db, ctx({}), 'signedIn', { method:'email' });
@@ -218,7 +206,6 @@ test('sign-ins are recorded by the server; dates use the organisation time zone,
   assert.strictEqual(L.day(new Date('2026-10-04T19:00:00Z'), 'Asia/Kolkata'), '2026-10-05');
   assert.strictEqual(L.day(new Date('2026-10-04T19:00:00Z'), 'UTC'), '2026-10-04');
 });
-
 test('access requests: no past or far-future due dates, no self-approval, only published courses', async () => {
   const db = world();
   db.seed('users', 'u1', { empId: 'E1', managerKey: 'u2' }); db.seed('adminCourses', 'x', { id: 'x', code: 'CRS-9', title: 'X', status: 'Published', features: {}, items: [{ kind: 'pdf' }] });
@@ -233,7 +220,6 @@ test('access requests: no past or far-future due dates, no self-approval, only p
   await L.handle(db, mgr, 'decideRequest', { id: req.id, approve: true, due: '2026-11-15' });
   assert.strictEqual((await db.get('enroll', 'E1')).data.x, '2026-11-15');
 });
-
 // v41.18: Quizzes › Time limit is enforced on the server clock (it used to be saved but never applied)
 test('time limit: answers after the limit are refused, submitting still works', async () => {
   const db = world(); db.seed('quizzes', '8', { id: 8, name: 'Written', ids: [1, 5], pass: 50, attempts: 'Unlimited', time: 10 });

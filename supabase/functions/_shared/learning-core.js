@@ -259,7 +259,7 @@
   async function openStep(db, ctx, b) {
     const { c, i } = await checkStep(db, ctx, b.courseId, b.step);
     const key = ctx.emp + '|' + c.id + '|' + i, cur = await db.get('stepOpen', key);
-    if (!cur) await db.put('stepOpen', key, openRow(ctx), null);
+    if (!cur) await db.put('stepOpen', key, openRow(ctx, b), null);
     return { openedAt: cur ? cur.data.at : iso(ctx.now) };
   }
   /* v41.26: seat time. With ctx.seatStrict the server counts the time itself: each stepPing (sent every ~20 s by the app while
@@ -268,7 +268,9 @@
    * hidden) adds nothing. completeStep then needs the counted seconds, not the time since the step was opened. Rows opened
    * before this change (no secs) and ctx.seatStrict false keep the old wall-clock rule. */
   const PING_MAX_S = 45, PING_MIN_GAP_S = 3;
-  const openRow = ctx => ctx.seatStrict === true ? { at: iso(ctx.now), secs: 0, last: iso(ctx.now) } : { at: iso(ctx.now) };
+  /* Only a page that says it sends heartbeats (openStep { hb: true }, from v41.26 on) gets a counted row. A page still on an older version opens
+   * the step without hb: its row has no secs and completeStep keeps the old wall-clock rule for it, so deploy order does not matter. */
+  const openRow = (ctx, b) => ctx.seatStrict === true && b && b.hb === true ? { at: iso(ctx.now), secs: 0, last: iso(ctx.now) } : { at: iso(ctx.now) };
   async function stepPing(db, ctx, b) {
     const i = Number(b.step); if (!Number.isInteger(i) || i < 0 || i > 500) fail(400, 'No such step');
     const key = ctx.emp + '|' + String(b.courseId) + '|' + i, resume = b.resume === true;

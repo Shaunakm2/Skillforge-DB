@@ -55,11 +55,11 @@ SkillforgeApp.prototype.amMasters = function (c) {
   const blocked = d => logged.filter(([b, l]) => d >= b.start && d <= l).map(([b]) => b.code);
   const applyHolidays = hols => s.batches.map(b => { if (b.closed) return b; const tt = s.ttypes.find(t => t.id === b.type); if (!tt) return b;
     const dts = trainDays(b.start, tt.days.length, holSetFor(hols, b)); return dts.length ? { ...b, end: dts[dts.length - 1] } : b; });
-  const hy = s.mdYear || TODAY_KEY.slice(0, 4), years = [...new Set(H.map(h => h.date.slice(0, 4)).concat([TODAY_KEY.slice(0, 4), String(+TODAY_KEY.slice(0, 4) + 1)]))].sort();
+  const hy = s.mdYear || Progress.today().slice(0, 4), years = [...new Set(H.map(h => h.date.slice(0, 4)).concat([Progress.today().slice(0, 4), String(+Progress.today().slice(0, 4) + 1)]))].sort();
   const HN = s.mdHol || { date:'', name:'' };
   const holVals = {
     mdYears: years.map(y => UI.chip(hy, y, y + ' · ' + H.filter(h => h.date.startsWith(y)).length, () => this.setState({ mdYear: y }))),
-    mdHols: H.filter(h => h.date.startsWith(hy)).map(h => ({ ...h, label: new Date(h.date + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', day:'numeric', month:'short', year:'numeric' }), past: h.date < TODAY_KEY,
+    mdHols: H.filter(h => h.date.startsWith(hy)).map(h => ({ ...h, label: new Date(h.date + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', day:'numeric', month:'short', year:'numeric' }), past: h.date < Progress.today(),
       del: () => { const bl = blocked(h.date); if (bl.length) return this.toastMsg(bl.join(', ') + ' already logged attendance after ' + h.date + '.'); const hols = s.holidays.filter(x => x.id !== h.id); this.setState({ holidays: hols, batches: applyHolidays(hols) }); this.toastMsg(h.name + ' removed'); } })),
     mdHolEmpty: !H.some(h => h.date.startsWith(hy)), mdHol: HN,
     setMdHolDate: e => this.setState({ mdHol: { ...HN, date: e.target.value } }), setMdHolName: e => this.setState({ mdHol: { ...HN, name: e.target.value } }),
@@ -146,16 +146,22 @@ SkillforgeApp.prototype.amMasters = function (c) {
   // ---- App settings: feature switches and defaults ----
   const PF = s.platform || PLATFORM0, setPF = fn => this.setState(st => { const p = JSON.parse(JSON.stringify(st.platform || PLATFORM0)); fn(p); return { platform: p }; });
   const DF = s.pfDraft || PF.defaults;
+  // v41.29: weekend days (0 = Sunday ... 6 = Saturday), default Saturday + Sunday. Never all seven: at least one working day must remain.
+  const WK_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const WK = Array.isArray(DF.weekendDays) && DF.weekendDays.length < 7 ? DF.weekendDays.map(Number).filter(n => n >= 0 && n <= 6) : [0, 6];
   const appVals = {
     mdIsApp: tab === 'app',
     pfFeats: PLATFORM_FEATS.map(([k, l, d]) => ({ l, d, ...UI.toggle(PF.feat[k] !== false, () => setPF(p => { p.feat[k] = p.feat[k] === false; })) })),
     pfD: DF, setPfPw: e => this.setState({ pfDraft: { ...DF, password: e.target.value } }), setPfDue: e => this.setState({ pfDraft: { ...DF, dueDays: e.target.value } }), setPfEss: e => this.setState({ pfDraft: { ...DF, essDays: e.target.value } }), setPfIdle: e => this.setState({ pfDraft: { ...DF, idleMins: e.target.value } }), pfIdle: DF.idleMins == null ? 30 : DF.idleMins,
+    pfWkDays: [1, 2, 3, 4, 5, 6, 0].map(d => UI.chip(WK.includes(d) ? 1 : 0, 1, WK_NAMES[d].slice(0, 3), () => {
+      if (!WK.includes(d) && WK.length >= 6) return this.toastMsg('Weekend days: keep at least one working day');
+      this.setState({ pfDraft: { ...DF, weekendDays: (WK.includes(d) ? WK.filter(x => x !== d) : WK.concat([d])).sort((x, y) => x - y) } }); })),
     pfDirty: !!s.pfDraft, pfDiscard: () => this.setState({ pfDraft:null }),
     pfSave: () => { const pw = String(DF.password || ''), due = parseInt(DF.dueDays, 10), ess = parseInt(DF.essDays, 10), idle = DF.idleMins == null || DF.idleMins === '' ? 30 : parseInt(DF.idleMins, 10);
       if (pw.length < 8 || pw.length > 72 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw)) return this.toastMsg('Default password: at least 8 characters with an upper-case letter, a lower-case letter and a number (Supabase refuses anything weaker)');
       if (!(due >= 1 && due <= 365)) return this.toastMsg('Default due date: 1 to 365 days'); if (!(ess >= 1 && ess <= 365)) return this.toastMsg('Essential-training window: 1 to 365 working days');
       if (!(idle === 0 || (idle >= 5 && idle <= 480))) return this.toastMsg('Sign out after inactivity: 5 to 480 minutes, or 0 for never');
-      setPF(p => { p.defaults = { password: pw, dueDays: due, essDays: ess, idleMins: idle }; }); this.setState({ pfDraft:null }); this.toastMsg('App settings saved'); },
+      setPF(p => { p.defaults = { password: pw, dueDays: due, essDays: ess, idleMins: idle, weekendDays: WK }; }); this.setState({ pfDraft:null }); this.toastMsg('App settings saved'); },
     pfWhere: [['Branding', 'Portal name, accent colour, sign-in message', 'branding'], ['Tile management', 'Home, Settings, batch-card, Training KPI tiles and the learner menu', 'masters'], ['MIS lists', 'Every drop-down list behind batches, users and MIS', 'masters'],
       ['Training types & statuses', 'Duration, day plan, pass mark, weights, batch IDs, trainee statuses and groups', 'batches'], ['Holiday list', 'Working days for batches and essential training', 'masters'], ['Badges', 'What learners earn and the rules', 'masters'],
       ['Roles & permissions', 'Who can open which Settings module, default courses per role', 'perms'], ['Categories', 'Course categories, three levels', 'categories'], ['Certificates', 'Template, fields and layout', 'certs'],

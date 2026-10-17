@@ -33,7 +33,6 @@ SkillforgeApp.prototype.adminVals = function (s, all) {
     gearBorder: s.adminView ? INK : '#D7E3EC',
     goHomeRole: () => this.goHomePage(),   // v41.20: the logo always opens the LMS home page
     showAdminBack: s.adminView && s.screen !== 'admin' && s.screen !== 'batch',
-    goAdminHome: () => this.go('admin'),
     backToLearning: () => this.go('home', { adminView:false }),
     isAdminHome: scrV === 'admin',
     isAccount: scrV === 'account',

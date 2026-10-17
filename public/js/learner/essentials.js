@@ -15,7 +15,7 @@ const Essentials = {
     const e = { ...enroll }, on = { ...(assignedOn || {}) }; let added = 0;
     users.filter(u => u.status !== 'Deactivated').forEach(u => Essentials.rulesFor(courses, u).forEach(a => {
       if ((e[u.name] || {})[a.id]) return;
-      e[u.name] = { ...(e[u.name] || {}), [a.id]: Essentials.deadline(u, a, holidays) }; on[u.name + '|' + a.id] = u.joined > TODAY_KEY ? TODAY_KEY : u.joined; added++;
+      e[u.name] = { ...(e[u.name] || {}), [a.id]: Essentials.deadline(u, a, holidays) }; on[u.name + '|' + a.id] = u.joined > Progress.today() ? Progress.today() : u.joined; added++;
     }));
     return { enroll: e, assignedOn: on, added };
   },
@@ -24,13 +24,12 @@ const Essentials = {
     // The person's own due date wins: an admin who extends it (or unassigns the course as an exemption) stops the pop-up.
     const en = s.enroll[u.name] || {};
     return Essentials.rulesFor(s.adminCourses, u).filter(a => en[a.id]).map(a => {
-      const by = en[a.id] || Essentials.deadline(u, a, s.holidays), done = Progress.courseDone(s, u.name, a);
-      const left = done ? 0 : TODAY_KEY > by ? -Progress.workingDaysBetween(by, TODAY_KEY, s.holidays) : Progress.workingDaysBetween(TODAY_KEY, by, s.holidays);
-      return { a, by, done, overdue: !done && TODAY_KEY > by, left };
+      const by = en[a.id] || Essentials.deadline(u, a, s.holidays), done = Progress.courseDone(s, u.name, a), today = Progress.today();   // v41.30: the organisation's date
+      const left = done ? 0 : today > by ? -Progress.workingDaysBetween(by, today, s.holidays) : Progress.workingDaysBetween(today, by, s.holidays);
+      return { a, by, done, overdue: !done && today > by, left };
     });
   },
 };
-
 SkillforgeApp.prototype.vmEssentials = function (c) {
   const { s, role } = c;
   const me = s.users.find(u => u.name === role.name);

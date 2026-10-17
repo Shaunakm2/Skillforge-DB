@@ -83,3 +83,10 @@ test('content staff sign everything themselves, 100 paths per request', async ()
   const reqs = t.signed.filter(x => x.staff); assert.deepEqual(J(reqs.map(r => r.staff.length).sort((a, b) => b - a)), [100, 100, 50]);
   assert.ok(!t.log.includes('sign'), 'no call to the learning function for signing');
 });
+
+test('openStep tells the server this page sends heartbeats (hb:true)', async () => {
+  const sent = []; const t = make({ rows: [U()] }); await t.B.start(t.app);
+  const inv = t.B.client().functions.invoke; t.B.client().functions.invoke = async (n, o) => { sent.push(JSON.parse(JSON.stringify(o.body))); return inv(n, o); };
+  await t.B.call('openStep', { courseId: 'c1', step: 0 });
+  assert.equal(sent.at(-1).action, 'openStep'); assert.equal(sent.at(-1).hb, true);
+});

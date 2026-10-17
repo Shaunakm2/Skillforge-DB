@@ -1,107 +1,100 @@
-Skillforge v41.30 PATCH NOTES (includes v41.26 to v41.29: use this package ALONE)
-This file is not part of the app: do not commit it as README.txt (README.md is the guide, CHANGELOG.md has the release notes).
+Skillforge v41.30: direct-source patch (this file is NOT part of the app: do not commit it)
+================================================================================================
 
-DEPLOY (in this order)
-1. Supabase: SQL Editor > paste supabase/migrations/011_v41_learning_ctx.sql > Run. Safe to run twice. Skipping it is safe (the function falls back
-   to four reads). If scripts/deploy-supabase.sh lists migrations by name, add 011 there.
-2. Extract. In GitHub: Add file > Upload files, drag the "public", "supabase", "scripts" and "tests" folders in, commit.
-3. In the Codespace (git pull first), from the repository root:
-     node scripts/apply-v41.29.mjs --dry-run     what it will change in helpers.js, masters.js, platform.js, database.js, index.html
-     node scripts/apply-v41.29.mjs               (safe to run twice; if a REQUIRED place cannot be found it writes NOTHING and says which)
-     node scripts/apply-v41.30.mjs --dry-run     what round 3 will change (handlers, essentials.js, users.js, CHANGELOG.md, README)
-     node scripts/apply-v41.30.mjs
-     npm test                                    includes tests/patch-v41_29.test.js, tests/patch-v41_30.test.js and the assessment.js sync check
-     npm run build
-     node scripts/prune-dist.mjs --apply         removes the old hashed bundles from dist/ (keeps the one index.html loads)
-   then commit and push, including dist/ (and the README.txt move / CHANGELOG.md the second patcher made).
-4. Once the site is live: Actions > deploy-functions > Run workflow.
-5. Learners with the app open: hard refresh (Ctrl+Shift+R) or sign in again.
-Mixed versions are safe in both directions except one: a page still on v41.25 cannot finish timed steps against the v41.26+ function until refreshed.
-No new secrets. Optional: SEAT_TIME_STRICT=false (old viewing-time rule), SIGNED_URL_TTL_SECONDS (default 3600).
-To see how long loading takes and which collections are big: add  LOAD_DEBUG: true,  to public/js/config.js, sign in, open the browser console (F12).
+WHAT THIS ZIP IS
+Complete, edited source files. No script rewrites your code; copy the folders over the repository and review `git diff`.
+(The earlier apply-v41.29.mjs / apply-v41.30.mjs patchers, CHANGELOG-*-entry.md and README.txt notes are gone: delete them if you committed them.)
 
-ROUND 3 (v41.30): CLEAN-UP
-- Unbound handlers (the reviewer's 13). apply-v41.30.mjs removes a handler only when it can PROVE it unused: not in public/index.html, not named in
-  tests/ or scripts/, and every occurrence in public/js is the definition itself. Each is reported as removed or KEPT with the reason. What I could
-  already see in your code: exportUsers is NOT dead (the Export menu calls V.exportUsers()), so it stays; toggleLgDemo, toggleSearch, setGq (auth.js) and
-  goAdminHome (admin.js) are definitions with no user, so they go. The other eight (downloadTemplate, saveRep, setBankQuery, setCQuizPick, setCdCat,
-  setEwsNote, setEwsU, toggleAllBank) get the same test when you run it. The state they used (lgDemo, searchOpen, gq) is left: removing the
-  global-search feature itself is a product decision.
-- Weekend days now apply everywhere: Progress.configure(state) runs at the start of every render (app.js), so essential-training deadlines and new
-  assignments use the setting even before a course status was looked up.
-- Essential training and the default dates in users.js use Progress.today() (the organisation's date) instead of the browser's date.
-  Checked callers of workingDaysBetween in essentials.js: the due date it is called with is never empty there, so "date unknown" (null) cannot reach it.
-  Run  node scripts/check-callers.mjs  to list every other caller; lines marked CHECK do arithmetic or build a Date from a possibly-empty value.
-- CHANGELOG.md caught up (it stopped at v41.21): v41.24 and v41.26 to v41.30. v41.22 and v41.23 have no notes; the entry says what the code shows.
-- README.txt vs README.md: README.txt was a per-release note that got overwritten each release. It moves to docs/archive/RELEASE-NOTES-v41.24.txt;
-  README.md stays the one guide and now points to CHANGELOG.md. This file (PATCH-NOTES) is the replacement for the deploy steps and is not committed.
-- node scripts/find-duplicates.mjs lists files that share identical long lines. Run it on the overlaps the reviewer could not verify (lcms / documents /
-  courses, kpis / dashboard / reports, database / migration / user-import, questions / question-list / question-meta) and send me the output if you want
-  them merged into shared helpers.
+Edited files (all complete files)                           What changed
+public/js/core/helpers.js                                   downloadBlob(); csvDownload uses it; weekendDays default; defaultDue uses Progress.today()
+public/js/admin/masters.js                                  App settings: Weekend days buttons + saved with the defaults; organisation date
+public/js/admin/platform.js                                 permRows (unused no-op) removed; organisation date
+public/js/admin/database.js                                 backup uses downloadBlob(); organisation date
+public/js/admin/admin.js                                    unused goAdminHome removed
+public/js/learner/auth.js                                   unused toggleLgDemo, toggleSearch, setGq removed
+public/js/learner/essentials.js                             organisation date (overdue, working days left, assigned-on)
+public/js/app.js, core/backend.js, core/progress.js         v41.26 to v41.30 (see CHANGELOG entries below)
+supabase/functions/learning/index.ts, _shared/learning-core.js   v41.26 to v41.30
+supabase/migrations/011_v41_learning_ctx.sql                new, optional (the function falls back without it)
+tests/learning-core.test.js                                 your file with the stale survey assertion fixed (see "Review items")
+tests/learning-v41_26, progress-v41_26, edge-ctx-v41_27, backend-v41_27, ui-v41_30 (.test.js)   new
+scripts/check-unbound.mjs, check-callers.mjs, find-duplicates.mjs, prune-dist.mjs   report / clean-up tools (they only read, except prune-dist --apply)
 
-WEEKEND DAYS, CLEAN-UP (v41.29)
-- Settings > Master data > App settings > Defaults: new "Weekend days" buttons (Mon to Sun; selected = day off). Default Saturday + Sunday. At least one
-  working day must remain. Saved with the other defaults (platform.defaults.weekendDays) and read by Progress.configure(), so it drives essential-training
-  deadlines and working-day compliance. It does NOT change the holiday list check ("falls on a weekend") or batch training days (batches have their own
-  "Saturdays are training days" rule); those still use Saturday + Sunday.
-- downloadBlob() in helpers.js is the one place that saves a Blob as a file; csvDownload uses it and the patcher replaces every other copy it finds in
-  public/js (xlsx.js, engine.js and unzip.js are left alone). Anything it could not convert is listed at the end of the run ("STILL BUILDS A FILE LINK BY HAND").
-- Removed the unused permRows no-op from platform.js. TODAY_KEY is replaced by Progress.today() in platform.js, masters.js, database.js, helpers.js (defaultDue).
-- scripts/prune-dist.mjs: removes the old hashed app bundles from dist/ (dist/ had 5, only 1 is loaded).
-- scripts/check-unbound.mjs: lists the 13 handlers the reviewer named with where each is defined and whether the template uses it. Report only; delete
-  the ones marked "NOT IN TEMPLATE" with no "other uses".
-- tests/patch-v41_29.test.js: also fails when public/js/core/assessment.js and supabase/functions/_shared/assessment.js differ (run npm run sync-shared).
+APPLY
+1. Copy public/, supabase/, tests/, scripts/ over the repository.
+2. `git diff --stat`: each edited file should show a handful of changed lines (the table above says which).
+   If one shows hundreds, my copy of that file differed from yours in spacing: `git checkout -- <file>` and tell me.
+3. public/index.html: add the Weekend days block (the one place I could not ship a file: index.html is too large to copy safely).
+   Find the idle-minutes field:  grep -n "setPfIdle" public/index.html
+   Paste this block right AFTER that field's closing </label>, before the Discard / Save defaults buttons:
 
-STILL OPEN (decisions, not defects)
-- Duplicate learning rules in public/js/core/progress.js and supabase/functions/_shared/learning-core.js (viewing time, scoring): a design change.
-- docs/unused/*.UNUSED.sql, docs/archive/ and the 18 version-named e2e scripts: nothing depends on them; docs/archive is referenced by CHANGELOG.md. Keep or delete.
-  The e2e scripts are listed one by one in package.json test:e2e, so deleting them means editing that line too.
-- Holiday-list "falls on a weekend" and batch training days keep their own Saturday/Sunday rules (batches.js has its own isWeekend / offDay).
-- L&D critique (Kirkpatrick levels 3-4, answer reveal on retakes, role/risk-based deadlines): product decisions.
-- Loading everything at sign-in for staff, signing staff files at boot, Realtime for every trainer: see the v41.27 notes below.
+<div class="ui-61"><span class="ui-5">Weekend days (not counted as working days when essential-training deadlines are worked out)</span><div class="ui-63"><sf-for list="{{ pfWkDays }}" as="o"><button class="ovl-25" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div><span class="ui-6">Selected days are days off. Default: Saturday and Sunday. Batch training days and the holiday list keep their own rules.</span></div>
 
-TODAY (v41.28): Progress.today()
-- New Progress.today(): connected = today's date in the organisation's time zone (ORG_TIMEZONE in js/config.js, default Asia/Kolkata, the same default the
-  server uses); offline demo = TODAY_KEY (the sample data is built around it). TODAY_KEY itself is not changed.
-- Progress.js: "overdue" (a course due today is not overdue; due yesterday is), and the fallback dates for completion and start now use it.
-  The per-course cache is also dropped when the date changes, so a tab left open overnight does not keep yesterday's overdue flags.
-- app.js: default due dates (Assign courses, Course assignments), the Data migration report "to" date, the "joined" date of the first admin and the
-  account-expiry check use it.
-- Left on TODAY_KEY on purpose: the sample-data generators (seedRecords, ScaleData), the calendar's starting month, and the offline-only lesson/quiz
-  completion stamps in app.js. They only run on the offline demo.
-- ORG_TIMEZONE is optional in config.js: add  ORG_TIMEZONE: 'Asia/Kolkata',  only if your organisation uses another zone, and set the same value in the
-  function's ORG_TIMEZONE secret and in sf_setting 'org_timezone' (migration 003).
+   `npm test` fails with "public/index.html has no {{ pfWkDays }}" until this is pasted, so it cannot be forgotten.
+4. public/js/admin/users.js (not shipped: too large to copy safely): one deterministic edit, then check the diff:
+     sed -i 's/\bTODAY_KEY\b/Progress.today()/g' public/js/admin/users.js && git diff --stat public/js/admin/users.js
+5. CHANGELOG.md: paste the block at the end of this file directly under the line that starts "Newest first.", then
+     git mv README.txt docs/archive/RELEASE-NOTES-v41.24.txt        (its content is the v41.24 entry below)
+6. npm test && npm run build && node scripts/prune-dist.mjs --apply      (prune-dist keeps the one bundle index.html loads, removes the old hashed ones)
+7. Commit and push everything, including dist/.
+8. Supabase: SQL Editor > run supabase/migrations/011_v41_learning_ctx.sql (optional, safe to run twice); then Actions > deploy-functions.
+   Deploy ORDER NO LONGER MATTERS: the server counts viewing time only for pages that say they send heartbeats (openStep { hb: true }); a page still
+   on an older version keeps the old rule, and a new page against an old function just gets "Unknown action" for the heartbeat and stops it.
 
-ROUND 2: UNNECESSARY CALLS (v41.27)
-- Opening a saved sign-in: was auth.getUser (network) + me + signedIn + directory one after another. Now ONE call (me): the saved sign-in is read on the
-  device, "must change password" is read from the token, and me records the sign-in when the app asks (method). An older server still gets signedIn.
-- Every "learning" request did four reads before the real work (session alive, member, expiry date, permissions). Now ONE database call,
-  sf_learning_ctx (migration 011). Nothing is cached, so deactivating or resetting a person still blocks them on their next request.
-- Reading the organisation's rows at sign-in: was one long chain of 1,000-row pages. Now one stream per collection, 6 at a time, and the
-  directory of names (learners) is read at the same time. Same rows, same order within a collection.
-- File links: a learner used to send every file path in the organisation to the function, which refused almost all of them. Now only paths that can
-  qualify (files of assigned courses, documents) are sent, 200 per request, 3 at a time. Staff who sign their own links do 100 per request, 3 at a time.
-- Account expiry on the sign-in screen is compared with today's date in the organisation's time zone (as the server does), not the browser's.
-- Not changed: Realtime (see below), and that a person still loads every row they are allowed to read.
+REVIEW ITEMS
+- Test 36 (learning-core.test.js): fixed. The assertion now expects the refusal  /< and >/  ("Answer 2: the characters < and > are not allowed"), checks that
+  the refused answer saves nothing and does not complete the step, and that the same answer without brackets still goes through. I ran your 22 tests against
+  your original code (22/22), then against mine (21/22 before the fix, 22/22 after).
+- Weekend days UI: it lives in masters.js + index.html (Master data > App settings), not platform.js. Done in masters.js; one paste in index.html (step 3).
+- Download helper: downloadBlob is in helpers.js and csvDownload and database.js use it. Four more copies still exist in files I have not been able to read:
+  find them with  git grep -n "createObjectURL" public/js  (a preview link, not a download, is fine) and replace each
+  `const url = URL.createObjectURL(BLOB), a = document.createElement('a'); a.href = url; a.download = NAME; ...; setTimeout(() => URL.revokeObjectURL(url), N);`
+  with  downloadBlob(NAME, BLOB);
+- Dead code: permRows removed. Of the 13 handlers: goAdminHome, toggleLgDemo, toggleSearch, setGq removed. exportUsers is NOT dead (the Export menu calls
+  V.exportUsers()), so it stays. Eight are left: downloadTemplate, saveRep, setBankQuery, setCQuizPick, setCdCat, setEwsNote, setEwsU, toggleAllBank.
+  Run  node scripts/check-unbound.mjs  : it prints, for each, where it is defined, whether the template uses it, and every other use. Delete the ones it
+  marks NOT IN TEMPLATE with no "other uses". (The template does bind setEwsPopU / setEwsPopNote: those are different names.)
+- Old bundles in dist/: step 6.   Docs: step 5.
+- "Stricter text input": in the app this was already the behaviour since v35 (the input guard strips < and > while typing and says why). What changed is that
+  the server now refuses it with a message instead of silently removing it, for anything that reaches it without the browser guard (pasted/API/CSV).
+  Suggested note to trainers: "The characters < and > can't be used in learner answers or comments (for example 'score < 5'): write 'below 5' instead."
 
-NOT DONE, AND WHY
-- The load is still "everything the person may read". For learners that is small; for staff with Reports it is every learner's records, and
-  it will not scale to 3,500 people. The real fix is to load per screen (reports and dashboards read from the server when opened). That needs
-  the report/dashboard files and a decision on which screens come first. Use LOAD_DEBUG to see which collections are big before deciding.
-- Files are still signed when the page loads for staff. Signing only when a file is opened needs the screens that read .src (player, documents, LCMS).
-- Realtime: anyone with any permission (all Trainers by default) subscribes, and each event is checked per subscriber. On the Free plan the limit is
-  200 connections. Who should get live updates is your decision; the line is in Backend.afterSignIn (search for "subscribe()").
+STILL OPEN (unchanged from the review, not part of this patch)
+  loose CSP (style-src 'unsafe-inline' is required by the design; frame-src https: is narrowed in the BUILT dist/_headers), unsigned JWT decode (relies on
+  verify_jwt), SCORM status trusted from the browser, staff load every row at sign-in and sign files at boot, Realtime for every user with a permission,
+  and the L&D gaps (behaviour/impact follow-up, answer reveal, fixed deadlines).
 
-FILES (the whole set, so apply this package alone)
-- supabase/migrations/011_v41_learning_ctx.sql (new)
-- supabase/functions/learning/index.ts
-- supabase/functions/_shared/learning-core.js (v41.26)
-- public/js/core/backend.js, public/js/core/progress.js, public/js/app.js
-- tests/patch-v41_30.test.js (16), patch-v41_29.test.js (14), learning-v41_26.test.js (8), progress-v41_26.test.js (7), edge-ctx-v41_27.test.js (7, needs Node 22.13+, skipped on older), backend-v41_27.test.js (7)
+PASTE INTO CHANGELOG.md (under "Newest first.")
+------------------------------------------------------------------------------------------------
+## v41.30 (review follow-up: stale test, deploy order, clean-up)
+- **Strict viewing time is opt-in per page.** The server counts viewing time only for a page that opens the step with `hb: true` (every v41.26+ page does). A page on an older version keeps the wall-clock rule, so it no longer matters whether the site or the function is deployed first.
+- **Weekend days apply everywhere.** `Progress.configure(state)` runs at the start of every render, so essential-training deadlines and new assignments use the setting.
+- **Essential training uses the organisation's date** (overdue, working days left, assigned-on) through `Progress.today()`.
+- **Dead code removed:** `permRows`, `goAdminHome`, `toggleLgDemo`, `toggleSearch`, `setGq`. `exportUsers` is used by the Export menu and stays.
+- Tests: `learning-core.test.js` survey test now expects the refusal of `<` and `>`; `ui-v41_30.test.js` runs the edited front-end files as they are.
 
-ROUND 1 (v41.26), unchanged: atomic submit (resumable), viewing time counted by the server (stepPing), a pass follows re-rating, "date unknown"
-instead of an invented assignment date, weekend days setting (Progress.configure), org-time-zone today (Progress.orgToday), < and > refused with a
-message, one lifetime for file links, save retry with backoff. Weekend days: built in v41.29 (see above).
+## v41.29 (weekend days, one download helper)
+- **Weekend days are a setting** (Master data › App settings › Weekend days, default Saturday + Sunday, at least one working day must remain), stored in `platform.defaults.weekendDays`. Batch training days and the holiday list check keep their own rules.
+- **One download helper:** `downloadBlob()` in helpers.js; `csvDownload` and the database backup use it.
+- `TODAY_KEY` replaced by `Progress.today()` in platform.js, masters.js, database.js and `defaultDue`.
+- Tools: `scripts/prune-dist.mjs`, `scripts/check-unbound.mjs`, `scripts/check-callers.mjs`, `scripts/find-duplicates.mjs`.
 
-TEST: npm test. Run npm run test:e2e too (one more check: if an e2e test compares the default due date while connected, it must compare with Progress.today(), not TODAY_KEY): the browser suites use tests/e2e/mock-supabase.js, and loading now asks it for one collection at a time
-(.eq("coll", ...) with .order("key") and an .or(...) page filter); if that mock only understands the old whole-table query, a suite will fail at sign-in.
+## v41.28 (today in the organisation's time zone)
+- `Progress.today()`: the organisation's date when connected (ORG_TIMEZONE, default Asia/Kolkata), `TODAY_KEY` on the offline demo. Overdue, completion and start fallbacks, default due dates, the migration report end date, the first admin's joined date and the account-expiry check use it.
+
+## v41.27 (unnecessary API calls)
+- Opening a saved sign-in is one call: no `auth.getUser()`; "must change password" comes from the token; `me` records the sign-in when asked.
+- One database call instead of four for every `learning` request (`sf_learning_ctx`, migration 011); falls back to the four reads without it.
+- Rows load one collection at a time, six at once; the learner directory loads in parallel; learners ask to sign only files that can qualify. `LOAD_DEBUG: true` in config.js logs rows and time per collection.
+
+## v41.26 (reviewer findings)
+- **Submit can be finished by a retry**; attempts handed in before v41.26 count as complete.
+- **Viewing time is counted by the server** (`stepPing` heartbeat; `SEAT_TIME_STRICT=false` restores the old rule).
+- **A pass follows the attempts' current results** (a lower re-rating can remove it); steps finished another way are never touched.
+- **No invented assignment dates:** a missing assigned-on date is "date unknown".
+- **`<` and `>` are refused with a message** instead of being removed silently.
+- **One lifetime for file links** (`SIGNED_URL_TTL_SECONDS`, default 3600), renewed in the background; **save retry backs off** (8 s to 5 minutes, stops after 10 failures).
+
+## v41.24
+- **Certificates moves into Master data (admins only).** The tile moves from Learning content to Master data (after Badges), the separate Certificates permission is removed (the screen needs the Master data permission) and Master data gets a Certificates tab. A custom role that had the old Certificates permission can no longer open the screen. Test: `tests/e2e/v41_24_e2e.py`.
+------------------------------------------------------------------------------------------------

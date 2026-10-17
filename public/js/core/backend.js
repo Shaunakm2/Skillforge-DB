@@ -408,12 +408,13 @@ const Backend = (() => {
   async function call(action, body) {
     // v41.26: send the seat-time counted so far before the server decides whether the step may be completed
     if (action === 'completeStep' && watch && watch.key === watchKey(body)) await watch.ping();
+    if (action === 'openStep') body = { ...body, hb: true };   // v41.26: this page sends heartbeats, so the server counts viewing time for it
     const { data, error } = await sb.functions.invoke('learning', { body: { action, org, ...body } });
     let msg = data && data.error;
     if (error && !msg) { try { const j = await error.context.json(); msg = j.error; } catch (e) { msg = error.message; } }
     if (msg) throw new Error(msg);
     if (data && data._touched && data._touched.length) await pull(data._touched);
-    if (action === 'openStep' || (action === 'scormLaunch' && body && body.courseId != null)) watchStep(body.courseId, body.step);
+    if (action === 'openStep') watchStep(body.courseId, body.step);
     else if (action === 'completeStep' && data && data.done && watch && watch.key === watchKey(body)) stopWatch();
     return data || {};
   }

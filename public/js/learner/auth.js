@@ -41,7 +41,7 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     brandInitial: (s.brandName || 'S').trim().charAt(0).toUpperCase(), lg: L0, lgErr: !!L0.err, lgPwType: L0.show ? 'text' : 'password', lgShowLabel: L0.show ? 'Hide' : 'Show', lgPwShown: !!L0.show, lgPwHidden: !L0.show,
     lgInfo: !!L0.info, lgCaps: !!s.lgCaps,   // v41.22: neutral notice (e.g. signed out after inactivity) and Caps Lock warning
     setLgEmail: e => setL({ email: e.target.value }), setLgPw: e => setL({ pw: e.target.value }), toggleLgShow: () => setL({ show: !L0.show }),
-    lgRemOn: !!L0.remember, lgRemHint: Backend.on ? 'Keeps you signed in for ' + Backend.KEEP_MIN + ' minutes after your last activity, even if you close the browser. Not for shared computers.' : 'Remembers your username on this device.', lgRemember: () => setL({ remember: !L0.remember }), lgDemoOpen: !!s.lgDemo, toggleLgDemo: () => this.setState({ lgDemo: !s.lgDemo }), lgKey: e => { if (e.key === 'Enter') { doLogin(); return; }
+    lgRemOn: !!L0.remember, lgRemHint: Backend.on ? 'Keeps you signed in for ' + Backend.KEEP_MIN + ' minutes after your last activity, even if you close the browser. Not for shared computers.' : 'Remembers your username on this device.', lgRemember: () => setL({ remember: !L0.remember }), lgDemoOpen: !!s.lgDemo, lgKey: e => { if (e.key === 'Enter') { doLogin(); return; }
       if (e.target && e.target.id === 'sf-pw' && e.getModifierState) { const on = !!e.getModifierState('CapsLock'); if (on !== !!this.state.lgCaps) this.setState({ lgCaps: on }); } },
     lgKeyReset: e => { if (e.key === 'Enter') loginVals.sendReset(); }, lgKeyNew: e => { if (e.key === 'Enter') loginVals.saveNewPw(); },   // v41.22: Enter works on every sign-in screen
     doLogin,
@@ -88,8 +88,6 @@ SkillforgeApp.prototype.vmAuth = function (c) {
     navItems,
     searchOpen: s.searchOpen,
     gq: s.gq,
-    toggleSearch: () => this.setState({ searchOpen: !s.searchOpen, notifOpen:false, roleMenu:false, gq:'' }),
-    setGq: e => this.setState({ gq: e.target.value }),
     roleMenu: s.roleMenu,
     roleLabel: role.label,
     persona: { name: role.name, initials: ini(role.name) },

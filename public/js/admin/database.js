@@ -44,10 +44,10 @@ SkillforgeApp.prototype.amDatabase = function (c) {
         if (!todo.length) { this.setState({ dbLogins: { created:[], skipped:[] } }); return; }
         return Backend.createLogins(todo.map(u => ({ email: u.email, empId: u.empId, name: u.name, role: u.role, roleId: u.roleId, userKey: String(u.id) }))).then(r => this.setState({ dbLogins: r })); })
       .catch(e => this.setState({ dbLogins: { error: e.message } })); },
-    dbLoginsCsv: () => { const L = s.dbLogins; csvDownload('temporary-passwords-' + TODAY_KEY + '.csv', [['Email', 'Employee ID', 'Temporary password', 'Note']].concat(L.created.map(x => [x.email, x.empId, x.tempPassword, 'Must be changed at first sign-in'])).concat(L.skipped.map(x => [x.email, '', '', 'Skipped: ' + x.reason]))); },
+    dbLoginsCsv: () => { const L = s.dbLogins; csvDownload('temporary-passwords-' + Progress.today() + '.csv', [['Email', 'Employee ID', 'Temporary password', 'Note']].concat(L.created.map(x => [x.email, x.empId, x.tempPassword, 'Must be changed at first sign-in'])).concat(L.skipped.map(x => [x.email, '', '', 'Skipped: ' + x.reason]))); },
     dbIsAdmin: Backend.on && (Backend.me() || {}).role === 'Admin',
     dbBackup: () => { const data = JSON.stringify({ org: Backend.org, exportedAt: new Date().toISOString(), rows: rows.map(r => ({ coll: r.coll, key: r.key, data: r.data })) });
-      const url = URL.createObjectURL(new Blob([data], { type:'application/json' })), a = document.createElement('a'); a.href = url; a.download = 'skillforge-backup-' + TODAY_KEY + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+      downloadBlob('skillforge-backup-' + Progress.today() + '.json', new Blob([data], { type:'application/json' }));
       this.toastMsg('Backup downloaded · ' + rows.length.toLocaleString('en-US') + ' records'); },
   };
 };

@@ -6,23 +6,21 @@ const UI = {
   /* Chip / segmented button: dark when selected. */
   chip: (cur, v, label, pick) => { const on = cur === v; return { label, bg: on ? '#16324F' : '#FFFFFF', fg: on ? '#F8FBFD' : '#16324F', border: on ? '#16324F' : '#C9D7E2', pick }; },
 };
-
 /* v41.19: next numeric id for a new person. The signed-in admin of a new database has the id "me-<employee ID>", so
  * Math.max over all ids gave NaN: the new person was saved under the key "NaN" and their Manage menu did nothing. */
 const nextUserId = users => (users || []).reduce((m, u) => { const n = typeof u.id === 'number' ? u.id : /^\d+$/.test(String(u.id)) ? +u.id : 0; return Number.isFinite(n) && n > m ? n : m; }, 0) + 1;
-
 /* Download rows as a UTF-8 CSV file (Excel-friendly).
  * Formula injection guard (OWASP “CSV injection”): a text cell that starts with = + - @ tab or CR would run as a
  * formula when the file is opened in Excel, so it gets a leading apostrophe. Plain numbers (−12, +3.5, 40%) are kept. */
 const csvSafe = v => { if (typeof v === 'number') return String(v); const t = String(v == null ? '' : v).replace(/\u2063+/g, '');   // v41.20: invisible name marker never goes into files
   return /^[=+\-@\t\r]/.test(t) && !/^[-+]?\d[\d,]*(\.\d+)?%?$/.test(t) ? "'" + t : t; };
+/* v41.29: the one place that saves a Blob as a file (this code was copied into several files). The link is released after 2 seconds. */
+const downloadBlob = (name, blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); return blob; };
 const csvDownload = (name, rows) => {
   const cell = v => { const t = csvSafe(v); return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   const csv = '\ufeff' + rows.map(r => r.map(cell).join(',')).join('\r\n');
-  const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' })), a = document.createElement('a');
-  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(name, new Blob([csv], { type:'text/csv;charset=utf-8' }));
 };
-
 /* CSV parser: quotes, escaped quotes, commas and newlines inside quotes, BOM, CRLF. */
 const parseCsv = text => { const rows = []; let row = [], cell = '', q = false; text = text.replace(/^\ufeff/, '');
   for (let i = 0; i < text.length; i++) { const c = text[i];
@@ -30,7 +28,6 @@ const parseCsv = text => { const rows = []; let row = [], cell = '', q = false; 
     else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; }
   if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
   return rows.filter(r => r.some(v => v.trim() !== '')); };
-
 /* Cached date formatting: Intl formatting is slow (~0.15 ms a call), and big reports format tens of thousands
    of dates, so each distinct value is formatted once. */
 const Fmt = (() => {
@@ -55,12 +52,12 @@ const TILE_GROUPS = {
 };
 /* App settings (Settings › Master data › App settings): feature switches and defaults. */
 const PLATFORM0 = { feat: { game:true, badges:true, paths:true, discussions:true, calendar:true, accessReq:true, essPopup:true, anns:true },
-  defaults: { password:'Pass@123', dueDays:30, essDays:30, idleMins:30 } };
+  defaults: { password:'Pass@123', dueDays:30, essDays:30, idleMins:30, weekendDays:[0, 6] } };   // weekendDays: 0 = Sunday ... 6 = Saturday (v41.29)
 const PLATFORM_FEATS = [['game', 'XP, levels, quests and leaderboards', 'Gamification on Home and My learning.'], ['badges', 'Badges', 'The badges section on My learning.'], ['paths', 'Learning path on Home', 'The “My learning path” card on Home.'],
   ['discussions', 'Discussions', 'The Discussions page and menu item.'], ['calendar', 'Calendar', 'The Calendar page and menu item.'], ['accessReq', 'Request access from the catalog', 'Learners can ask for courses that are not assigned to them.'],
   ['essPopup', 'Overdue essential-training pop-up', 'Shown at sign-in when a new joiner is past an essential-training deadline.'], ['anns', 'Announcements on Home', 'Homepage banners from Settings › Announcements.']];
 /* Default due date for new assignments: today + App settings › default due days (30 when not set). */
-const defaultDue = s => Progress.plus(TODAY_KEY, Math.max(1, +(((s && s.platform) || PLATFORM0).defaults || {}).dueDays || 30));
+const defaultDue = s => Progress.plus(Progress.today(), Math.max(1, +(((s && s.platform) || PLATFORM0).defaults || {}).dueDays || 30));
 /* A real calendar date in YYYY-MM-DD (rejects 2026-02-31, which new Date() silently turns into March 3). */
 const realDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '')); if (!m) return false; const t = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return t.getUTCFullYear() === +m[1] && t.getUTCMonth() === +m[2] - 1 && t.getUTCDate() === +m[3]; };
 const Tiles = {

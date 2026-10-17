@@ -26,7 +26,7 @@ SkillforgeApp.prototype.amPlatform = function (c) {
     setAuditQuery: e => this.setState({ auditQuery: e.target.value }),
     // v36: Export writes the rows on screen to a CSV (it only showed a message). Connected: rows come from the database log.
     exportAudit: () => { const rows = auditSrc.filter(auditOk); if (!rows.length) return this.toastMsg('Nothing to export: no audit rows match the filter.');
-      csvDownload('audit-log-' + TODAY_KEY + '.csv', [['Date and time', 'Who', 'Area', 'What happened', 'Details', 'Recorded by', 'Record (technical)']].concat(rows.map(a => [a.t ? a.t.replace('T', ' ').slice(0, 19) : a.at, a.who, a.area, a.text, (a.details || []).join('; '), a.auto ? 'System (automatic)' : 'Person', a.coll ? a.coll + ' / ' + a.key + (a.version ? ' / v' + a.version : '') + (a.count > 1 ? ' (+' + (a.count - 1) + ' more)' : '') : ''])));
+      csvDownload('audit-log-' + Progress.today() + '.csv', [['Date and time', 'Who', 'Area', 'What happened', 'Details', 'Recorded by', 'Record (technical)']].concat(rows.map(a => [a.t ? a.t.replace('T', ' ').slice(0, 19) : a.at, a.who, a.area, a.text, (a.details || []).join('; '), a.auto ? 'System (automatic)' : 'Person', a.coll ? a.coll + ' / ' + a.key + (a.version ? ' / v' + a.version : '') + (a.count > 1 ? ' (+' + (a.count - 1) + ' more)' : '') : ''])));
       this.toastMsg(rows.length.toLocaleString('en-US') + ' audit rows exported'); },
     auditAreaOpts: ['All'].concat(AuditText.AREAS.filter(x => auditSrc.some(a => a.area === x))).map(v => ({ v, l: v === 'All' ? 'All areas' : v })), auditAreaVal: AF.area, setAuditArea: e => setAF({ area: e.target.value }),
     auditWhoOpts: ['All'].concat([...new Set(auditSrc.map(a => a.who))].sort()).map(v => ({ v, l: v === 'All' ? 'Everyone' : v })), auditWhoVal: AF.who, setAuditWho: e => setAF({ who: e.target.value }),
@@ -41,7 +41,6 @@ SkillforgeApp.prototype.amPlatform = function (c) {
         hasDetails: (a.details || []).length > 0, detailList: (a.details || []).map(x => ({ x })), open, autoTag: a.auto && a.who !== 'System',
         toggle: () => this.setState(st => ({ auditOpen: { ...(st.auditOpen || {}), [k]: !open } })), chev: open ? '▾' : '▸' }; }))(auditSrc.filter(auditOk).slice(0, 500)),
     permRoles: ['Learner', 'Trainer', 'Admin'],
-    permRows: s.perms.map(([label, vals]) => ({ label, cells: vals.map(v => ({ on: !!v, bg: v ? '#22C55E' : W, border: v ? '#22C55E' : '#BFCFDB', op: 1, toggle: () => {} })) })),
     brandName: s.brandName,
     setBrandName: e => this.setState({ brandName: e.target.value }),
     brandMsg: s.brandMsg,
@@ -62,9 +61,9 @@ SkillforgeApp.prototype.amPlatform = function (c) {
       // e.g. "Daniel Reyes replied to your discussion" to Daniel Reyes). In-app notifications can be switched off in Preferences.
       const P = prefsFor(s, me), own = [];
       if (P.notif.inapp !== false) {
-        if (P.notif.due !== false) { const en = s.enroll[me] || {}, soon = Progress.plus(TODAY_KEY, 7);
+        if (P.notif.due !== false) { const en = s.enroll[me] || {}, soon = Progress.plus(Progress.today(), 7);
           Object.keys(en).map(cid => [cid, en[cid], Progress.courseOf(s, cid)]).filter(([cid, d, a]) => a && d && d <= soon && !Progress.courseDone(s, me, a))
-            .sort((x, y) => x[1].localeCompare(y[1])).slice(0, 4).forEach(([cid, d, a]) => { const days = Math.round((new Date(d + 'T12:00:00') - new Date(TODAY_KEY + 'T12:00:00')) / 864e5);
+            .sort((x, y) => x[1].localeCompare(y[1])).slice(0, 4).forEach(([cid, d, a]) => { const days = Math.round((new Date(d + 'T12:00:00') - new Date(Progress.today() + 'T12:00:00')) / 864e5);
               own.push({ t: a.title + (days < 0 ? ' is overdue (was due ' + Fmt.short(d) + ')' : days === 0 ? ' is due today' : ' is due in ' + days + (days === 1 ? ' day' : ' days')), time: Fmt.short(d), kind:'due', go: () => this.go('course', { courseId: cid, notifOpen:false, adminView:false }) }); }); }
         LearnStats.build(s).comp.filter(x => x.user === me && (x.st === 'Expiring soon' || x.st === 'Expired')).slice(0, 2)
           .forEach(x => own.push({ t: x.course + (x.st === 'Expired' ? ' certification expired ' : ' certification expires ') + Fmt.short(x.exp), time: 'Re-certify', kind:'cert', go: () => this.go('course', { courseId: x.cid, notifOpen:false, adminView:false }) }));

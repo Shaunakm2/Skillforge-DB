@@ -6,7 +6,8 @@
  * A name is safe to delete when it is "not in the template" and nothing else in public/js calls it (the "other uses" column). */
 import fs from 'node:fs';
 import path from 'node:path';
-const NAMES = ['downloadTemplate', 'goAdminHome', 'saveRep', 'setBankQuery', 'setCQuizPick', 'setCdCat', 'setEwsNote', 'setEwsU', 'setGq', 'toggleAllBank', 'toggleLgDemo', 'toggleSearch', 'exportUsers'];
+// The reviewer's 13. v41.30 already removed toggleLgDemo, toggleSearch, setGq (auth.js) and goAdminHome (admin.js); exportUsers is NOT dead (the Export menu calls V.exportUsers()). These 8 are left.
+const NAMES = ['downloadTemplate', 'saveRep', 'setBankQuery', 'setCQuizPick', 'setCdCat', 'setEwsNote', 'setEwsU', 'toggleAllBank'];
 const want = process.argv.slice(2).filter(a => !a.startsWith('--')), names = want.length ? want : NAMES;
 const root = process.cwd(), js = [];
 const walk = d => fs.existsSync(d) && fs.readdirSync(d, { withFileTypes: true }).forEach(e => { const p = path.join(d, e.name); if (e.isDirectory()) { if (!['vendor', 'node_modules'].includes(e.name)) walk(p); } else if (e.name.endsWith('.js')) js.push(p); });
