@@ -3,6 +3,8 @@
  * every other column is optional and stored on the profile. Rows whose UserId already exists update that account
  * (only the columns given), new UserIds create accounts with the default password.
  * Result: created / updated / rejected, with a downloadable rejected-rows file (reason per row).
+ * v41.32: rows are checked with the SAME rules as Create account (users.js USER_RULES): name letters only, employee ID
+ * pattern, phone characters, designation, lengths, and no < or > in any column.
  */
 const UM_COLS = [
   // [template header, profile field, required]
@@ -15,6 +17,7 @@ const UM_COLS = [
   ['JobRole', 'jobRole'], ['DateIntoRole', 'dateIntoRole'], ['Companion', 'companion'], ['Mentor', 'mentor'], ['HR Partner', 'hrPartner'], ['Country', 'country'],
 ];
 const UM_DATES = ['dob', 'joined', 'expires', 'dateIntoRole'];
+const UM_MAX = 120;   // v41.32: any optional text column (Designation: 60)
 /* Accepts YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY and DD-Mon-YYYY. Returns YYYY-MM-DD or null. */
 /* A real calendar date (rejects 31-31-2026, 30-02-2026…). */
 const umReal = (y, mo, d) => { const t = new Date(Date.UTC(+y, +mo - 1, +d)); return t.getUTCFullYear() === +y && t.getUTCMonth() === +mo - 1 && t.getUTCDate() === +d ? y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0') : null; };
@@ -41,8 +44,15 @@ SkillforgeApp.prototype.amUserImport = function (c) {
     rows.slice(1).forEach((r, i) => { const n = i + 2, g = h => idx[h] < 0 ? '' : String(r[idx[h]] || '').trim(), rej = why => bad.push({ n, raw: UM_COLS.map(([h]) => g(h)), why });
       const emp = g('UserId'), mail = g('EmailId').toLowerCase(), name = g('UserName').replace(/\s+/g, ' '), phone = g('MobileNumber');
       if (!emp) return rej('UserId is required'); if (!mail) return rej('EmailId is required'); if (!name) return rej('UserName is required'); if (!phone) return rej('MobileNumber is required');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return rej('EmailId “' + g('EmailId') + '” is not a valid email');
+      // v41.32: same field rules as Create account
+      const angled = UM_COLS.find(([h]) => /[<>]/.test(g(h))); if (angled) return rej(angled[0] + ' contains < or >, which are not allowed');
+      if (!USER_RULES.emp.test(emp)) return rej('UserId “' + emp + '” can use letters, numbers, - _ / (2–30 characters, starting with a letter or number)');
+      if (mail.length > 254 || !USER_RULES.email.test(mail)) return rej('EmailId “' + g('EmailId') + '” is not a valid email');
+      if (name.length < 2 || name.length > 80 || !USER_RULES.name.test(name) || !/\p{L}.*\p{L}/u.test(name)) return rej('UserName “' + name + '” can use letters, spaces, apostrophes, dots and hyphens (2–80 characters)');
+      if (!USER_RULES.phone.test(phone)) return rej('MobileNumber can use digits, +, spaces, brackets and dashes only');
       if (phone.replace(/\D/g, '').length < 7 || phone.replace(/\D/g, '').length > 15) return rej('MobileNumber must have 7 to 15 digits');
+      { const dg = g('Designation'); if (dg && (dg.length > 60 || !USER_RULES.desig.test(dg) || !/\p{L}/u.test(dg))) return rej('Designation must contain letters (letters, numbers, spaces and . , & ( ) / - only; 60 characters max)'); }
+      { const long = UM_COLS.find(([h, f]) => !['empId', 'email', 'name', 'phone', 'designation'].includes(f) && g(h).length > UM_MAX); if (long) return rej(long[0] + ' is too long (' + UM_MAX + ' characters max)'); }
       if (seen.has(emp.toLowerCase())) return rej('UserId repeated in this file (row ' + seen.get(emp.toLowerCase()) + ')'); seen.set(emp.toLowerCase(), n);
       const ui = byEmp.get(emp.toLowerCase()), mi = byMail.get(mail);
       if (mi !== undefined && mi !== ui) return rej('EmailId already belongs to ' + users[mi].name + ' (' + users[mi].empId + ')');
@@ -52,6 +62,7 @@ SkillforgeApp.prototype.amUserImport = function (c) {
         rec[f] = v; }
       if (rec.gender && !['male', 'female', 'other', 'prefer not to say'].includes(rec.gender.toLowerCase())) return rej('Gender must be Male, Female, Other or Prefer not to say');
       if (rec.gender) rec.gender = rec.gender.charAt(0).toUpperCase() + rec.gender.slice(1).toLowerCase();
+      if (rec.joined && rec.joined > Progress.plus(TODAY_KEY, 180)) return rej('DateOfJoining ' + rec.joined + ' is more than 6 months ahead');   // v41.32: same as the single form
       let roleRec = null;
       if (rec.roleName) { roleRec = roleBy.get(rec.roleName.toLowerCase()); if (!roleRec) return rej('UserRole “' + rec.roleName + '” does not exist. Create it under Roles & permissions or leave it blank'); }
       if (rec.role) { const t = ['Learner', 'Trainer', 'Admin'].find(x => x.toLowerCase() === rec.role.toLowerCase()); if (!t) return rej('UserType must be Learner, Trainer or Admin'); rec.role = t; }

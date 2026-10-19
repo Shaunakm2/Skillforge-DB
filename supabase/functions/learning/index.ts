@@ -23,6 +23,12 @@
 //          v41.27: who-is-calling checks (session alive, member, expiry, permissions) are ONE database call, sf_learning_ctx (migration 011);
 //          without it the function falls back to four separate reads.
 //          SIGNED_URL_TTL_SECONDS (v41.26, default 3600, 300 to 14400: lifetime of file links; keep it equal to SIGNED_URL_TTL_SECONDS in js/config.js).
+// v41.32: request hygiene (backend audit rows 18, 91, 95, 96).
+//          - Only POST (and the OPTIONS preflight): anything else is 405.
+//          - Form posts are refused (415); the body is at most 1 MB (413) and must be a JSON object (400). A malformed body
+//            used to be read as an empty request.
+//          - org and action are checked before any database call. A change-password error from Auth is logged with a
+//            reference id instead of being sent to the browser as-is. Passwords are limited to 72 characters.
 // Deploy: supabase functions deploy learning
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import "../_shared/assessment.js";
@@ -39,6 +45,10 @@ const SEAT_STRICT = (Deno.env.get("SEAT_TIME_STRICT") || "true").toLowerCase() !
 // v41.31: optional, time-limited compatibility for pages older than v41.26 (they cannot send heartbeats). ISO date, e.g. 2026-11-30. Empty = never (the default).
 const SEAT_LEGACY_UNTIL = Date.parse(Deno.env.get("SEAT_LEGACY_UNTIL") || "") || 0;
 const SIGN_TTL = Math.max(300, Math.min(14400, Number(Deno.env.get("SIGNED_URL_TTL_SECONDS") || 3600)));
+// v41.32: request limits
+const MAX_BODY = 1024 * 1024;
+const ORG = /^[A-Za-z0-9_-]{1,64}$/;
+const ACTION = /^[A-Za-z]{1,40}$/;
 
 // The gateway verified the signature (verify_jwt); read the claims without another network call.
 // SECURITY ASSUMPTION: decodes without verifying the signature; safe only while supabase/config.toml keeps
@@ -48,6 +58,21 @@ function claims(req: Request): any | null {
   const p = t.split(".")[1]; if (!p) return null;
   try { const c = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(p.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((p.length + 3) % 4)), (ch) => ch.charCodeAt(0))));
     return c && c.sub && c.role === "authenticated" && (!c.exp || c.exp > Date.now() / 1000) ? c : null; } catch { return null; }
+}
+/* v41.32: read the body safely. Returns the object, or a Response to send back. */
+async function readBody(req: Request): Promise<any> {
+  // JSON is expected. Form posts (the kind another web page could send) are refused outright.
+  const ct = (req.headers.get("Content-Type") || "").toLowerCase();
+  if (ct && !ct.startsWith("application/json") && !ct.startsWith("text/plain")) return json({ error: "Send the request as JSON (Content-Type: application/json)" }, 415);
+  if (Number(req.headers.get("Content-Length") || 0) > MAX_BODY) return json({ error: "The request is too large" }, 413);
+  let text = "";
+  try { text = await req.text(); } catch { return json({ error: "The request body could not be read" }, 400); }
+  if (text.length > MAX_BODY) return json({ error: "The request is too large" }, 413);
+  if (!text.trim()) return json({ error: "The request body is empty" }, 400);
+  let body: any;
+  try { body = JSON.parse(text); } catch { return json({ error: "The request body is not valid JSON" }, 400); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "The request body must be a JSON object" }, 400);
+  return body;
 }
 function dbFor(admin: any, org: string) {
   return {
@@ -102,16 +127,21 @@ async function loadCtx(admin: any, c: any, org: string, db: any) {
   const perms: string[] = Object.entries((roleDoc?.data?.perms) || {}).filter(([, v]) => v === true).map(([k]) => k);
   return { mem, exp: String((ur && ur.data && ur.data.expires) || ""), perms, userKey: mem.user_key || (ur ? ur.key : null) };
 }
-const strongEnough = (pw: string) => pw.length >= 10 && /[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw);
+const strongEnough = (pw: string) => pw.length >= 10 && pw.length <= 72 && /[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  // v41.32: only POST
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...cors, "Content-Type": "application/json", "Allow": "POST, OPTIONS" } });
   if (ORIGIN && req.headers.get("Origin") && req.headers.get("Origin") !== ORIGIN) return json({ error: "Origin not allowed" }, 403);
   try {
     const c = claims(req); if (!c) return json({ error: "Not signed in" }, 401);
+    // v41.32: a malformed body is a 400 (it used to be read as an empty request); org and action are checked first
+    const body = await readBody(req); if (body instanceof Response) return body;
+    if (typeof body.action !== "string" || !ACTION.test(body.action)) return json({ error: "Unknown action" }, 400);
+    const org = String(body.org ?? "");
+    if (body.action !== "changePassword" && !ORG.test(org)) return json({ error: "Missing or invalid organisation" }, 400);
     const admin = createClient(URL_, SERVICE, { auth: { persistSession: false } });
-    const body = await req.json().catch(() => ({}));
-    const org = String(body.org || "");
     const db = dbFor(admin, org);
     // v34: the token's session must still exist (deactivation / reset deletes it), and a database error means "no".
     // v41.27: that check, the member, the expiry date and the permissions come back from ONE database call (loadCtx).
@@ -119,15 +149,18 @@ Deno.serve(async (req) => {
     if (cx.deny) return json({ error: "Your session has ended. Sign in again." }, 401);
     const mustChange = !!(c.app_metadata || {}).must_change;
     if (body.action === "changePassword") {
-      const pw = String(body.password || "");
-      if (!strongEnough(pw)) return json({ error: "Use at least 10 characters with upper- and lower-case letters and a number." }, 400);
+      const pw = typeof body.password === "string" ? body.password : "";
+      if (!strongEnough(pw)) return json({ error: "Use 10 to 72 characters with upper- and lower-case letters and a number." }, 400);
       // v41.19: the organisation's default first password (DEFAULT_PASSWORD, default Pass@123) can't be kept as the new one
       { const d = (Deno.env.get("DEFAULT_PASSWORD") || "Pass@123").trim();
-        const { data: pf } = await admin.from("sf_doc").select("data").eq("org_id", String(body.org || "")).eq("coll", "platform").eq("key", "value").maybeSingle();
-        const o = String((((pf || {}).data || {}).defaults || {}).password || "").trim();   // v41.21: App settings › Default password too
+        let o = "";   // v41.21: App settings › Default password too
+        if (ORG.test(org)) { const { data: pf } = await admin.from("sf_doc").select("data").eq("org_id", org).eq("coll", "platform").eq("key", "value").maybeSingle();
+          o = String((((pf || {}).data || {}).defaults || {}).password || "").trim(); }
         if ((d && pw === d) || (o && pw === o)) return json({ error: "Choose a password different from the default first password." }, 400); }
       const { error } = await admin.auth.admin.updateUserById(c.sub, { password: pw, app_metadata: { ...(c.app_metadata || {}), must_change: false } });
-      if (error) return json({ error: error.message }, 400);
+      if (error) {   // v41.32: Auth's own text is logged, not sent
+        const requestId = crypto.randomUUID(); console.error("changePassword failed", requestId, error.message);
+        return json({ error: "The password could not be changed. Try a different password, or quote this reference to support.", requestId }, 400); }
       // v34: a new password ends every OTHER session of this person (this one carries on)
       if (c.session_id) { const r = await admin.rpc("sf_revoke_sessions", { p_user: c.sub, p_keep: String(c.session_id) }); if (r.error) console.error("revoke other sessions failed", r.error.message); }
       return json({ ok: true });
@@ -152,7 +185,8 @@ Deno.serve(async (req) => {
     const userKey = cx.userKey || mem.user_key || null;   // v41.27: resolved together with the other checks
     // ---- signed file links: content staff see all files; others only files of courses assigned to them ----
     if (body.action === "sign") {
-      const paths = (Array.isArray(body.paths) ? body.paths : []).map(String).filter((p: string) => p.startsWith(org + "/") && !p.includes("..")).slice(0, 200);
+      if (body.paths != null && !Array.isArray(body.paths)) return json({ error: "paths must be a list" }, 400);   // v41.32
+      const paths = (Array.isArray(body.paths) ? body.paths : []).slice(0, 200).map(String).filter((p: string) => p.length <= 512 && p.startsWith(org + "/") && !p.includes(".."));
       let allowed = paths;
       if (!["lcms", "lcmsForms", "courseAdmin", "builder", "certs", "qbank"].some(can)) {
         const en = (await db.get("enroll", mem.emp_id))?.data || {};
@@ -192,7 +226,7 @@ Deno.serve(async (req) => {
     return json(out ?? { ok: true });
   } catch (e) {
     const err = e as any;
-    const status = Number(err.status) || 500;
+    const status = Number(err && err.status) || 500;
     if (status >= 500) {
       const requestId = crypto.randomUUID();
       console.error("learning request failed", requestId, err);
