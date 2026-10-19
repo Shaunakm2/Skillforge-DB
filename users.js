@@ -8,24 +8,32 @@ const USER_RULES = {
   phone: /^[0-9+ ()-]+$/,
   desig: /^[\p{L}0-9][\p{L}0-9 .,&()/'\u2019-]*$/u,
 };
-function userFieldProblems(ud, users, typedOnly) {
-  const out = [], n = Identity.plain(ud.name || '').trim(), em = String(ud.email || '').trim().toLowerCase(), emp = String(ud.empId || '').trim(),
+/* v41.33: one message per field (field -> message); a field that is fine is absent. */
+function userFieldErrors(ud, users, typedOnly) {
+  const er = {}, n = Identity.plain(ud.name || '').trim(), em = String(ud.email || '').trim().toLowerCase(), emp = String(ud.empId || '').trim(),
     ph = String(ud.phone || '').trim(), dg = String(ud.designation || '').trim();
-  const angled = [['Full name', n], ['Work email', em], ['Employee ID', emp], ['Phone number', ph], ['Designation', dg]].find(([, v]) => /[<>]/.test(v));
-  if (angled) out.push(angled[0] + ': the characters < and > are not allowed');
-  if (!n) { if (!typedOnly) out.push('Full name: add a full name'); }
-  else if (n.length < 2 || n.length > 80 || !USER_RULES.name.test(n) || !/\p{L}.*\p{L}/u.test(n)) out.push('Full name: letters, spaces, apostrophes, dots and hyphens only (2\u201380 characters)');
-  if (!em) { if (!typedOnly) out.push('Work email: add a work email'); }
-  else if (em.length > 254 || !USER_RULES.email.test(em)) out.push('Work email: enter a valid email, like name@company.com');
-  else if ((users || []).some(u => u.id !== ud.id && String(u.email || '').toLowerCase() === em)) out.push('Work email: another account already uses this email');
-  if (!emp) { if (!typedOnly) out.push('Employee ID: add an employee ID'); }
-  else if (!USER_RULES.emp.test(emp)) out.push('Employee ID: letters, numbers, - _ / only (2\u201330 characters, starting with a letter or number)');
-  else if ((users || []).some(u => u.id !== ud.id && String(u.empId || '').toLowerCase() === emp.toLowerCase())) out.push('Employee ID: ' + emp + ' is already in use');
-  if (ph && (!USER_RULES.phone.test(ph) || ph.replace(/\D/g, '').length < 7 || ph.replace(/\D/g, '').length > 15)) out.push('Phone number: 7 to 15 digits (+, spaces, brackets and dashes allowed)');
-  if (dg && (dg.length > 60 || !USER_RULES.desig.test(dg) || !/\p{L}/u.test(dg))) out.push('Designation: must contain letters (letters, numbers, spaces and . , & ( ) / - only; 60 characters max)');
-  if (ud.joined && !/^\d{4}-\d{2}-\d{2}$/.test(ud.joined)) out.push('Date of joining: not a valid date');
-  else if (ud.joined && ud.joined > Progress.plus(TODAY_KEY, 180)) out.push('Date of joining: can\u2019t be more than 6 months ahead');
-  return out;
+  const lt = v => /[<>]/.test(v) ? 'the characters < and > are not allowed' : '';
+  if (!n) { if (!typedOnly) er.name = 'add a full name'; }
+  else if (lt(n)) er.name = lt(n);
+  else if (n.length < 2 || n.length > 80 || !USER_RULES.name.test(n) || !/\p{L}.*\p{L}/u.test(n)) er.name = 'letters, spaces, apostrophes, dots and hyphens only (2\u201380 characters)';
+  if (!em) { if (!typedOnly) er.email = 'add a work email'; }
+  else if (lt(em)) er.email = lt(em);
+  else if (em.length > 254 || !USER_RULES.email.test(em)) er.email = 'enter a valid email, like name@company.com';
+  else if ((users || []).some(u => u.id !== ud.id && String(u.email || '').toLowerCase() === em)) er.email = 'another account already uses this email';
+  if (!emp) { if (!typedOnly) er.empId = 'add an employee ID'; }
+  else if (lt(emp)) er.empId = lt(emp);
+  else if (!USER_RULES.emp.test(emp)) er.empId = 'letters, numbers, - _ / only (2\u201330 characters, starting with a letter or number)';
+  else if ((users || []).some(u => u.id !== ud.id && String(u.empId || '').toLowerCase() === emp.toLowerCase())) er.empId = emp + ' is already in use';
+  if (ph && (lt(ph) || !USER_RULES.phone.test(ph) || ph.replace(/\D/g, '').length < 7 || ph.replace(/\D/g, '').length > 15)) er.phone = '7 to 15 digits (+, spaces, brackets and dashes allowed)';
+  if (dg && (lt(dg) || dg.length > 60 || !USER_RULES.desig.test(dg) || !/\p{L}/u.test(dg))) er.designation = 'must contain letters (letters, numbers, spaces and . , & ( ) / - only; 60 characters max)';
+  if (ud.joined && !/^\d{4}-\d{2}-\d{2}$/.test(ud.joined)) er.joined = 'not a valid date';
+  else if (ud.joined && ud.joined > Progress.plus(TODAY_KEY, 180)) er.joined = 'can\u2019t be more than 6 months ahead';
+  return er;
+}
+const USER_FIELD_LABELS = { name: 'Full name', email: 'Work email', empId: 'Employee ID', phone: 'Phone number', designation: 'Designation', joined: 'Date of joining' };
+function userFieldProblems(ud, users, typedOnly) {
+  const er = userFieldErrors(ud, users, typedOnly);
+  return Object.keys(USER_FIELD_LABELS).filter(k => er[k]).map(k => USER_FIELD_LABELS[k] + ': ' + er[k]);
 }
 SkillforgeApp.prototype.amUsers = function (c) {
   const { chipsOf, isSuper, role, s, segs } = c;
@@ -121,6 +129,10 @@ SkillforgeApp.prototype.amUsers = function (c) {
     // v41.32: problems shown under the form. While typing, only fields already filled are checked; after Create account is
     // pressed once (udTried), empty required fields are listed too.
     udProblems: s.userModal ? userFieldProblems(ud, s.users, !s.udTried) : [], udHasProblems: !!(s.userModal && userFieldProblems(ud, s.users, !s.udTried).length),
+    // v41.33: per field, the moment it is wrong: red border (udBd.x), aria-invalid (udBad.x) and the reason under the box (udMsg.x)
+    ...(() => { const er = s.userModal ? userFieldErrors(ud, s.users, !s.udTried) : {}, ks = Object.keys(USER_FIELD_LABELS);
+      return { udBd: Object.fromEntries(ks.map(k => [k, er[k] ? '#D64545' : '#C9D7E2'])), udBg: Object.fromEntries(ks.map(k => [k, er[k] ? '#FFF5F5' : '#FFFFFF'])),
+        udBad: Object.fromEntries(ks.map(k => [k, er[k] ? 'true' : 'false'])), udMsg: Object.fromEntries(ks.map(k => [k, er[k] || ''])) }; })(),
     udTitle: ud.id ? 'Edit account' : 'Create account',
     udBtn: ud.id ? 'Save changes' : 'Create account',   // v36: no invite e-mail is sent
     deptOptions: (l => ud.dept && !l.includes(ud.dept) ? [ud.dept, ...l] : l)(deptList(s)),
@@ -136,7 +148,7 @@ SkillforgeApp.prototype.amUsers = function (c) {
       // v41.32: every problem is listed at once, with the same rules as the bulk upload and the admin-users function.
       // The same list shows under the form while it is open (udProblems).
       const bad = userFieldProblems(ud, s.users);
-      if (bad.length) { this.setState({ udTried: true }); return this.toastMsg(bad.length === 1 ? bad[0] : 'Please fix ' + bad.length + ' fields (listed above the buttons)'); }
+      if (bad.length) { this.setState({ udTried: true }); return this.toastMsg(bad.length === 1 ? bad[0] : 'Please fix the ' + bad.length + ' fields marked in red'); }
       const prevU = s.users.find(x => x.id === ud.id);
       // The employee ID links the login and every learning record: it can't change once the account is connected.
       if (Backend.on && prevU && prevU.empId && prevU.empId.toLowerCase() !== emp.toLowerCase()) return this.toastMsg('The employee ID links this person’s login and history, so it can’t be changed. Create a new account instead.');

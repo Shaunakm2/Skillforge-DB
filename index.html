@@ -3808,16 +3808,16 @@
     <div class="ovl-28" on-click="{{ stop }}">
       <div class="ui-41"><h2 class="ovl-3">{{ udTitle }}</h2><button class="ovl-4" on-click="{{ closeUserModal }}">✕</button></div>
       <div class="ovl-23">
-        <label class="ui-61"><span class="ui-8">Full name</span><input maxlength="80" class="ovl-29" value="{{ ud.name }}" on-input="{{ setUdName }}" autocomplete="off"></label>
-        <label class="ui-61"><span class="ui-8">Work email</span><input maxlength="254" class="ovl-29" type="email" inputmode="email" autocapitalize="off" spellcheck="false" value="{{ ud.email }}" on-input="{{ setUdEmail }}" placeholder="name@company.com"></label>
+        <label class="ui-61"><span class="ui-8">Full name</span><input maxlength="80" class="ovl-29" aria-invalid="{{ udBad.name }}" style="border:1.5px solid {{ udBd.name }};background:{{ udBg.name }}" value="{{ ud.name }}" on-input="{{ setUdName }}" autocomplete="off"><sf-if value="{{ udMsg.name }}"><span class="ui-6" style="color:#B42318">{{ udMsg.name }}</span></sf-if></label>
+        <label class="ui-61"><span class="ui-8">Work email</span><input maxlength="254" class="ovl-29" aria-invalid="{{ udBad.email }}" style="border:1.5px solid {{ udBd.email }};background:{{ udBg.email }}" type="email" inputmode="email" autocapitalize="off" spellcheck="false" value="{{ ud.email }}" on-input="{{ setUdEmail }}" placeholder="name@company.com"><sf-if value="{{ udMsg.email }}"><span class="ui-6" style="color:#B42318">{{ udMsg.email }}</span></sf-if></label>
       </div>
       <div class="ovl-23">
-        <label class="ui-61"><span class="ui-8">Employee ID</span><input maxlength="30" class="ovl-29" autocapitalize="characters" spellcheck="false" value="{{ ud.empId }}" on-input="{{ setUdEmp }}" placeholder="e.g. EMP-1015"></label>
-        <label class="ui-61"><span class="ui-8">Phone number</span><input maxlength="20" class="ovl-29" type="tel" inputmode="tel" value="{{ ud.phone }}" on-input="{{ setUdPhone }}" placeholder="+91 98765 43210"></label>
+        <label class="ui-61"><span class="ui-8">Employee ID</span><input maxlength="30" class="ovl-29" aria-invalid="{{ udBad.empId }}" style="border:1.5px solid {{ udBd.empId }};background:{{ udBg.empId }}" autocapitalize="characters" spellcheck="false" value="{{ ud.empId }}" on-input="{{ setUdEmp }}" placeholder="e.g. EMP-1015"><sf-if value="{{ udMsg.empId }}"><span class="ui-6" style="color:#B42318">{{ udMsg.empId }}</span></sf-if></label>
+        <label class="ui-61"><span class="ui-8">Phone number</span><input maxlength="20" class="ovl-29" aria-invalid="{{ udBad.phone }}" style="border:1.5px solid {{ udBd.phone }};background:{{ udBg.phone }}" type="tel" inputmode="tel" value="{{ ud.phone }}" on-input="{{ setUdPhone }}" placeholder="+91 98765 43210"><sf-if value="{{ udMsg.phone }}"><span class="ui-6" style="color:#B42318">{{ udMsg.phone }}</span></sf-if></label>
       </div>
       <div class="ovl-23">
-        <label class="ui-61"><span class="ui-8">Designation</span><input maxlength="60" class="ovl-29" value="{{ ud.designation }}" on-input="{{ setUdDesig }}" placeholder="e.g. CS Specialist"></label>
-        <label class="ui-61"><span class="ui-8">Date of joining</span><input class="ovl-29" type="date" value="{{ ud.joined }}" on-input="{{ setUdJoined }}"></label>
+        <label class="ui-61"><span class="ui-8">Designation</span><input maxlength="60" class="ovl-29" aria-invalid="{{ udBad.designation }}" style="border:1.5px solid {{ udBd.designation }};background:{{ udBg.designation }}" value="{{ ud.designation }}" on-input="{{ setUdDesig }}" placeholder="e.g. CS Specialist"><sf-if value="{{ udMsg.designation }}"><span class="ui-6" style="color:#B42318">{{ udMsg.designation }}</span></sf-if></label>
+        <label class="ui-61"><span class="ui-8">Date of joining</span><input class="ovl-29" aria-invalid="{{ udBad.joined }}" style="border:1.5px solid {{ udBd.joined }};background:{{ udBg.joined }}" type="date" value="{{ ud.joined }}" on-input="{{ setUdJoined }}"><sf-if value="{{ udMsg.joined }}"><span class="ui-6" style="color:#B42318">{{ udMsg.joined }}</span></sf-if></label>
       </div>
       <div class="ui-61"><span class="ui-8">Gender</span><div class="ui-87"><sf-for list="{{ udGenders }}" as="o"><button class="ovl-30" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div></div>
       <div class="ui-61"><span class="ui-8">Terms accepted</span><div class="ui-87"><sf-for list="{{ udTerms }}" as="o"><button class="ovl-30" on-click="{{ o.pick }}" style="border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sf-for></div></div>
@@ -3826,7 +3826,6 @@
         <label class="ui-61"><span class="ui-8">Department</span><sf-select class="ovl-31" value="{{ ud.dept }}" on-change="{{ setUdDept }}"><sf-for list="{{ deptOptions }}" as="o"><option value="{{ o }}">{{ o }}</option></sf-for></sf-select></label>
         <label class="ui-61"><span class="ui-8">Manager</span><sf-select class="ovl-31" value="{{ ud.manager }}" on-change="{{ setUdManager }}"><sf-for list="{{ managerOptions }}" as="o"><option value="{{ o }}">{{ o }}</option></sf-for></sf-select></label>
       </div>
-      <sf-if value="{{ udHasProblems }}"><div class="sf-login-err" role="alert" aria-live="polite"><div class="ui-95">Please fix these before saving:</div><sf-for list="{{ udProblems }}" as="p"><div>• {{ p }}</div></sf-for></div></sf-if>
       <div class="ovl-26">
         <button class="ui-60" on-click="{{ closeUserModal }}">Cancel</button>
         <button class="ovl-32" on-click="{{ saveUser }}">{{ udBtn }}</button>
